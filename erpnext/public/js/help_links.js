@@ -10,7 +10,6 @@ frappe.help.help_links["Form/Rename Tool"] = [
 ];
 
 //Setup
-
 frappe.help.help_links["List/User"] = [
 	{
 		label: "New User",

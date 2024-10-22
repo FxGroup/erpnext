@@ -338,7 +338,7 @@ def make_batch_bundle(
 	from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
 @frappe.whitelist()
-def get_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None, cur_batch_no=None, return_error=True, return_shortdated = False):
+def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None, cur_batch_no=None, return_error=True, return_shortdated = False):
 	"""
 	Get batch number using First Expiring First Out method.
 	:param item_code: `item_code` of Item Document

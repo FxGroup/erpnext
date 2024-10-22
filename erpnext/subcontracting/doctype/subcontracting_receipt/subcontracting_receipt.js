@@ -383,6 +383,7 @@ frappe.ui.form.on("Subcontracting Receipt Item", {
 	},
 
 	add_serial_batch_bundle(frm, cdt, cdn) {
+		// Don't think we will ever use subcontracting, ignore.
 		let item = locals[cdt][cdn];
 
 		frappe.db.get_value("Item", item.item_code, ["has_batch_no", "has_serial_no"]).then((r) => {
@@ -391,7 +392,7 @@ frappe.ui.form.on("Subcontracting Receipt Item", {
 				item.has_batch_no = r.message.has_batch_no;
 				item.type_of_transaction = item.qty > 0 ? "Inward" : "Outward";
 				item.is_rejected = false;
-
+				console.log(["[subcontracting.js] Calling SerialBatchPackageSelector"])
 				new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
 					if (r) {
 						let qty = Math.abs(r.total_qty);

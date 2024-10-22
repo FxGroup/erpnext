@@ -232,9 +232,14 @@ class StockLedgerEntry(Document):
 		if item_detail.is_stock_item != 1:
 			self.throw_error_message("Item {0} must be a stock Item").format(self.item_code)
 
-		if item_detail.has_serial_no and item_detail.has_batch_no:
-			if not self.serial_and_batch_bundle:
-				self.throw_error_message(f"Serial No / Batch No are mandatory for Item {self.item_code}")
+		if item_detail.has_serial_no or item_detail.has_batch_no:
+			# Trying to submit https://d.erpnext-v15.fxmed.co.nz/app/purchase-receipt/MAT-PRE-2024-00376 got to the throw
+			if not self.serial_and_batch_bundle and not item_detail.has_batch_no:
+				#frappe.msgprint("Should have Failed Stock bundle check")
+				self.throw_error_message(f"Batch No is mandatory for Item {self.item_code}")
+			if not self.serial_and_batch_bundle and not item_details.has_serial_no:
+				# Adding this here for better error logging.
+				self.throw_error_message(f"Serial No is mandatory for Item {self.item_code}")
 
 		if self.serial_and_batch_bundle and not (item_detail.has_serial_no or item_detail.has_batch_no):
 			self.throw_error_message(f"Serial No and Batch No are not allowed for Item {self.item_code}")

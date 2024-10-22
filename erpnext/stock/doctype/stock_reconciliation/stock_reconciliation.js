@@ -321,7 +321,9 @@ frappe.ui.form.on("Stock Reconciliation Item", {
 	},
 
 	add_serial_batch_bundle(frm, cdt, cdn) {
-		erpnext.utils.pick_serial_and_batch_bundle(frm, cdt, cdn, "Inward");
+		frappe.throw("Disabled by us.")
+		// Can be Ignored.
+		// erpnext.utils.pick_serial_and_batch_bundle(frm, cdt, cdn, "Inward");
 	},
 });
 
