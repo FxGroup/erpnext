@@ -622,10 +622,10 @@ def validate_due_date(
 					)
 				)
 			else:
-				frappe.throw(
-					_("Due / Reference Date cannot be after {0}").format(formatdate(default_due_date))
-				)
-
+				# frappe.throw(
+				# 	_("Due / Reference Date cannot be after {0}").format(formatdate(default_due_date))
+				# )
+				pass
 
 @frappe.whitelist()
 def get_address_tax_category(tax_category=None, billing_address=None, shipping_address=None):
