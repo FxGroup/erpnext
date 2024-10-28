@@ -1520,7 +1520,62 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 			frappe.throw(__("Please select a Warehouse"));
 		}
 
-		if (me.frm.doc.doctype === "POS Invoice" && !this.showing_reserved_serial_nos_error) {
+		if (this.item?.is_rejected && this.item.rejected_warehouse === this.item.warehouse) {
+			frappe.throw(__("Rejected Warehouse and Accepted Warehouse cannot be same."));
+		}
+
+		frappe
+			.call({
+				method: "erpnext.stock.doctype.serial_and_batch_bundle.serial_and_batch_bundle.add_serial_batch_ledgers",
+				args: {
+					entries: entries,
+					child_row: this.item,
+					doc: this.frm.doc,
+					warehouse: warehouse,
+				},
+			})
+			.then((r) => {
+				frappe.run_serially([
+					() => {
+						this.callback && this.callback(r.message);
+					},
+					() => this.frm.save(),
+					() => this.dialog.hide(),
+				]);
+			});
+	}
+
+	edit_full_form() {
+		let bundle_id = this.item.serial_and_batch_bundle;
+		if (!bundle_id) {
+			let _new = frappe.model.get_new_doc("Serial and Batch Bundle", null, null, true);
+
+			_new.item_code = this.item.item_code;
+			_new.warehouse = this.get_warehouse();
+			_new.has_serial_no = this.item.has_serial_no;
+			_new.has_batch_no = this.item.has_batch_no;
+			_new.type_of_transaction = this.item.type_of_transaction;
+			_new.company = this.frm.doc.company;
+			_new.voucher_type = this.frm.doc.doctype;
+			bundle_id = _new.name;
+		}
+
+		frappe.set_route("Form", "Serial and Batch Bundle", bundle_id);
+		this.dialog.hide();
+	}
+
+	get_warehouse() {
+		if (this.item?.is_rejected) {
+			return this.item.rejected_warehouse;
+		}
+
+		return this.item?.type_of_transaction === "Outward"
+			? this.item.warehouse || this.item.s_warehouse
+			: this.item.warehouse || this.item.t_warehouse;
+	}
+
+	render_data() {
+		if (this.bundle || this.frm.doc.is_return) {
 			frappe
 				.call({
 					method: "erpnext.stock.doctype.serial_no.serial_no.get_pos_reserved_serial_nos",
