@@ -329,10 +329,13 @@ class PartyLedgerSummaryReport:
 
 		if self.filters.party_type == "Supplier":
 			if self.filters.get("supplier_group"):
-				conditions.append(
-					"""party in (select name from tabSupplier
-					where supplier_group=%(supplier_group)s)"""
-				)
+				if self.filters.get('supplier_group') == "All Supplier Groups":
+					conditions.append("party in (select name from tabSupplier)")
+				else:
+					conditions.append(
+						"""party in (select name from tabSupplier
+						where supplier_group=%(supplier_group)s)"""
+					)
 
 		return " and ".join(conditions)
 

@@ -3,8 +3,13 @@ from frappe import _
 
 def get_data():
 	return {
+		"heatmap": True,
+		"heatmap_message": _(
+			"This is based on transactions against this Supplier. See timeline below for details"
+		),
 		"fieldname": "supplier",
-		"non_standard_fieldnames": {"Payment Entry": "party", "Bank Account": "party"},
+		"non_standard_fieldnames": {"Payment Entry": "party", "Bank Account": "party", "Journal Entry": "party"},
+		"dynamic_links": {"party": ["Supplier", "party_type"]},
 		"transactions": [
 			{'label': _('CRM'),'items': ["Memos"]},
 			{"label": _("Procurement"), "items": ["Request for Quotation", "Supplier Quotation"]},

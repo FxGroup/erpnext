@@ -19,12 +19,10 @@ frappe.query_reports["Profitability Analysis"] = {
 			default: "Cost Center",
 			reqd: 1,
 			on_change: function (query_report) {
-				let based_on = query_report.get_values().based_on;
-				if (based_on != "Accounting Dimension") {
-					frappe.query_report.set_filter_value({
-						accounting_dimension: "",
-					});
-				},
+                const based_on = query_report.get_values().based_on;
+                if (based_on !== "Accounting Dimension") {
+                    frappe.query_report.set_filter_value("accounting_dimension", "");
+                }
 			},
 		},
 		{
@@ -32,6 +30,7 @@ frappe.query_reports["Profitability Analysis"] = {
 			label: __("Accounting Dimension"),
 			fieldtype: "Link",
 			options: "Accounting Dimension",
+            depends_on: "eval:doc.based_on == 'Accounting Dimension'",
 		},
 		{
 			fieldname: "fiscal_year",
@@ -41,12 +40,11 @@ frappe.query_reports["Profitability Analysis"] = {
 			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
 			reqd: 1,
 			on_change: function (query_report) {
-				var fiscal_year = query_report.get_values().fiscal_year;
-				if (!fiscal_year) {
-					return;
-				}
-				frappe.model.with_doc("Fiscal Year", fiscal_year, function (r) {
-					var fy = frappe.model.get_doc("Fiscal Year", fiscal_year);
+                const fiscal_year = query_report.get_values().fiscal_year;
+                if (!fiscal_year) return;
+
+                frappe.model.with_doc("Fiscal Year", fiscal_year, function () {
+                    const fy = frappe.model.get_doc("Fiscal Year", fiscal_year);
 					frappe.query_report.set_filter_value({
 						from_date: fy.year_start_date,
 						to_date: fy.year_end_date,
@@ -72,6 +70,7 @@ frappe.query_reports["Profitability Analysis"] = {
 			fieldtype: "Check",
 		},
 	],
+
 	formatter: function (value, row, column, data, default_formatter) {
 		if (column.fieldname == "account") {
 			value = data.account_name;

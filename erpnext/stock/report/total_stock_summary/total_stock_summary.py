@@ -20,8 +20,8 @@ def get_columns(filters):
 	columns = [
 		_("Item") + ":Link/Item:150",
 		_("Description") + "::300",
-		_("Current Qty") + ":Float:100",
-		_("Brand") + ":Link/Brand:150",
+		_("Brand") + "Link/Brand:180",
+		_("Current Qty") + ":Float:100"
 	]
 
 	if filters.get("group_by") == "Warehouse":
@@ -54,7 +54,7 @@ def get_total_stock(filters):
 	else:
 		query = query.select(wh.company).groupby(wh.company)
 
-	query = query.select(item.item_code, item.description, Sum(bin.actual_qty).as_("actual_qty")).groupby(
+	query = query.select(item.item_code, item.description, item.brand, Sum(bin.actual_qty).as_("actual_qty")).groupby(
 		item.item_code
 	)
 

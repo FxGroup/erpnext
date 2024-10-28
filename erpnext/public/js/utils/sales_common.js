@@ -471,6 +471,86 @@ erpnext.sales_common = {
 				this.frm.set_value("discount_amount", 0);
 				this.frm.set_value("additional_discount_percentage", 0);
 			}
+
+			set_batch_number(cdt, cdn) {
+				const doc = frappe.get_doc(cdt, cdn);
+				if (doc && doc.has_batch_no && doc.warehouse) {
+					this._set_batch_number(doc);
+				}
+			}
+			
+			_set_batch_number(doc) {
+				if (doc.batch_no) {
+					return
+				}
+		
+				let me = this
+				let args = {'item_code': doc.item_code, 'item_name': doc.item_name, 'warehouse': cur_frm.doc.set_warehouse, 'qty': flt(doc.qty) * flt(doc.conversion_factor), "cur_batch_no": doc.batch_no, "accepts_backorders": cur_frm.doc.accepts_backorders, "actual_qty": doc.actual_qty};
+				if (doc.has_serial_no && doc.serial_no) {
+					args['serial_no'] = doc.serial_no
+				}
+				frappe.call({
+					method: 'erpnext.stock.doctype.batch.batch.get_single_batch_no',
+					args: args,
+					callback: function(r) {
+						if (r.shortdated) {
+							frappe.model.set_value(doc.doctype, doc.name, 'shortdated_batch', 1);
+							doc.shortdated_batch = 1
+						} else {
+							doc.shortdated_batch = 0
+							frappe.model.set_value(doc.doctype, doc.name, 'shortdated_batch', 0);
+						}
+						frappe.model.set_value(doc.doctype, doc.name, 'batch_no', r.message);
+						// debugger
+						if (r.content) {
+							me.batch_selection(doc, r.content, r.lock_dialog, r.dialog_type);
+						}
+					}
+				});
+			}
+			
+			batch_selection (doc, content, lock, dialog_type) {
+				let me = this
+				if (!me.__data) {
+					me.__data = {}
+				}
+				if (!me.__data['batch_data']) {
+					me.__data['batch_data'] = {}
+				} else {
+					if (me.__data['batch_data'][doc.name] && 
+					me.__data['batch_data'][doc.name]['item_code'] == doc.item_code &&
+					me.__data['batch_data'][doc.name]['qty'] == doc.qty &&
+					me.__data['batch_data'][doc.name]['shortdated_batch'] == doc.shortdated_batch) {
+						return
+					}
+				}
+		
+				let this_frm = doc
+		
+				let secondary_label = ""
+				switch (dialog_type) {
+					case "multi":
+						secondary_label = "Cancel"
+						break;
+					case "longdated":
+						secondary_label = "Keep as Longdated" 
+						break;
+					case "shortdated":
+						secondary_label = "Keep as Shortdated" 
+						break;
+				}
+		
+				if (!me.batch_dialog_items) {
+					me.batch_dialog_items = {}
+				} else {
+					if (me.batch_dialog_items[doc.item_code]) {
+						return
+					}
+				}
+				
+				me.batch_dialog_items[doc.item_code] = true
+						erpnext.show_serial_batch_selector(me.frm, this_frm, "", undefined, true);
+			}
 		};
 	},
 };

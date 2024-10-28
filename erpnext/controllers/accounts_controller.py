@@ -393,12 +393,15 @@ class AccountsController(TransactionBase):
 	def validate_return_against_account(self):
 		if self.doctype in ["Sales Invoice", "Purchase Invoice"] and self.is_return and self.return_against:
 			cr_dr_account_field = "debit_to" if self.doctype == "Sales Invoice" else "credit_to"
-			cr_dr_account_label = "Debit To" if self.doctype == "Sales Invoice" else "Credit To"
-			cr_dr_account = self.get(cr_dr_account_field)
-			if frappe.get_value(self.doctype, self.return_against, cr_dr_account_field) != cr_dr_account:
+			original_account = frappe.get_value(self.doctype, self.return_against, cr_dr_account_field)
+			if original_account != self.get(cr_dr_account_field):
 				frappe.throw(
-					_("'{0}' account: '{1}' should match the Return Against Invoice").format(
-						frappe.bold(cr_dr_account_label), frappe.bold(cr_dr_account)
+					_(
+						"Please set {0} to {1}, the same account that was used in the original invoice {2}."
+					).format(
+						frappe.bold(_(self.meta.get_label(cr_dr_account_field), context=self.doctype)),
+						frappe.bold(original_account),
+						frappe.bold(self.return_against),
 					)
 				)
 
@@ -1100,7 +1103,7 @@ class AccountsController(TransactionBase):
 		if account_currency == self.get("currency"):
 			return gl_dict.get(field + "_in_account_currency")
 		else:
-			return flt(gl_dict.get(field, 0) / self.get("conversion_rate", 1))
+			return flt(gl_dict.get(field, 0) / flt(self.get("conversion_rate", 1)))
 
 	def validate_zero_qty_for_return_invoices_with_stock(self):
 		rows = []
@@ -3601,6 +3604,9 @@ def merge_taxes(source_taxes, target_doc):
 			existing_taxes.append(tax)
 
 	target_doc.set("taxes", existing_taxes)
+
+	parent.validate_uom_is_integer("uom", "qty")
+	parent.validate_uom_is_integer("stock_uom", "stock_qty")
 
 	# Cancel and Recreate Stock Reservation Entries.
 	if parent_doctype == "Sales Order":
