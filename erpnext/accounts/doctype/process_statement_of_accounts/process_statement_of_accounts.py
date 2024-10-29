@@ -248,7 +248,8 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 			'range3': 90,
 			'range4': 120,
 			'party_type': "Customer",
-			'party': [entry.customer]
+			'party': [entry.customer],
+			'in_party_currency': 1
 		})
 		outstanding = get_outstanding(outstanding_filters)[1]
 

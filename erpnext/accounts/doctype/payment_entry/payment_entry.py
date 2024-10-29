@@ -103,6 +103,9 @@ class PaymentEntry(AccountsController):
 	def before_save(self):
 		self.set_matched_unset_payment_requests_to_response()
 
+	def before_save(self):
+		self.set_matched_unset_payment_requests_to_response()
+
 	def on_submit(self):
 		if self.difference_amount:
 			frappe.throw(_("Difference Amount must be zero"))
