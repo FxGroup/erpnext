@@ -253,6 +253,14 @@ def get_columns(filters):
 				"width": 100,
 				"convertible": "qty",
 			},
+			{"label": _("Voucher Type"), "fieldname": "voucher_type", "width": 110},
+			{
+				"label": _("Voucher #"),
+				"fieldname": "voucher_no",
+				"fieldtype": "Dynamic Link",
+				"options": "voucher_type",
+				"width": 100,
+			},
 			{
 				"label": _("Warehouse"),
 				"fieldname": "warehouse",
@@ -316,14 +324,6 @@ def get_columns(filters):
 				"fieldtype": "Currency",
 				"width": 110,
 				"options": "Company:company:default_currency",
-			},
-			{"label": _("Voucher Type"), "fieldname": "voucher_type", "width": 110},
-			{
-				"label": _("Voucher #"),
-				"fieldname": "voucher_no",
-				"fieldtype": "Dynamic Link",
-				"options": "voucher_type",
-				"width": 100,
 			},
 			{
 				"label": _("Batch"),

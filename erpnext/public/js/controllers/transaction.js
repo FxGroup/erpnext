@@ -1298,7 +1298,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	batch_no (doc, cdt, cdn) {
 		let item = frappe.get_doc(cdt, cdn);
 		// if (!this.is_a_mapped_document(item)) {
-		if(!item.is_free_item) {
+		if(!item.is_free_item && !cur_frm.doc.purchase_order_pricing) {
 			this.apply_price_list(item, true);
 		}
 	}
@@ -1538,7 +1538,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 											if (d.has_batch_no && d.has_serial_no) {
 												d.batch_no = undefined;
 											}
-	
 											erpnext.show_serial_batch_selector(me.frm, d, (item) => {
 												me.frm.script_manager.trigger('qty', item.doctype, item.name);
 												if (!me.frm.doc.set_warehouse)
@@ -2310,7 +2309,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		refresh_field('items');
 		refresh_field('backorder_items');
 	}
-
 	remove_missing_products (args) {
 		const items = this.frm.doc.items.filter(d => (d.is_free_item)) || [];
 		const normal_items = this.frm.doc.items.filter(d => (!d.is_free_item)) || [];
@@ -2372,6 +2370,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 		if (!reset_plc_conversion) {
 			this.frm.set_value("plc_conversion_rate", "");
+			return
 		}
 
 		let me = this;
@@ -3121,20 +3120,36 @@ erpnext.show_serial_batch_selector = function (frm, item_row, callback, on_close
 		item_row.type_of_transaction = frm.doc.is_return ? "Outward" : "Inward";
 	}
 
-	new erpnext.SerialBatchPackageSelector(frm, item_row, (r) => {
-		if (r) {
-			let update_values = {
-				"serial_and_batch_bundle": r.name,
-				"qty": Math.abs(r.total_qty)
-			}
-
-			if (r.warehouse) {
-				update_values[warehouse_field] = r.warehouse;
-			}
-
-			frappe.model.set_value(item_row.doctype, item_row.name, update_values);
-		}
+	//From V14
+	console.log("[Transaction.js] Updated from v15 version to v14.")
+	frappe.require("assets/erpnext/js/utils/serial_no_batch_selector.js", function() {
+		new erpnext.SerialNoBatchSelector({
+			frm: frm,
+			item: item_row,
+			warehouse_details: {
+				type: "Warehouse",
+				name: warehouse
+			},
+			callback: callback,
+			on_close: on_close
+		}, show_dialog);
 	});
+
+	//V15 below
+	// new erpnext.SerialBatchPackageSelector(frm, item_row, (r) => {
+	// 	if (r) {
+	// 		let update_values = {
+	// 			"serial_and_batch_bundle": r.name,
+	// 			"qty": Math.abs(r.total_qty)
+	// 		}
+
+	// 		if (r.warehouse) {
+	// 			update_values[warehouse_field] = r.warehouse;
+	// 		}
+
+	// 		frappe.model.set_value(item_row.doctype, item_row.name, update_values);
+	// 	}
+	// });
 }
 
 erpnext.apply_putaway_rule = (frm, purpose=null) => {

@@ -352,7 +352,7 @@ frappe.ui.form.on("Pick List Item", {
 				if (item.has_serial_no && item.has_batch_no) {
 					item.title = __("Select Serial and Batch");
 				}
-
+				console.log(["[pick_list.js] Calling SerialBatchPackageSelector"])
 				new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
 					if (r) {
 						let qty = Math.abs(r.total_qty);

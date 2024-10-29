@@ -33,7 +33,7 @@ erpnext.financial_statements = {
 
 			return value;
 		} else if (frappe.query_report.get_filter_value("selected_view") == "Margin" && data) {
-			if (column.fieldname == "account" && data.account_name == __("Income")) {
+			if (column.fieldname == "stub" && data.account_name == __("Income")) {
 				//Taking the total income from each column (for all the financial years) as the base (100%)
 				this.baseData = row;
 			}
@@ -51,8 +51,10 @@ erpnext.financial_statements = {
 				return value;
 			}
 		}
-		if (data && column.fieldname == "account") {
-			value = data.account_name || value;
+
+		if (data && column.fieldname == "stub") {
+			// first column
+			value = data.section_name || data.account_name || value;
 
 			if (filter && filter?.text && filter?.type == "contains") {
 				if (!value.toLowerCase().includes(filter.text)) {
@@ -60,7 +62,7 @@ erpnext.financial_statements = {
 				}
 			}
 
-			if (data.account) {
+			if (data.account || data.accounts) {
 				column.link_onclick =
 					"erpnext.financial_statements.open_general_ledger(" + JSON.stringify(data) + ")";
 			}
@@ -69,7 +71,7 @@ erpnext.financial_statements = {
 
 		value = default_formatter(value, row, column, data);
 
-		if (data && !data.parent_account) {
+		if (data && !data.parent_account && !data.parent_section) {
 			value = $(`<span>${value}</span>`);
 
 			var $value = $(value).css("font-weight", "bold");
@@ -83,13 +85,13 @@ erpnext.financial_statements = {
 		return value;
 	},
 	open_general_ledger: function (data) {
-		if (!data.account) return;
+		if (!data.account && !data.accounts) return;
 		let project = $.grep(frappe.query_report.filters, function (e) {
 			return e.df.fieldname == "project";
 		});
 
 		frappe.route_options = {
-			account: data.account,
+			account: data.account || data.accounts,
 			company: frappe.query_report.get_filter_value("company"),
 			from_date: data.from_date || data.year_start_date,
 			to_date: data.to_date || data.year_end_date,
@@ -269,11 +271,10 @@ function get_filters() {
 	let fy_filters = filters.filter((x) => {
 		return ["from_fiscal_year", "to_fiscal_year"].includes(x.fieldname);
 	});
-	let fiscal_year = erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), false, true);
+	let fiscal_year = erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), false, false);
 	if (fiscal_year) {
-		let fy = erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), false, false);
 		fy_filters.forEach((x) => {
-			x.default = fy;
+			x.default = fiscal_year;
 		});
 	}
 

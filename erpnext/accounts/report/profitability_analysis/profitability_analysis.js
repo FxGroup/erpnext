@@ -2,76 +2,76 @@
 // For license information, please see license.txt
 
 frappe.query_reports["Profitability Analysis"] = {
-	filters: [
-		{
-			fieldname: "company",
-			label: __("Company"),
-			fieldtype: "Link",
-			options: "Company",
-			default: frappe.defaults.get_user_default("Company"),
-			reqd: 1,
-		},
-		{
-			fieldname: "based_on",
-			label: __("Based On"),
-			fieldtype: "Select",
-			options: ["Cost Center", "Project", "Accounting Dimension"],
-			default: "Cost Center",
-			reqd: 1,
-			on_change: function (query_report) {
+    filters: [
+        {
+            fieldname: "company",
+            label: __("Company"),
+            fieldtype: "Link",
+            options: "Company",
+            default: frappe.defaults.get_user_default("Company"),
+            reqd: 1,
+        },
+        {
+            fieldname: "based_on",
+            label: __("Based On"),
+            fieldtype: "Select",
+            options: ["Cost Center", "Project", "Accounting Dimension"],
+            default: "Cost Center",
+            reqd: 1,
+            on_change: function (query_report) {
                 const based_on = query_report.get_values().based_on;
                 if (based_on !== "Accounting Dimension") {
                     frappe.query_report.set_filter_value("accounting_dimension", "");
                 }
-			},
-		},
-		{
-			fieldname: "accounting_dimension",
-			label: __("Accounting Dimension"),
-			fieldtype: "Link",
-			options: "Accounting Dimension",
+            },
+        },
+        {
+            fieldname: "accounting_dimension",
+            label: __("Accounting Dimension"),
+            fieldtype: "Link",
+            options: "Accounting Dimension",
             depends_on: "eval:doc.based_on == 'Accounting Dimension'",
-		},
-		{
-			fieldname: "fiscal_year",
-			label: __("Fiscal Year"),
-			fieldtype: "Link",
-			options: "Fiscal Year",
-			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
-			reqd: 1,
-			on_change: function (query_report) {
+        },
+        {
+            fieldname: "fiscal_year",
+            label: __("Fiscal Year"),
+            fieldtype: "Link",
+            options: "Fiscal Year",
+            default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today()),
+            reqd: 1,
+            on_change: function (query_report) {
                 const fiscal_year = query_report.get_values().fiscal_year;
                 if (!fiscal_year) return;
 
                 frappe.model.with_doc("Fiscal Year", fiscal_year, function () {
                     const fy = frappe.model.get_doc("Fiscal Year", fiscal_year);
-					frappe.query_report.set_filter_value({
-						from_date: fy.year_start_date,
-						to_date: fy.year_end_date,
-					});
-				});
-			},
-		},
-		{
-			fieldname: "from_date",
-			label: __("From Date"),
-			fieldtype: "Date",
-			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[1],
-		},
-		{
-			fieldname: "to_date",
-			label: __("To Date"),
-			fieldtype: "Date",
-			default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[2],
-		},
-		{
-			fieldname: "show_zero_values",
-			label: __("Show zero values"),
-			fieldtype: "Check",
-		},
-	],
+                    frappe.query_report.set_filter_value({
+                        from_date: fy.year_start_date,
+                        to_date: fy.year_end_date,
+                    });
+                });
+            },
+        },
+        {
+            fieldname: "from_date",
+            label: __("From Date"),
+            fieldtype: "Date",
+            default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[1],
+        },
+        {
+            fieldname: "to_date",
+            label: __("To Date"),
+            fieldtype: "Date",
+            default: erpnext.utils.get_fiscal_year(frappe.datetime.get_today(), true)[2],
+        },
+        {
+            fieldname: "show_zero_values",
+            label: __("Show zero values"),
+            fieldtype: "Check",
+        },
+    ],
 
-	formatter: function (value, row, column, data, default_formatter) {
+    formatter: function (value, row, column, data, default_formatter) {
 		if (column.fieldname == "account") {
 			value = data.account_name;
 

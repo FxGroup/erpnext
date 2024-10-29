@@ -392,6 +392,7 @@ $.extend(erpnext.utils, {
 	},
 
 	pick_serial_and_batch_bundle(frm, cdt, cdn, type_of_transaction, warehouse_field) {
+		// Can't find any caller references for this class so should be fine??
 		let item_row = frappe.get_doc(cdt, cdn);
 		item_row.type_of_transaction = type_of_transaction;
 

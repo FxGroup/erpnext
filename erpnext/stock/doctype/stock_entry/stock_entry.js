@@ -1347,7 +1347,7 @@ erpnext.stock.select_batch_and_serial_no = (frm, item) => {
 			item.has_serial_no = r.message.has_serial_no;
 			item.has_batch_no = r.message.has_batch_no;
 			item.type_of_transaction = item.s_warehouse ? "Outward" : "Inward";
-
+			console.log(["[stock_entry.js] Calling SerialBatchPackageSelector"])
 			new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
 				if (r) {
 					frappe.model.set_value(item.doctype, item.name, {

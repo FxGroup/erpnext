@@ -394,11 +394,12 @@ erpnext.PointOfSale.ItemDetails = class {
 	}
 
 	bind_auto_serial_fetch_event() {
+		// Don't think we will ever use POS, should probably fine to ignore.
 		this.$form_container.on("click", ".auto-fetch-btn", () => {
 			let frm = this.events.get_frm();
 			let item_row = this.item_row;
 			item_row.type_of_transaction = "Outward";
-
+			console.log(["[pos_item_details.js] Calling SerialBatchPackageSelector"])
 			new erpnext.SerialBatchPackageSelector(frm, item_row, (r) => {
 				if (r) {
 					frappe.model.set_value(item_row.doctype, item_row.name, {

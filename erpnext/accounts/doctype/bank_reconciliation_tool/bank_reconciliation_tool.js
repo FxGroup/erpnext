@@ -18,13 +18,13 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 		set_field_options("no_bank_transactions", no_bank_transactions_text);
 	},
 
-	onload: function (frm) {
-		// Set default filter dates
-		let today = frappe.datetime.get_today();
-		// frm.doc.bank_statement_from_date = frappe.datetime.add_months(today, -1);
-		frm.doc.bank_statement_to_date = today;
-		// frm.trigger("bank_account");
-	},
+	// onload: function (frm) {
+	// 	// Set default filter dates
+	// 	let today = frappe.datetime.get_today();
+	// 	frm.doc.bank_statement_from_date = frappe.datetime.add_months(today, -1);
+	// 	frm.doc.bank_statement_to_date = today;
+	// 	frm.trigger("bank_account");
+	// },
 
 	filter_by_reference_date: function (frm) {
 		if (frm.doc.filter_by_reference_date) {

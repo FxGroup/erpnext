@@ -699,7 +699,8 @@ def close_or_unclose_purchase_orders(names, status):
 def set_missing_values(source, target):
 	target.run_method("set_missing_values")
 	target.run_method("calculate_taxes_and_totals")
-
+	if target.doctype == "Purchase Receipt":
+		target.purchase_order_pricing = 1
 
 @frappe.whitelist()
 def make_purchase_receipt(source_name, target_doc=None):
