@@ -3373,6 +3373,8 @@ def update_child_qty_rate(parent_doctype, trans_items, parent_doctype_name, chil
 
 			prev_rate, new_rate = flt(child_item.get("rate")), flt(d.get("rate"))
 			prev_qty, new_qty = flt(child_item.get("qty")), flt(d.get("qty"))
+			prev_fg_qty, new_fg_qty = flt(child_item.get("fg_item_qty")), flt(d.get("fg_item_qty"))
+
 			if prev_qty > new_qty and parent_doctype == "Purchase Order":
 				# Used for the eta note dialog for purchase invoices
 				eta_note, item_name = frappe.get_value("Item", child_item.get('item_code'), ["eta_note", "item_name"])
