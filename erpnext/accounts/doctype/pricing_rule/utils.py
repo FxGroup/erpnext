@@ -727,7 +727,8 @@ def get_product_discount_rule(pricing_rule, item_details, args=None, doc=None):
 
 	if not qty:
 		return
-
+		
+	free_item_doc = frappe.get_doc("Item", free_item)
 	free_item_data_args = {
 		"item_code": free_item,
 		"qty": qty,

@@ -451,6 +451,11 @@ class AccountsController(TransactionBase):
 					)
 
 	def validate_invoice_documents_schedule(self):
+		if self.is_return:
+			self.payment_terms_template = ""
+			self.payment_schedule = []
+			return
+
 		self.validate_payment_schedule_dates()
 		self.set_due_date()
 		self.set_payment_schedule()
@@ -465,7 +470,7 @@ class AccountsController(TransactionBase):
 		self.validate_payment_schedule_amount()
 
 	def validate_all_documents_schedule(self):
-		if self.doctype in ("Sales Invoice", "Purchase Invoice") and not self.is_return:
+		if self.doctype in ("Sales Invoice", "Purchase Invoice"):
 			self.validate_invoice_documents_schedule()
 		elif self.doctype in ("Quotation", "Purchase Order", "Sales Order"):
 			self.validate_non_invoice_documents_schedule()
@@ -3373,6 +3378,8 @@ def update_child_qty_rate(parent_doctype, trans_items, parent_doctype_name, chil
 
 			prev_rate, new_rate = flt(child_item.get("rate")), flt(d.get("rate"))
 			prev_qty, new_qty = flt(child_item.get("qty")), flt(d.get("qty"))
+			prev_fg_qty, new_fg_qty = flt(child_item.get("fg_item_qty")), flt(d.get("fg_item_qty"))
+
 			if prev_qty > new_qty and parent_doctype == "Purchase Order":
 				# Used for the eta note dialog for purchase invoices
 				eta_note, item_name = frappe.get_value("Item", child_item.get('item_code'), ["eta_note", "item_name"])
