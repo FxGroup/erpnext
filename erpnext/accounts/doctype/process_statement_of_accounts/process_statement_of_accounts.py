@@ -552,14 +552,15 @@ def fetch_customers(customer_collection, collection_name, primary_mandatory, cus
 			if primary_email == "":
 				continue
 
-		customer_list.append(
-			{
-				"name": customer.name,
-				"customer_name": customer.customer_name,
-				"primary_email": primary_email,
-				"billing_email": billing_email,
-			}
-		)
+		if primary_email or billing_email:
+			customer_list.append(
+				{
+					"name": customer.name,
+					"customer_name": customer.customer_name,
+					"primary_email": primary_email,
+					"billing_email": billing_email,
+				}
+			)
 	return customer_list
 
 
