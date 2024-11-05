@@ -512,6 +512,11 @@ def get_context(customer, doc):
 	del template_doc.customers
 	template_doc.from_date = format_date(template_doc.from_date)
 	template_doc.to_date = format_date(template_doc.to_date)
+	logger.info("Getting context for " + customer)
+	try:
+		customerDoc = frappe.get_doc("Customer", customer)
+	except Exception as e:
+		logger.error("ERROR Getting context for " + customer + ". Error: " + str(e))	
 	return {
 		"doc": template_doc,
 		"customer": frappe.get_doc("Customer", customer),
