@@ -104,6 +104,8 @@ frappe.query_reports["Consolidated Financial Statement"] = {
 			label: __("Finance Book"),
 			fieldtype: "Link",
 			options: "Finance Book",
+			default: (frappe.defaults.get_default("company") == "FxMed") ? "Default Finance Book" : "",
+			reqd: 0
 		},
 		{
 			fieldname: "report",
