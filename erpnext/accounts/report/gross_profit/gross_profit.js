@@ -46,6 +46,12 @@ frappe.query_reports["Gross Profit"] = {
 			options: "Item Group",
 		},
 		{
+			fieldname: "brand",
+			label: __("Brand"),
+			fieldtype: "Link",
+			options: "Brand",
+		},
+		{
 			fieldname: "sales_person",
 			label: __("Sales Person"),
 			fieldtype: "Link",
