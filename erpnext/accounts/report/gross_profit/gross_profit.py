@@ -639,6 +639,13 @@ class GrossProfitGenerator:
 			if new_row.base_amount
 			else 0
 		)
+		
+		new_row.buying_rate = (
+			flt(new_row.buying_amount / flt(new_row.qty), self.float_precision) if flt(new_row.qty) else 0
+		)
+		new_row.base_rate = (
+			flt(new_row.base_amount / flt(new_row.qty), self.float_precision) if flt(new_row.qty) else 0
+		)
 
 	def get_returned_invoice_items(self):
 		returned_invoices = frappe.db.sql(
@@ -788,22 +795,20 @@ class GrossProfitGenerator:
 			frappe.qb.from_(purchase_invoice_item)
 			.inner_join(purchase_invoice)
 			.on(purchase_invoice.name == purchase_invoice_item.parent)
-			.select(
-				purchase_invoice.name,
-				purchase_invoice_item.base_rate / purchase_invoice_item.conversion_factor,
-			)
+			.select(purchase_invoice_item.base_rate / purchase_invoice_item.conversion_factor)
 			.where(purchase_invoice.docstatus == 1)
 			.where(purchase_invoice.posting_date <= self.filters.to_date)
 			.where(purchase_invoice_item.item_code == item_code)
 		)
 
 		if row.project:
-			query = query.where(purchase_invoice_item.project == row.project)
+			query.where(purchase_invoice_item.project == row.project)
 
 		if row.cost_center:
-			query = query.where(purchase_invoice_item.cost_center == row.cost_center)
+			query.where(purchase_invoice_item.cost_center == row.cost_center)
 
-		query = query.orderby(purchase_invoice.posting_date, order=frappe.qb.desc).limit(1)
+		query.orderby(purchase_invoice.posting_date, order=frappe.qb.desc)
+		query.limit(1)
 		last_purchase_rate = query.run()
 
 		return flt(last_purchase_rate[0][0]) if last_purchase_rate else 0
@@ -818,6 +823,8 @@ class GrossProfitGenerator:
 			conditions += " and posting_date <= %(to_date)s"
 		if self.filters.cost_center:
 			conditions += " and `tabSales Invoice Item`.cost_center = %(cost_center)s"
+		if self.filters.brand:
+			conditions += " and `tabSales Invoice Item`.brand = %(brand)s"
 
 		conditions += " and (is_return = 0 or (is_return=1 and return_against is null))"
 

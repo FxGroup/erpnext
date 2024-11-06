@@ -296,7 +296,9 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 		numberOfCustomers = len(statement_dict.items())
 		for customer, statement_html in statement_dict.items():
 			i += 1
-			logger.info("PID[" + str(pid) + "] Generating PDF for Customer " + str(i) + " of " + str(numberOfCustomers))
+			#Keep DB Alive
+			customerDoc = frappe.get_doc("Customer", customer)
+			logger.info("PID[" + str(pid) + "] Generating PDF for Customer " + str(i) + " of " + str(numberOfCustomers) + ". Customer: " + customer)
 			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation})
 		return statement_dict
 
@@ -573,6 +575,11 @@ def get_context(customer, doc):
 	del template_doc.customers
 	template_doc.from_date = format_date(template_doc.from_date)
 	template_doc.to_date = format_date(template_doc.to_date)
+	logger.info("Getting context for " + customer)
+	try:
+		customerDoc = frappe.get_doc("Customer", customer)
+	except Exception as e:
+		logger.error("ERROR Getting context for " + customer + ". Error: " + str(e))	
 	return {
 		"doc": template_doc,
 		"customer": frappe.get_doc("Customer", customer),
@@ -613,14 +620,15 @@ def fetch_customers(customer_collection, collection_name, primary_mandatory, cus
 			if primary_email == "":
 				continue
 
-		customer_list.append(
-			{
-				"name": customer.name,
-				"customer_name": customer.customer_name,
-				"primary_email": primary_email,
-				"billing_email": billing_email,
-			}
-		)
+		if primary_email or billing_email:
+			customer_list.append(
+				{
+					"name": customer.name,
+					"customer_name": customer.customer_name,
+					"primary_email": primary_email,
+					"billing_email": billing_email,
+				}
+			)
 	return customer_list
 
 
