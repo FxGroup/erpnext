@@ -18,6 +18,15 @@ frappe.query_reports["Balance Sheet"]["filters"].push({
 });
 
 frappe.query_reports["Balance Sheet"]["filters"].push({
+    fieldname: "finance_book",
+    label: __("Finance Book"),
+    fieldtype: "Link",
+    options: "Finance Book",
+    default: (frappe.defaults.get_default("company") == "FxMed") ? "Default Finance Book" : "",
+    reqd: 0
+});
+
+frappe.query_reports["Balance Sheet"]["filters"].push({
 	fieldname: "accumulated_values",
 	label: __("Accumulated Values"),
 	fieldtype: "Check",
