@@ -12,6 +12,15 @@ erpnext.utils.add_dimensions("Cash Flow", 10);
 frappe.query_reports["Cash Flow"]["filters"].splice(8, 1);
 
 frappe.query_reports["Cash Flow"]["filters"].push({
+    fieldname: "finance_book",
+    label: __("Finance Book"),
+    fieldtype: "Link",
+    options: "Finance Book",
+    default: (frappe.defaults.get_default("company") == "FxMed") ? "Default Finance Book" : "",
+    reqd: 0
+});
+
+frappe.query_reports["Cash Flow"]["filters"].push({
 	fieldname: "include_default_book_entries",
 	label: __("Include Default FB Entries"),
 	fieldtype: "Check",
