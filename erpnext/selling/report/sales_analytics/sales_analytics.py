@@ -147,14 +147,19 @@ class Analytics:
 			entity = "supplier as entity"
 			entity_name = "supplier_name as entity_name"
 
+		filters={
+			"docstatus": 1,
+			"company": self.filters.company,
+			self.date_field: ("between", [self.filters.from_date, self.filters.to_date]),
+		}
+			
+		if self.filters.get('customer'):
+			filters['customer'] = self.filters.get('customer')
+
 		self.entries = frappe.get_all(
 			self.filters.doc_type,
 			fields=[entity, entity_name, value_field, self.date_field],
-			filters={
-				"docstatus": 1,
-				"company": self.filters.company,
-				self.date_field: ("between", [self.filters.from_date, self.filters.to_date]),
-			},
+			filters=filters
 		)
 
 		self.entity_names = {}

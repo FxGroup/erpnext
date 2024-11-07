@@ -73,6 +73,13 @@ frappe.query_reports["Sales Analytics"] = {
 			default: "Monthly",
 			reqd: 1,
 		},
+		{
+			fieldname: "customer",
+			label: __("Customer"),
+			fieldtype: "Link",
+			options: "Customer",
+			hidden: 1
+		}
 	],
 	get_datatable_options(options) {
 		return Object.assign(options, {
@@ -117,4 +124,14 @@ frappe.query_reports["Sales Analytics"] = {
 			},
 		});
 	},
+	onload: function(report) {
+		const treeTypeFilter = report.get_filter("tree_type");
+		const customerFilter = report.get_filter("customer");	
+		customerFilter.toggle(treeTypeFilter.get_value() === "Customer");
+	
+		treeTypeFilter.$input.on("change", function() {
+			const treeTypeValue = treeTypeFilter.get_value();
+			customerFilter.toggle(treeTypeValue === "Customer");
+		});
+	}
 };
