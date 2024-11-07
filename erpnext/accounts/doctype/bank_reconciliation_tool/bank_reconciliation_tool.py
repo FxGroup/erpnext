@@ -790,7 +790,7 @@ def get_pg_matching_query(
 			(amount_rank + 1).as_("rank"),
 			ConstantColumn("Payment Entry").as_("doctype"),
 			pg.name,
-			pg.paid_amount_after_tax.as_("paid_amount"),
+			pg.total.as_("paid_amount"),
 			pg.reference_no,
 			pg.reference_date,
 			pg.party,
@@ -800,7 +800,7 @@ def get_pg_matching_query(
 		)
 		.where(pg.docstatus == 1)
 		.where(pg.clearance_date.isnull())
-		.where(pg.account == common_filters.bank_account)
+		.where(pg.bank_account == common_filters.bank_account)
 		.where(amount_condition)
 		.where(filter_by_date)
 		.orderby(pg.date)
