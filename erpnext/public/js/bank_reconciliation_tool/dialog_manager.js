@@ -132,14 +132,14 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				name: __("Remaining"),
 				editable: false,
 				width: 100,
-				format: (value) => {
-					if (value){
-						return "<div style='text-align:left;'>" + "$ " + value.toFixed(2) + "</div>";
-					}	else {
-						return "<div style='text-align:left;'>" + "$ " + value + "</div>";
-					}
+				// format: (value) => {
+				// 	if (value){
+				// 		return "<div style='text-align:left;'>" + "$ " + value.toFixed(2) + "</div>";
+				// 	}	else {
+				// 		return "<div style='text-align:left;'>" + "$ " + value + "</div>";
+				// 	}
 					
-				}
+				// }
 			},
 			{
 				name: __("Reference Number"),
