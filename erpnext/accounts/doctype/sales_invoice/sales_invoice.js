@@ -157,11 +157,11 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 		}
 
 		// Show buttons only when pos view is active
-		if (cint(doc.docstatus == 0) && cur_frm.page.current_view_name !== "pos" && !doc.is_return) {
-			this.frm.cscript.sales_order_btn();
-			this.frm.cscript.delivery_note_btn();
-			this.frm.cscript.quotation_btn();
-		}
+		// if (cint(doc.docstatus == 0) && cur_frm.page.current_view_name !== "pos" && !doc.is_return) {
+		// 	this.frm.cscript.sales_order_btn();
+		// 	this.frm.cscript.delivery_note_btn();
+		// 	this.frm.cscript.quotation_btn();
+		// }
 
 		this.set_default_print_format();
 		if (doc.docstatus == 1 && !doc.inter_company_invoice_reference) {
@@ -233,89 +233,89 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 		}
 	}
 
-	sales_order_btn() {
-		var me = this;
-		this.$sales_order_btn = this.frm.add_custom_button(
-			__("Sales Order"),
-			function () {
-				erpnext.utils.map_current_doc({
-					method: "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
-					source_doctype: "Sales Order",
-					target: me.frm,
-					setters: {
-						customer: me.frm.doc.customer || undefined,
-					},
-					get_query_filters: {
-						docstatus: 1,
-						status: ["not in", ["Closed", "On Hold"]],
-						per_billed: ["<", 99.99],
-						company: me.frm.doc.company,
-					},
-				});
-			},
-			__("Get Items From")
-		);
-	}
+	// sales_order_btn() {
+	// 	var me = this;
+	// 	this.$sales_order_btn = this.frm.add_custom_button(
+	// 		__("Sales Order"),
+	// 		function () {
+	// 			erpnext.utils.map_current_doc({
+	// 				method: "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
+	// 				source_doctype: "Sales Order",
+	// 				target: me.frm,
+	// 				setters: {
+	// 					customer: me.frm.doc.customer || undefined,
+	// 				},
+	// 				get_query_filters: {
+	// 					docstatus: 1,
+	// 					status: ["not in", ["Closed", "On Hold"]],
+	// 					per_billed: ["<", 99.99],
+	// 					company: me.frm.doc.company,
+	// 				},
+	// 			});
+	// 		},
+	// 		__("Get Items From")
+	// 	);
+	// }
 
-	quotation_btn() {
-		var me = this;
-		this.$quotation_btn = this.frm.add_custom_button(
-			__("Quotation"),
-			function () {
-				erpnext.utils.map_current_doc({
-					method: "erpnext.selling.doctype.quotation.quotation.make_sales_invoice",
-					source_doctype: "Quotation",
-					target: me.frm,
-					setters: [
-						{
-							fieldtype: "Link",
-							label: __("Customer"),
-							options: "Customer",
-							fieldname: "party_name",
-							default: me.frm.doc.customer,
-						},
-					],
-					get_query_filters: {
-						docstatus: 1,
-						status: ["!=", "Lost"],
-						company: me.frm.doc.company,
-					},
-				});
-			},
-			__("Get Items From")
-		);
-	}
+	// quotation_btn() {
+	// 	var me = this;
+	// 	this.$quotation_btn = this.frm.add_custom_button(
+	// 		__("Quotation"),
+	// 		function () {
+	// 			erpnext.utils.map_current_doc({
+	// 				method: "erpnext.selling.doctype.quotation.quotation.make_sales_invoice",
+	// 				source_doctype: "Quotation",
+	// 				target: me.frm,
+	// 				setters: [
+	// 					{
+	// 						fieldtype: "Link",
+	// 						label: __("Customer"),
+	// 						options: "Customer",
+	// 						fieldname: "party_name",
+	// 						default: me.frm.doc.customer,
+	// 					},
+	// 				],
+	// 				get_query_filters: {
+	// 					docstatus: 1,
+	// 					status: ["!=", "Lost"],
+	// 					company: me.frm.doc.company,
+	// 				},
+	// 			});
+	// 		},
+	// 		__("Get Items From")
+	// 	);
+	// }
 
-	delivery_note_btn() {
-		var me = this;
-		this.$delivery_note_btn = this.frm.add_custom_button(
-			__("Delivery Note"),
-			function () {
-				erpnext.utils.map_current_doc({
-					method: "erpnext.stock.doctype.delivery_note.delivery_note.make_sales_invoice",
-					source_doctype: "Delivery Note",
-					target: me.frm,
-					date_field: "posting_date",
-					setters: {
-						customer: me.frm.doc.customer || undefined,
-					},
-					get_query: function () {
-						var filters = {
-							docstatus: 1,
-							company: me.frm.doc.company,
-							is_return: 0,
-						};
-						if (me.frm.doc.customer) filters["customer"] = me.frm.doc.customer;
-						return {
-							query: "erpnext.controllers.queries.get_delivery_notes_to_be_billed",
-							filters: filters,
-						};
-					},
-				});
-			},
-			__("Get Items From")
-		);
-	}
+	// delivery_note_btn() {
+	// 	var me = this;
+	// 	this.$delivery_note_btn = this.frm.add_custom_button(
+	// 		__("Delivery Note"),
+	// 		function () {
+	// 			erpnext.utils.map_current_doc({
+	// 				method: "erpnext.stock.doctype.delivery_note.delivery_note.make_sales_invoice",
+	// 				source_doctype: "Delivery Note",
+	// 				target: me.frm,
+	// 				date_field: "posting_date",
+	// 				setters: {
+	// 					customer: me.frm.doc.customer || undefined,
+	// 				},
+	// 				get_query: function () {
+	// 					var filters = {
+	// 						docstatus: 1,
+	// 						company: me.frm.doc.company,
+	// 						is_return: 0,
+	// 					};
+	// 					if (me.frm.doc.customer) filters["customer"] = me.frm.doc.customer;
+	// 					return {
+	// 						query: "erpnext.controllers.queries.get_delivery_notes_to_be_billed",
+	// 						filters: filters,
+	// 					};
+	// 				},
+	// 			});
+	// 		},
+	// 		__("Get Items From")
+	// 	);
+	// }
 
 	tc_name() {
 		this.get_terms();
