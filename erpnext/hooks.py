@@ -523,6 +523,7 @@ bank_reconciliation_doctypes = [
 	"Journal Entry",
 	"Purchase Invoice",
 	"Sales Invoice",
+	"Payment Group"
 ]
 
 accounting_dimension_doctypes = [
