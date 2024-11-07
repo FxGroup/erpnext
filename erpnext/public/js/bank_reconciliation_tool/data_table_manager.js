@@ -41,16 +41,16 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 				width: 100,
 				format: frappe.form.formatters.Date,
 			},
-			// {
-			// 	name: __("Party Type"),
-			// 	editable: false,
-			// 	width: 150,
-			// },
-			// {
-			// 	name: __("Party"),
-			// 	editable: false,
-			// 	width: 100,
-			// },
+			{
+				name: __("Party Type"),
+				editable: false,
+				width: 150,
+			},
+			{
+				name: __("Party"),
+				editable: false,
+				width: 100,
+			},
 			{
 				name: __("Description"),
 				editable: false,
@@ -82,7 +82,7 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 			{
 				name: __("Reference Number"),
 				editable: false,
-				width: 400,
+				width: 300,
 			},
 			{
 				name: __("Actions"),
