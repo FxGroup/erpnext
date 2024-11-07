@@ -49,6 +49,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					this.bank_transaction = r.message;
 					r.message.payment_entry = 1;
 					r.message.journal_entry = 1;
+					r.message.payment_group = 1;
 					this.dialog.set_values(r.message);
 					this.dialog.fields_dict.posting_date.value = r.message.date
 					this.dialog.fields_dict.reference_date.value = r.message.date
