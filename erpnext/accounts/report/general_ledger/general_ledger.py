@@ -354,8 +354,8 @@ def get_accounts_with_children(accounts):
 	return frappe.qb.from_(doctype).select(doctype.name).where(Criterion.any(conditions)).run(pluck=True)
 
 
-def set_bill_no(gl_entries):
-	inv_details = get_supplier_invoice_details()
+def set_bill_no(gl_entries, filters):
+	inv_details = get_supplier_invoice_details(filters)
 	for gl in gl_entries:
 		gl["bill_no"] = inv_details.get(gl.get("against_voucher"), "")
 
@@ -364,7 +364,7 @@ def get_data_with_opening_closing(filters, account_details, accounting_dimension
 	data = []
 	totals_dict = get_totals_dict()
 
-	set_bill_no(gl_entries)
+	set_bill_no(gl_entries, filters)
 
 	gle_map = initialize_gle_map(gl_entries, filters, totals_dict)
 
