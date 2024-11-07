@@ -775,7 +775,6 @@ def get_pg_matching_query(
 ):
 	# get matching payment entries query
 	to_from = "to" if transaction.deposit > 0.0 else "from"
-	currency_field = f"paid_{to_from}_account_currency"
 	pg = frappe.qb.DocType("Payment Group")
 
 	amount_equality = pg.total == transaction.unallocated_amount
@@ -796,7 +795,7 @@ def get_pg_matching_query(
 			ConstantColumn("").as_("party"),
 			ConstantColumn("").as_("party_type"),
 			pg.date.as_("posting_date"),
-			getattr(pg, currency_field).as_("currency"),
+			pg.currency
 		)
 		.where(pg.docstatus == 1)
 		.where(pg.clearance_date.isnull())
