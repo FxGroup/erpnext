@@ -8,6 +8,7 @@ def get_data():
 			"Journal Entry": "reference_name",
 			"Payment Entry": "reference_name",
 			"Auto Repeat": "reference_document",
+			"Payment Request": "reference_name",
 		},
 		"internal_links": {
 			"Material Request": ["items", "material_request"],
