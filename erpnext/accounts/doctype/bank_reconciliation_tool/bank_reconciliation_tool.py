@@ -776,6 +776,7 @@ def get_pg_matching_query(
 	# get matching payment entries query
 	to_from = "to" if transaction.deposit > 0.0 else "from"
 	pg = frappe.qb.DocType("Payment Group")
+	ba = frappe.qb.DocType("Bank Account")
 
 	amount_equality = pg.total == transaction.unallocated_amount
 	amount_rank = frappe.qb.terms.Case().when(amount_equality, 1).else_(0)
@@ -785,6 +786,8 @@ def get_pg_matching_query(
 
 	query = (
 		frappe.qb.from_(pg)
+		.join(ba)
+		.on(pg.bank_account == ba.name)
 		.select(
 			(amount_rank + 1).as_("rank"),
 			ConstantColumn("Payment Group").as_("doctype"),
@@ -799,7 +802,7 @@ def get_pg_matching_query(
 		)
 		.where(pg.docstatus == 1)
 		.where(pg.clearance_date.isnull())
-		.where(pg.bank_account == common_filters.bank_account)
+		.where(ba.account == common_filters.bank_account)
 		.where(amount_condition)
 		.where(filter_by_date)
 		.orderby(pg.date)
