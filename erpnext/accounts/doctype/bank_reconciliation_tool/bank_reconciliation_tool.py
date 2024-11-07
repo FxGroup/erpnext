@@ -791,11 +791,11 @@ def get_pg_matching_query(
 			ConstantColumn("Payment Entry").as_("doctype"),
 			pg.name,
 			pg.total.as_("paid_amount"),
-			pg.reference_no,
-			pg.reference_date,
-			pg.party,
-			pg.party_type,
-			pg.posting_date,
+			"".as_("reference_number"),
+			pg.date.as_("reference_date"),
+			"".as_("party"),
+			"".as_("party_type"),
+			pg.date.as_("posting_date"),
 			getattr(pg, currency_field).as_("currency"),
 		)
 		.where(pg.docstatus == 1)
