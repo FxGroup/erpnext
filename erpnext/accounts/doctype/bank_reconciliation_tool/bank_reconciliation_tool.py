@@ -540,7 +540,7 @@ def check_matching(
 
 	matching_vouchers = []
 	for query in queries:
-		matching_vouchers.extend(query.run(as_dict=True))
+		matching_vouchers.extend(query.run(as_dict=True, debug=1))
 
 	return sorted(matching_vouchers, key=lambda x: x["rank"], reverse=True) if matching_vouchers else []
 
