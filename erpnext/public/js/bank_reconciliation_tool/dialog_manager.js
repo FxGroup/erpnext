@@ -58,7 +58,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					}
 					this.copy_data_to_voucher();
 					this.dialog.show();
-					this.dialog.refresh();
+					// this.dialog.refresh();
 				}
 			},
 		});
