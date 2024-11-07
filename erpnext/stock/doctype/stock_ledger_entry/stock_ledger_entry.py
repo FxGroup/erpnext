@@ -237,9 +237,9 @@ class StockLedgerEntry(Document):
 			if not self.serial_and_batch_bundle and not item_detail.has_batch_no:
 				#frappe.msgprint("Should have Failed Stock bundle check")
 				self.throw_error_message(f"Batch No is mandatory for Item {self.item_code}")
-			if not self.serial_and_batch_bundle and not item_details.has_serial_no:
-				# Adding this here for better error logging.
-				self.throw_error_message(f"Serial No is mandatory for Item {self.item_code}")
+			# if not self.serial_and_batch_bundle and not item_detail.has_serial_no:
+			# 	# Adding this here for better error logging.
+			# 	self.throw_error_message(f"Serial No is mandatory for Item {self.item_code}")
 
 		if self.serial_and_batch_bundle and not (item_detail.has_serial_no or item_detail.has_batch_no):
 			self.throw_error_message(f"Serial No and Batch No are not allowed for Item {self.item_code}")

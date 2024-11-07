@@ -2224,7 +2224,7 @@ def get_outstanding_reference_documents(args, validate=False):
 				_(
 					"No outstanding {0} found for the {1} {2} which qualify the filters you have specified."
 				).format(
-					_(ref_document_type), _(args.get("party_type")).lower(), frappe.bold(args.get("party"))
+					_(ref_document_type), _(args.get("party_type")), frappe.bold(args.get("party"))
 				)
 			)
 
