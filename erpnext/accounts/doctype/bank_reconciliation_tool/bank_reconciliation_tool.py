@@ -788,13 +788,13 @@ def get_pg_matching_query(
 		frappe.qb.from_(pg)
 		.select(
 			(amount_rank + 1).as_("rank"),
-			ConstantColumn("Payment Entry").as_("doctype"),
+			ConstantColumn("Payment Group").as_("doctype"),
 			pg.name,
 			pg.total.as_("paid_amount"),
-			"" as "reference_number",
+			ConstantColumn("").as_("reference_number"),
 			pg.date.as_("reference_date"),
-			"" as "party",
-			"" as "party_type",
+			ConstantColumn("").as_("party"),
+			ConstantColumn("").as_("party_type"),
 			pg.date.as_("posting_date"),
 			getattr(pg, currency_field).as_("currency"),
 		)
