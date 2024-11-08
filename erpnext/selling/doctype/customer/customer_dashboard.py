@@ -3,7 +3,7 @@ from erpnext import get_default_company
 
 
 def get_data():
-	return {
+	dashboardData = {
 		"fieldname": "customer",
 		"non_standard_fieldnames": {
 			"Payment Entry": "party",
