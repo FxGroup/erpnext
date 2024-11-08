@@ -1171,10 +1171,7 @@ def get_last_purchase_details(item_code, doc_name=None, conversion_rate=1.0):
 		else:
 			return frappe._dict()
 
-	conversion_factor = flt(last_purchase.conversion_factor)
-
-	if not conversion_factor:
-		conversion_factor = 1
+	conversion_factor = flt(last_purchase.conversion_factor) or 1.0	
 		
 	out = frappe._dict(
 		{
