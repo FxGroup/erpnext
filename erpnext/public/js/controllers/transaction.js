@@ -1129,6 +1129,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	}
 
 	shipping_rule() {
+		return
 		var me = this;
 		if(this.frm.doc.shipping_rule) {
 			return this.frm.call({
