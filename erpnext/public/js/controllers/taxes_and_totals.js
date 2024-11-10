@@ -315,7 +315,7 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 
 		frappe.model.round_floats_in(this.frm.doc, ["total", "base_total", "net_total", "base_net_total"]);
 		if (frappe.meta.get_docfield(this.frm.doc.doctype, "shipping_rule", this.frm.doc.name)) {
-			if (this.frm.get_field('shipping_rule').label != this.frm.get_field('shipping_rule').value){
+			if (this.frm.get_field('shipping_rule').last_value != this.frm.get_field('shipping_rule').value){
 			return this.shipping_rule();
 			}
 		}
