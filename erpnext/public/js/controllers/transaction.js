@@ -1685,7 +1685,9 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			me.frm.doc.total_net_weight += flt(item.total_weight);
 		});
 		refresh_field("total_net_weight");
+		if (this.frm.get_field('shipping_rule').last_value != this.frm.get_field('shipping_rule').value){
 		this.shipping_rule();
+		}
 	}
 
 	set_dynamic_labels() {
