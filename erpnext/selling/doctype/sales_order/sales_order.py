@@ -584,7 +584,7 @@ class SalesOrder(SellingController):
 				item_delivered_qty = item_delivered_qty[0][0] if item_delivered_qty else 0
 				item.db_set("delivered_qty", flt(item_delivered_qty), update_modified=False)
 
-			delivered_qty += item.delivered_qty
+			delivered_qty += min(item.delivered_qty, item.qty)
 			tot_qty += item.qty
 
 		if tot_qty != 0:
@@ -1347,6 +1347,8 @@ def make_purchase_order_for_default_supplier(source_name, selected_items=None, t
 						"discount_percentage",
 						"discount_amount",
 						"pricing_rules",
+						"margin_type",
+						"margin_rate_or_amount",
 					],
 					"postprocess": update_item,
 					"condition": lambda doc: doc.ordered_qty < doc.stock_qty
