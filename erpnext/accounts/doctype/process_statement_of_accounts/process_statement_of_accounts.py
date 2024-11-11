@@ -261,7 +261,16 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 			
 			if voucher['posting_date'] < doc.from_date:
 				outstandingDocs.append(voucher)
+		base_template_path = "frappe/www/printview.html"
+		template_path = (
+			"erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.html"
+			if doc.report == "General Ledger"
+			else "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
+		)
+		if doc.letter_head:
+			from frappe.www.printview import get_letter_head
 
+			letter_head = get_letter_head(doc, 0)
 		html = frappe.render_template(
 			template_path,
 			{
