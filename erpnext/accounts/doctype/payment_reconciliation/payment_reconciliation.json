@@ -78,7 +78,7 @@
   },
   {
    "collapsible": 1,
-   "collapsible_depends_on": "eval: doc.invoices.length == 0",
+   "collapsible_depends_on": "",
    "depends_on": "eval:doc.receivable_payable_account",
    "fieldname": "col_break1",
    "fieldtype": "Section Break",
