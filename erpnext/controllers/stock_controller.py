@@ -742,8 +742,8 @@ class StockController(AccountsController):
 
 			for row in self.get(table_name):
 				update_values = {}
-				if row.get("batch_no"):
-					update_values["batch_no"] = None
+				# if row.get("batch_no"):
+				# 	update_values["batch_no"] = None
 
 				if row.serial_and_batch_bundle:
 					update_values["serial_and_batch_bundle"] = None
