@@ -213,10 +213,12 @@ erpnext.accounts.PaymentReconciliationController = class PaymentReconciliationCo
 
 	get_unreconciled_entries() {
 		this.frm.clear_table("allocation");
+		frappe.flags.get_unreconciled_entries_running = 1
 		return this.frm.call({
 			doc: this.frm.doc,
 			method: "get_unreconciled_entries",
 			callback: () => {
+				frappe.flags.get_unreconciled_entries_running = 0
 				if (!(this.frm.doc.payments.length || this.frm.doc.invoices.length)) {
 					frappe.throw({
 						message: __("No Unreconciled Invoices and Payments found for this party and account"),
