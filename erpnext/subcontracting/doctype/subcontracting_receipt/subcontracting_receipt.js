@@ -394,24 +394,24 @@ frappe.ui.form.on("Subcontracting Receipt Item", {
 				item.is_rejected = false;
 				console.log(["[subcontracting.js] Calling SerialBatchPackageSelector"])
 				new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
-					if (r) {
-						let qty = Math.abs(r.total_qty);
-						if (frm.doc.is_return) {
-							qty = qty * -1;
-						}
+					// if (r) {
+					// 	let qty = Math.abs(r.total_qty);
+					// 	if (frm.doc.is_return) {
+					// 		qty = qty * -1;
+					// 	}
 
-						let update_values = {
-							serial_and_batch_bundle: r.name,
-							use_serial_batch_fields: 0,
-							qty: qty / flt(item.conversion_factor || 1, precision("conversion_factor", item)),
-						};
+					// 	let update_values = {
+					// 		serial_and_batch_bundle: r.name,
+					// 		use_serial_batch_fields: 0,
+					// 		qty: qty / flt(item.conversion_factor || 1, precision("conversion_factor", item)),
+					// 	};
 
-						if (r.warehouse) {
-							update_values["warehouse"] = r.warehouse;
-						}
+					// 	if (r.warehouse) {
+					// 		update_values["warehouse"] = r.warehouse;
+					// 	}
 
-						frappe.model.set_value(item.doctype, item.name, update_values);
-					}
+					// 	frappe.model.set_value(item.doctype, item.name, update_values);
+					// }
 				});
 			}
 		});
@@ -426,27 +426,27 @@ frappe.ui.form.on("Subcontracting Receipt Item", {
 				item.has_batch_no = r.message.has_batch_no;
 				item.type_of_transaction = item.rejected_qty > 0 ? "Inward" : "Outward";
 				item.is_rejected = true;
-
+				console.log(["[subcontracting.js] Calling SerialBatchPackageSelector"])
 				new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
-					if (r) {
-						let qty = Math.abs(r.total_qty);
-						if (frm.doc.is_return) {
-							qty = qty * -1;
-						}
+					// if (r) {
+					// 	let qty = Math.abs(r.total_qty);
+					// 	if (frm.doc.is_return) {
+					// 		qty = qty * -1;
+					// 	}
 
-						let update_values = {
-							serial_and_batch_bundle: r.name,
-							use_serial_batch_fields: 0,
-							rejected_qty:
-								qty / flt(item.conversion_factor || 1, precision("conversion_factor", item)),
-						};
+					// 	let update_values = {
+					// 		serial_and_batch_bundle: r.name,
+					// 		use_serial_batch_fields: 0,
+					// 		rejected_qty:
+					// 			qty / flt(item.conversion_factor || 1, precision("conversion_factor", item)),
+					// 	};
 
-						if (r.warehouse) {
-							update_values["rejected_warehouse"] = r.warehouse;
-						}
+					// 	if (r.warehouse) {
+					// 		update_values["rejected_warehouse"] = r.warehouse;
+					// 	}
 
-						frappe.model.set_value(item.doctype, item.name, update_values);
-					}
+					// 	frappe.model.set_value(item.doctype, item.name, update_values);
+					// }
 				});
 			}
 		});
@@ -470,23 +470,23 @@ frappe.ui.form.on("Subcontracting Receipt Supplied Item", {
 				item.has_batch_no = r.message.has_batch_no;
 				item.type_of_transaction = item.qty > 0 ? "Outward" : "Inward";
 				item.is_rejected = false;
-
+				console.log(["[subcontracting.js] Calling SerialBatchPackageSelector"])
 				new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
-					if (r) {
-						let qty = Math.abs(r.total_qty);
-						if (frm.doc.is_return) {
-							qty = qty * -1;
-						}
+					// if (r) {
+					// 	let qty = Math.abs(r.total_qty);
+					// 	if (frm.doc.is_return) {
+					// 		qty = qty * -1;
+					// 	}
 
-						let update_values = {
-							serial_and_batch_bundle: r.name,
-							use_serial_batch_fields: 0,
-							consumed_qty:
-								qty / flt(item.conversion_factor || 1, precision("conversion_factor", item)),
-						};
+					// 	let update_values = {
+					// 		serial_and_batch_bundle: r.name,
+					// 		use_serial_batch_fields: 0,
+					// 		consumed_qty:
+					// 			qty / flt(item.conversion_factor || 1, precision("conversion_factor", item)),
+					// 	};
 
-						frappe.model.set_value(item.doctype, item.name, update_values);
-					}
+					// 	frappe.model.set_value(item.doctype, item.name, update_values);
+					// }
 				});
 			}
 		});

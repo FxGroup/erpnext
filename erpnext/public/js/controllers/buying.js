@@ -358,24 +358,24 @@ erpnext.buying = {
 
 							new erpnext.SerialBatchPackageSelector(
 								me.frm, item, (r) => {
-									if (r) {
-										let qty = Math.abs(r.total_qty);
-										if (doc.is_return) {
-											qty = qty * -1;
-										}
+									// if (r) {
+									// 	let qty = Math.abs(r.total_qty);
+									// 	if (doc.is_return) {
+									// 		qty = qty * -1;
+									// 	}
 
-										let update_values = {
-											"serial_and_batch_bundle": r.name,
-											"use_serial_batch_fields": 0,
-											"qty": qty / flt(item.conversion_factor || 1, precision("conversion_factor", item))
-										}
+									// 	let update_values = {
+									// 		"serial_and_batch_bundle": r.name,
+									// 		"use_serial_batch_fields": 0,
+									// 		"qty": qty / flt(item.conversion_factor || 1, precision("conversion_factor", item))
+									// 	}
 
-										if (r.warehouse) {
-											update_values["warehouse"] = r.warehouse;
-										}
+									// 	if (r.warehouse) {
+									// 		update_values["warehouse"] = r.warehouse;
+									// 	}
 
-										frappe.model.set_value(item.doctype, item.name, update_values);
-									}
+									// 	frappe.model.set_value(item.doctype, item.name, update_values);
+									// }
 								}
 							);
 						}
@@ -400,24 +400,24 @@ erpnext.buying = {
 
 							new erpnext.SerialBatchPackageSelector(
 								me.frm, item, (r) => {
-									if (r) {
-										let qty = Math.abs(r.total_qty);
-										if (doc.is_return) {
-											qty = qty * -1;
-										}
+									// if (r) {
+									// 	let qty = Math.abs(r.total_qty);
+									// 	if (doc.is_return) {
+									// 		qty = qty * -1;
+									// 	}
 
-										let update_values = {
-											"rejected_serial_and_batch_bundle": r.name,
-											"use_serial_batch_fields": 0,
-											"rejected_qty": qty / flt(item.conversion_factor || 1, precision("conversion_factor", item))
-										}
+									// 	let update_values = {
+									// 		"rejected_serial_and_batch_bundle": r.name,
+									// 		"use_serial_batch_fields": 0,
+									// 		"rejected_qty": qty / flt(item.conversion_factor || 1, precision("conversion_factor", item))
+									// 	}
 
-										if (r.warehouse) {
-											update_values["rejected_warehouse"] = r.warehouse;
-										}
+									// 	if (r.warehouse) {
+									// 		update_values["rejected_warehouse"] = r.warehouse;
+									// 	}
 
-										frappe.model.set_value(item.doctype, item.name, update_values);
-									}
+									// 	frappe.model.set_value(item.doctype, item.name, update_values);
+									// }
 								}
 							);
 						}

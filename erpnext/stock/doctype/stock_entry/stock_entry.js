@@ -840,7 +840,21 @@ frappe.ui.form.on("Stock Entry Detail", {
 	},
 
 	qty(frm, cdt, cdn) {
+		frappe.flags.dialog_set = false
+		var d = locals[cdt][cdn];
 		frm.events.set_basic_rate(frm, cdt, cdn);
+		if (d.qty > 0 && d.item_code){
+			frm.script_manager.trigger("item_code", cdt, cdn);
+		}
+	},
+
+	qty_after_batch_select(frm, cdt, cdn){
+		frappe.flags.dialog_set = true
+		var d = locals[cdt][cdn];
+		frm.events.set_basic_rate(frm, cdt, cdn);
+		if (d.qty > 0 && d.item_code){
+			frm.script_manager.trigger("item_code", cdt, cdn);
+		}
 	},
 
 	conversion_factor(frm, cdt, cdn) {
@@ -887,7 +901,7 @@ frappe.ui.form.on("Stock Entry Detail", {
 
 	item_code(frm, cdt, cdn) {
 		var d = locals[cdt][cdn];
-		if (d.item_code) {
+		if (d.item_code && d.qty) {
 			var args = {
 				item_code: d.item_code,
 				warehouse: cstr(d.s_warehouse) || cstr(d.t_warehouse),
@@ -916,29 +930,27 @@ frappe.ui.form.on("Stock Entry Detail", {
 								frappe.model.set_value(cdt, cdn, k, v); // qty and it's subsequent fields weren't triggered
 							}
 						});
+						console.log('')
 						refresh_field("items");
 
 						let no_batch_serial_number_value = false;
 						if (d.has_serial_no || d.has_batch_no) {
 							no_batch_serial_number_value = true;
 						}
-
 						if (
 							no_batch_serial_number_value &&
 							!frappe.flags.hide_serial_batch_dialog &&
 							!frappe.flags.dialog_set
 						) {
 							frappe.flags.dialog_set = true;
+							console.log("Calling via item_code")
 							erpnext.stock.select_batch_and_serial_no(frm, d);
-						} else {
-							frappe.flags.dialog_set = false;
 						}
 					}
 				},
 			});
 		}
 	},
-
 	expense_account(frm, cdt, cdn) {
 		erpnext.utils.copy_value_in_all_rows(frm.doc, cdt, cdn, "items", "expense_account");
 	},
@@ -1357,17 +1369,14 @@ erpnext.stock.select_batch_and_serial_no = (frm, item) => {
 			item.has_batch_no = r.message.has_batch_no;
 			item.type_of_transaction = item.s_warehouse ? "Outward" : "Inward";
 			console.log(["[stock_entry.js] Calling SerialBatchPackageSelector"])
-			new erpnext.SerialBatchPackageSelector(frm, item, (r) => {
-				if (r) {
-					frappe.model.set_value(item.doctype, item.name, {
-						serial_and_batch_bundle: r.name,
-						use_serial_batch_fields: 0,
-						basic_rate: r.avg_rate,
-						qty:
-							Math.abs(r.total_qty) /
-							flt(item.conversion_factor || 1, precision("conversion_factor", item)),
-					});
-				}
+			new erpnext.SerialBatchPackageSelector(frm, item, undefined, true, (r) => {
+				// if (r) {
+				// 	frappe.model.set_value(item.doctype, item.name, {
+				// 		use_serial_batch_fields: 1,
+				// 		basic_rate: r.avg_rate,
+				// 		qty: r.qty
+				// 	});
+				// }
 			});
 		}
 	});

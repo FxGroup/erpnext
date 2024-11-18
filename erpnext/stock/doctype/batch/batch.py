@@ -665,7 +665,7 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 				'rate': i.get('rate'),
 				'basic_rate': i.get('basic_rate')
 			}
-			item['batch_no'] = i['batch_no']
+			item['batch_no'] = i['batch_no'] or ""
 			if doc['doctype'] in ["Sales Invoice", "Purchase Invoice"]:
 				item.update({
 					'ignore_pricing_rules': doc['ignore_pricing_rule'] or i.get('ignore_pricing_rules'),
