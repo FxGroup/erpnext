@@ -460,7 +460,8 @@ def get_reconciled_bank_transactions(doctype, docname):
 @frappe.whitelist()
 def unclear_reference_payment(doctype, docname, bt_name):
 	bt = frappe.get_doc("Bank Transaction", bt_name)
-	set_voucher_clearance(doctype, docname, None, bt)
+	brp = frappe.get_doc(doctype,docname)
+	set_voucher_clearance(brp.payment_document, brp.payment_entry, None, bt)
 	return docname
 
 def remove_from_bank_transaction(doctype, docname):

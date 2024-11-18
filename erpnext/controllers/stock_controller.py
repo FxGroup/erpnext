@@ -224,14 +224,14 @@ class StockController(AccountsController):
 				frappe.throw(
 					_(
 						"At row {0}: Batch Number is required."
-					).format(row.idx, row.serial_and_batch_bundle)
+					).format(row.idx)
 				)
 
 			if not row.use_serial_batch_fields:
 				frappe.throw(
 					_(
 						"At row {0}: Please ensure that 'Use Serial Batch Fields' is ticked."
-					).format(row.idx, row.serial_and_batch_bundle)
+					).format(row.idx)
 				)
 
 			if not row.serial_no and not row.batch_no and not row.get("rejected_serial_no"):
