@@ -401,13 +401,13 @@ erpnext.PointOfSale.ItemDetails = class {
 			item_row.type_of_transaction = "Outward";
 			console.log(["[pos_item_details.js] Calling SerialBatchPackageSelector"])
 			new erpnext.SerialBatchPackageSelector(frm, item_row, (r) => {
-				if (r) {
-					frappe.model.set_value(item_row.doctype, item_row.name, {
-						serial_and_batch_bundle: r.name,
-						qty: Math.abs(r.total_qty),
-						use_serial_batch_fields: 0,
-					});
-				}
+				// if (r) {
+				// 	frappe.model.set_value(item_row.doctype, item_row.name, {
+				// 		serial_and_batch_bundle: r.name,
+				// 		qty: Math.abs(r.total_qty),
+				// 		use_serial_batch_fields: 0,
+				// 	});
+				// }
 			});
 		});
 	}

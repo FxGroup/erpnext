@@ -709,9 +709,25 @@
 // 	}
 // };
 
-erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
-	constructor(opts, show_dialog) {
-		$.extend(this, opts);
+erpnext.SerialBatchPackageSelector = class SerialBatchPackageSelector {
+	constructor(frm, item, callback, show_dialog, on_close=null) {		
+		this.frm = frm;
+		this.item = item;
+		this.callback = callback;
+
+		if (this.item.is_free_item && this.batch_no) {
+			//Dont show dialog for free items.
+			return
+		}
+
+		this.warehouse_details = {
+			type: "Warehouse",
+			name: this.item.warehouse || this.item.s_warehouse || this.item.t_warehouse || null
+		},
+
+		this.on_close = on_close
+		console.log(this)
+		// $.extend(this, opts);
 		this.show_dialog = show_dialog;
 
 		let d = this.item;
@@ -791,7 +807,7 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 				fieldtype:'Float',
 				read_only: me.has_batch && !me.has_serial_no,
 				label: __('Invoice Qty'),
-				default: -1,
+				default: me.qty
 			},
 			{
 				fieldname: 'qty',
@@ -806,7 +822,7 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 				fieldtype:'Float',
 				read_only: 1,
 				label: __('Backorder Qty'),
-				default: flt(this.item.qty),
+				default: -1,
 			},
 			{
 				fieldname: 'unallocated_backorder_check',
@@ -887,7 +903,12 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 						let data = me.changed_rows.sort((firstItem, secondItem) => firstItem.qty - secondItem.qty);
 						data.forEach(row => {
 							if (!row.is_free_item) {
-								frappe.model.trigger('qty', undefined, row, false)
+								if (row.item_code != me.item_code) {
+									frappe.model.trigger('qty', undefined, row, false)
+								} else {
+									frappe.model.trigger('qty_after_batch_select', undefined, row, false)
+								}
+								
 								frappe.model.trigger('shortdated_batch', undefined, row, false)
 							}
 						});
@@ -900,22 +921,26 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 						me.format_shortdated_rows(me.frm.doc);
 					}
 				])
+
 			}
 		});
-
+		
 		if (this.show_dialog) {
 			let d = this.item;
 			if (this.item.serial_no) {
 				this.dialog.fields_dict.serial_no.set_value(this.item.serial_no);
 			}
+			
 			if (this.has_batch && !this.has_serial_no) {
 				this.frm.doc.items.forEach(data => {
 					if(data.item_code == d.item_code) {
+						
 						this.dialog.fields_dict.batches.df.data.push({
 							'batch_no': data.batch_no,
 							'actual_qty': data.actual_qty,
 							'selected_qty': data.qty,
-							'available_qty': data.actual_batch_qty > 0  ? data.actual_batch_qty : data.qty
+							'available_qty': data.actual_batch_qty > 0  ? data.actual_batch_qty : data.qty,
+							"is_free_item": data.is_free_item
 						});
 					}
 				});
@@ -1039,8 +1064,13 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 				serial_no_list_field.set_value(numbers);
 			});
 		} else {
-			this.dialog.fields_dict.batches.df.data = this.dialog.fields_dict.batches.df.data.filter((item) => item["batch_no"]);
-			let qty_to_allocate = this.dialog.fields_dict.assigned_qty.value
+			this.dialog.fields_dict.batches.df.data = this.dialog.fields_dict.batches.df.data.filter((item) => !item["is_free_item"]);
+			
+			let qty_to_allocate = this.dialog.fields_dict.batches.df.data.reduce((partialSum, a) => partialSum + a["selected_qty"], 0);
+			if (qty_to_allocate == 0){
+				qty_to_allocate = me.qty
+			}
+			console.log(`Qty to allocate is ${qty_to_allocate}`);
 			let backorder_data = frappe.call({
 				method: 'erpnext.stock.doctype.batch.batch.allocate_batches_table',
 				args: {
@@ -1119,6 +1149,9 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 		}
 	}
 	assign_remaining_to_backorder(me) {
+		if (me.frm.doctype != "Sales Invoice") {
+			return
+		}
 		if (me.values.unallocated_backorder_check) {
 			frappe.require('assets/fxnmrnth/js/custom_doctype_assets/sales_invoice/backorder_detect.js').then(() => {
 				let item = new export_backorder_detect()
@@ -1175,8 +1208,8 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 				if (item.row_name != 'new' && !this.changed_rows.some(value => value.name === item.row_name) && item.row_name) {
 					row = this.frm.doc.items.find(i => i.name === item.row_name);
 				} else {
+					frappe.flags.dialog_set = true;
 					row = this.frm.add_child("items", { ...this.item });
-					
 				}
 				this.map_row_values(row, item, 'batch_no',
 				'selected_qty', this.values.warehouse);
@@ -1315,6 +1348,7 @@ erpnext.SerialNoBatchSelector = class SerialNoBatchSelector {
 			total_qty += flt(data.selected_qty);
 		});
 		
+		//Potentially not needed now
 		if (assigned_qty.value == -1) {
 			assigned_qty.set_input(total_qty)
 		}

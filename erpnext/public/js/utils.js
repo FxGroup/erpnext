@@ -401,22 +401,22 @@ $.extend(erpnext.utils, {
 			item_row.has_serial_no = r.message.has_serial_no;
 
 			new erpnext.SerialBatchPackageSelector(frm, item_row, (r) => {
-				if (r) {
-					let update_values = {
-						serial_and_batch_bundle: r.name,
-						qty: Math.abs(r.total_qty),
-					};
+				// if (r) {
+				// 	let update_values = {
+				// 		serial_and_batch_bundle: r.name,
+				// 		qty: Math.abs(r.total_qty),
+				// 	};
 
-					if (!warehouse_field) {
-						warehouse_field = "warehouse";
-					}
+				// 	if (!warehouse_field) {
+				// 		warehouse_field = "warehouse";
+				// 	}
 
-					if (r.warehouse) {
-						update_values[warehouse_field] = r.warehouse;
-					}
+				// 	if (r.warehouse) {
+				// 		update_values[warehouse_field] = r.warehouse;
+				// 	}
 
-					frappe.model.set_value(item_row.doctype, item_row.name, update_values);
-				}
+				// 	frappe.model.set_value(item_row.doctype, item_row.name, update_values);
+				// }
 			});
 		});
 	},
