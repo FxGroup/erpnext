@@ -136,12 +136,16 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 		customer_name = frappe.get_doc('Customer', entry.customer).customer_name
 		presentation_currency = get_party_account_currency('Customer', entry.customer, doc.company) \
 				or doc.currency or get_company_currency(doc.company)
+
+		filters = get_common_filters(doc)
+
+		if doc.ignore_exchange_rate_revaluation_journals:
+			filters.update({"ignore_err": True})
+
 		if doc.letter_head:
 			from frappe.www.printview import get_letter_head
 
-		filters = get_common_filters(doc)
-		if doc.ignore_exchange_rate_revaluation_journals:
-			filters.update({"ignore_err": True})
+			letter_head = get_letter_head(doc, 0)
 
 			if letter_head.content:
 				letter_head.content = frappe.utils.jinja.render_template(
@@ -267,10 +271,7 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 			if doc.report == "General Ledger"
 			else "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
 		)
-		if doc.letter_head:
-			from frappe.www.printview import get_letter_head
 
-			letter_head = get_letter_head(doc, 0)
 		html = frappe.render_template(
 			template_path,
 			{
