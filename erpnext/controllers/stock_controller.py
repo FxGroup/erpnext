@@ -220,8 +220,24 @@ class StockController(AccountsController):
 			if row.serial_and_batch_bundle and (row.serial_no or row.batch_no):
 				self.validate_serial_nos_and_batches_with_bundle(row)
 
+			if row.use_serial_batch_fields and self.is_serial_batch_item(row.item_code) and (not row.batch_no):
+				frappe.throw(
+					_(
+						"At row {0}: Batch Number is required."
+					).format(row.idx, row.serial_and_batch_bundle)
+				)
+
+			if not row.use_serial_batch_fields:
+				frappe.throw(
+					_(
+						"At row {0}: Please ensure that 'Use Serial Batch Fields' is ticked."
+					).format(row.idx, row.serial_and_batch_bundle)
+				)
+
 			if not row.serial_no and not row.batch_no and not row.get("rejected_serial_no"):
 				continue
+
+
 
 			if not row.use_serial_batch_fields and (
 				row.serial_no or row.batch_no or row.get("rejected_serial_no")
