@@ -353,8 +353,10 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 
 	batch_no = None
 	message = None
-	batches = get_batches(item_code, warehouse, qty, throw, serial_no)
-
+	batches = get_batches_by_oldest(item_code=item_code, warehouse=warehouse)
+	for batch in batches:
+		batch[0].update({"expiry_date": batch[1]})
+	batches = [batch[0] for batch in batches]
 	## Filtered out the batch so that only batch have actual qty
 	batches = list(filter(lambda batch : batch.qty > 0, batches)) 
 
@@ -369,17 +371,16 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 			continue
 		if cint(qty) <= cint(batch.qty):
 			if not batch_no:
-				batch_no = batch.batch_id
+				batch_no = batch.batch_no
 				selected_expiry = batch.expiry_date
 				batch_qty = batch.qty
 				if not cur_batch_no:
 					found = True
-			if cur_batch_no == batch.batch_id:
+			if cur_batch_no == batch.batch_no:
 				batch_no = cur_batch_no
 				batch_qty = batch.qty
 				selected_expiry = batch.expiry_date
 				found = True
-
 	if not batch_no:
 		if return_error:
 			only_zero = True
