@@ -1925,7 +1925,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		for (const child of children) {
 			let item_row = frappe.get_doc(child.doctype, child.name);
 			const existing_pricing_rule = frappe.model.get_value(child.doctype, child.name, "pricing_rules");
-
+			child.dont_set_ignore_pricing_rules = true
 			for (const [key, value] of Object.entries(child)) {
 				if (!["doctype", "name"].includes(key)) {
 					if (key === "price_list_rate") {
