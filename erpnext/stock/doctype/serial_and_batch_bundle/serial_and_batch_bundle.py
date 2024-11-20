@@ -2329,6 +2329,7 @@ def get_stock_ledgers_batches(kwargs):
 			stock_ledger_entry.batch_no,
 		)
 		.where((stock_ledger_entry.is_cancelled == 0) & (stock_ledger_entry.batch_no.isnotnull()))
+		.where(batch_table.disabled == 0)
 		.groupby(stock_ledger_entry.batch_no, stock_ledger_entry.warehouse)
 	)
 
