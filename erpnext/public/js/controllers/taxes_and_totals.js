@@ -185,7 +185,7 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 
 			if (!this.discount_amount_applied) {
 				erpnext.accounts.taxes.validate_taxes_and_charges(tax.doctype, tax.name);
-				erpnext.accounts.taxes.validate_inclusive_tax(tax);
+				erpnext.accounts.taxes.validate_inclusive_tax(tax, this.frm);
 			}
 			frappe.model.round_floats_in(tax);
 		});
@@ -305,6 +305,8 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 			me.frm.doc.net_total += item.net_amount;
 			me.frm.doc.base_net_total += item.base_net_amount;
 		});
+
+		frappe.model.round_floats_in(this.frm.doc, ["total", "base_total", "net_total", "base_net_total"]);
 	}
 
 	calculate_shipping_charges() {
@@ -845,13 +847,13 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 			);
 		}
 
-		if(!this.frm.doc.is_return){
-			this.frm.doc.payments.find(payment => {
-				if (payment.default) {
-					payment.amount = total_amount_to_pay;
-				}
-			});
-		}
+		this.frm.doc.payments.find(payment => {
+			if (payment.default) {
+				payment.amount = total_amount_to_pay;
+			} else {
+				payment.amount = 0
+			}
+		});
 
 		this.frm.refresh_fields();
 	}
