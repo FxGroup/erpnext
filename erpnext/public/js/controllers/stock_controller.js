@@ -13,7 +13,7 @@ erpnext.stock.StockController = class StockController extends frappe.ui.form.Con
 
 	barcode(doc, cdt, cdn)  {
 		let row = locals[cdt][cdn];
-		if (row.barcode) {
+		if (row.barcode && row.qty <= 0) {
 			erpnext.stock.utils.set_item_details_using_barcode(this.frm, row, (r) => {
 				frappe.model.set_value(cdt, cdn, {
 					"item_code": r.message.item_code,
