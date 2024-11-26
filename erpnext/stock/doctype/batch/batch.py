@@ -258,10 +258,9 @@ def get_batch_qty(
 
 
 @frappe.whitelist()
-def get_batches_by_oldest(item_code, warehouse):
+def get_batches_by_oldest(item_code, warehouse, posting_date=None):
 	"""Returns the oldest batch and qty for the given item_code and warehouse"""
-	batches = get_batch_qty(item_code=item_code, warehouse=warehouse)
-	
+	batches = get_batch_qty(item_code=item_code, warehouse=warehouse, posting_date=posting_date)
 	if not batches:
 		return []
 	# Batches are being returned as 0 here
