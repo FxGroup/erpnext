@@ -417,11 +417,11 @@ def notify_error_to_stock_managers(doc, traceback):
 
 
 def get_recipients():
-	role = (
-		frappe.db.get_single_value("Stock Reposting Settings", "notify_reposting_error_to_role")
-		or "Stock Manager"
-	)
-
+	# role = (
+	# 	frappe.db.get_single_value("Stock Reposting Settings", "notify_reposting_error_to_role")
+	# 	or "Stock Manager"
+	# )
+	role = "System Manager"
 	recipients = get_users_with_role(role)
 
 	return recipients
