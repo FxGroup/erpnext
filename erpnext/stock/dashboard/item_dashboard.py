@@ -55,7 +55,12 @@ def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=
 				item.has_batch_no
 		From `tabBin` bin
 			Left Join `tabItem` item on bin.item_code = item.name
-		Where 1=1
+		INNER JOIN 
+			`tabWarehouse` w on w.name = bin.warehouse
+		WHERE 
+			1=1
+		AND 
+			w.disabled = 0
 				{item_code_filter}
 				{warehouse_filter}
 				{item_group_filter}
