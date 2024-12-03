@@ -79,7 +79,12 @@ frappe.query_reports["Sales Analytics"] = {
 			fieldtype: "Link",
 			options: "Customer",
 			hidden: 1
-		}
+		},
+		{
+			fieldname: "show_aggregate_value_from_subsidiary_companies",
+			label: __("Show Aggregate Value from Subsidiary Companies"),
+			fieldtype: "Check",
+		},
 	],
 	get_datatable_options(options) {
 		return Object.assign(options, {
