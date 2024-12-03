@@ -1219,11 +1219,19 @@ class PaymentEntry(AccountsController):
 				dr_or_cr = "debit" if dr_or_cr == "credit" else "credit"
 
 			gle.update(
-				{
-					dr_or_cr: allocated_amount_in_company_currency,
-					dr_or_cr + "_in_account_currency": d.allocated_amount,
-					"cost_center": cost_center,
-				}
+				self.get_gl_dict(
+					{
+						"account": self.party_account,
+						"party_type": self.party_type,
+						"party": self.party,
+						"against": against_account,
+						"account_currency": self.party_account_currency,
+						"cost_center": cost_center,
+						dr_or_cr + "_in_account_currency": d.allocated_amount,
+						dr_or_cr: allocated_amount_in_company_currency,
+					},
+					item=self,
+				)
 			)
 
 			if self.book_advance_payments_in_separate_party_account:
@@ -1746,7 +1754,7 @@ class PaymentEntry(AccountsController):
 			if paid_amount > total_negative_outstanding:
 				if total_negative_outstanding == 0:
 					frappe.msgprint(
-						_("Cannot {0} from {2} without any negative outstanding invoice").format(
+						_("Cannot {0} from {1} without any negative outstanding invoice").format(
 							self.payment_type,
 							self.party_type,
 						)
