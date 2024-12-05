@@ -179,7 +179,7 @@ class Analytics:
 
 		filters={
 			"docstatus": 1,
-			"company": self.filters.company,
+			"company": self.filters.company[0],
 			self.date_field: ("between", [self.filters.from_date, self.filters.to_date]),
 		}
 			
