@@ -2132,8 +2132,8 @@ class AccountsController(TransactionBase):
 			and not allow_multi_currency_invoices_against_single_party_account
 		):
 			frappe.throw(
-				_("Party Account {0} currency ({1}) and document currency ({2}) should be same").format(
-					frappe.bold(party_account), party_account_currency, self.currency
+				_("Party Account {0} currency ({1}) and document currency ({2}) should be same, Party: {3}").format(
+					frappe.bold(party_account), party_account_currency, self.currency, party
 				)
 			)
 
