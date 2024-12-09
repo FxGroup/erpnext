@@ -730,7 +730,6 @@ function stock_transfer_dialog(item_code, cur_batch_data, tar_batch_data, curren
 	} else {
 		batchLabel = "To Batch"
 		batchReqd = 0;
-
 		batchDesc = `
 			The top table contains the batches that are currently in <b>${target_site}</b>. Use the select button and the quantity field to take stock directly from that batch and set the expiry date for the batch in <b>${current_site}</b>.
 			<br><br>
@@ -763,8 +762,7 @@ function stock_transfer_dialog(item_code, cur_batch_data, tar_batch_data, curren
 						fieldtype: "Data",
 						label: "Batch Name or Item Code",
 						reqd: 1,
-						read_only: 1,
-						in_list_view: 1
+						in_list_view: 1,
 					},
 					{
 						fieldname: 'qty',
