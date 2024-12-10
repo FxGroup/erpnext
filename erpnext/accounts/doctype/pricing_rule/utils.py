@@ -742,7 +742,7 @@ def get_product_discount_rule(pricing_rule, item_details, args=None, doc=None):
 	}
 	if free_item_data_args["rate"] == 0:
 		free_item_data_args["discount_percentage"] = 100
-		free_item_data_args['discount_amount'] = round(args.get('price_list_rate') * qty, 2)
+		free_item_data_args['discount_amount'] = round(args.get('price_list_rate', 0) * qty, 2)
 
 	basic_args = frappe._dict({
 		'item_code': free_item, 
