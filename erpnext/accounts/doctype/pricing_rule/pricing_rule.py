@@ -410,7 +410,7 @@ def get_pricing_rule_for_item(args, doc=None, for_validate=False):
 	test = args
 	if doc and doc.get("backorder_items"):
 		for bo_item in doc.get("backorder_items"):
-			if bo_item.derived_from == args.child_docname:
+			if bo_item.derived_from == args.child_docname and bo_item.qty:
 				args.qty += bo_item.qty
 
 
