@@ -364,7 +364,7 @@ $.extend(erpnext.utils, {
 			for (let i = 0; i < cl.length; i++) {
 				cl[i][fieldname] = doc[parent_fieldname];
 			}
-			frappe.refresh_field(table_fieldname);
+			refresh_field(table_fieldname);
 		}
 	},
 	create_new_doc: function (doctype, update_fields) {
