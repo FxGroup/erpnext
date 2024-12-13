@@ -117,8 +117,6 @@ def get_item_details(args, doc=None, for_validate=False, overwrite_warehouse=Tru
 	data = get_pricing_rule_for_item(args, doc=doc, for_validate=for_validate)
 
 	
-	data = get_pricing_rule_for_item(args, doc, for_validate=for_validate)
-	
 	out.update(data)
 
 	if args.transaction_date and item.lead_time_days:
