@@ -478,7 +478,7 @@ def get_serial_or_batch_nos(bundle):
 		html = "<table class= 'table table-borderless' style='margin-top: 0px;margin-bottom: 0px;'>"
 		for d in data:
 			if d.serial_no:
-				html += f"<tr><td>{d.batch_no}</th><th>{d.serial_no}</th	><th>{abs(d.qty)}</th></tr>"
+				html += f"<tr><td>{d.batch_no}</td><td>{d.serial_no}</td><td>{abs(d.qty)}</td></tr>"
 			else:
 				html += f"<tr><td>{d.batch_no}</td><td>{abs(d.qty)}</td></tr>"
 
@@ -508,7 +508,7 @@ class SerialNoValuation(DeprecatedSerialNoValuation):
 			serial_nos = self.get_serial_nos()
 			for serial_no in serial_nos:
 				incoming_rate = self.get_incoming_rate_from_bundle(serial_no)
-				if not incoming_rate:
+				if incoming_rate is None:
 					continue
 
 				self.stock_value_change += incoming_rate
@@ -553,7 +553,7 @@ class SerialNoValuation(DeprecatedSerialNoValuation):
 			query = query.where(timestamp_condition)
 
 		incoming_rate = query.run()
-		return flt(incoming_rate[0][0]) if incoming_rate else 0.0
+		return flt(incoming_rate[0][0]) if incoming_rate else None
 
 	def get_serial_nos(self):
 		if self.sle.get("serial_nos"):
@@ -643,7 +643,10 @@ class BatchNoValuation(DeprecatedBatchNoValuation):
 		child = frappe.qb.DocType("Serial and Batch Entry")
 
 		timestamp_condition = ""
-		if self.sle.posting_date and self.sle.posting_time:
+		if self.sle.posting_date:
+			if self.sle.posting_time is None:
+				self.sle.posting_time = nowtime()
+
 			timestamp_condition = CombineDatetime(parent.posting_date, parent.posting_time) < CombineDatetime(
 				self.sle.posting_date, self.sle.posting_time
 			)
@@ -724,15 +727,6 @@ class BatchNoValuation(DeprecatedBatchNoValuation):
 			# New Stock Value Difference
 			stock_value_change = self.batch_avg_rate[batch_no] * ledger.qty
 			self.stock_value_change += stock_value_change
-
-			frappe.db.set_value(
-				"Serial and Batch Entry",
-				ledger.name,
-				{
-					"stock_value_difference": stock_value_change,
-					"incoming_rate": self.batch_avg_rate[batch_no],
-				},
-			)
 
 	def calculate_valuation_rate(self):
 		if not hasattr(self, "wh_data"):
@@ -947,12 +941,13 @@ class SerialBatchCreation:
 		if self.get("make_bundle_from_sle") and self.type_of_transaction == "Inward":
 			doc.flags.ignore_validate_serial_batch = True
 
-		doc.save()
-		self.validate_qty(doc)
-
 		if not hasattr(self, "do_not_submit") or not self.do_not_submit:
 			doc.flags.ignore_voucher_validation = True
 			doc.submit()
+		else:
+			doc.save()
+
+		self.validate_qty(doc)
 
 		return doc
 
