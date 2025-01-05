@@ -920,12 +920,17 @@ class PurchaseReceipt(BuyingController):
 				)
 
 	def enable_recalculate_rate_in_sles(self):
+		rejected_warehouses = frappe.get_all(
+			"Purchase Receipt Item", filters={"parent": self.name}, pluck="rejected_warehouse"
+		)
+
 		sle_table = frappe.qb.DocType("Stock Ledger Entry")
 		(
 			frappe.qb.update(sle_table)
 			.set(sle_table.recalculate_rate, 1)
 			.where(sle_table.voucher_no == self.name)
 			.where(sle_table.voucher_type == "Purchase Receipt")
+			.where(sle_table.warehouse.notin(rejected_warehouses))
 		).run()
 
 
@@ -1085,7 +1090,7 @@ def update_billing_percentage(pr_doc, update_modified=True, adjust_incoming_rate
 
 		if adjust_incoming_rate:
 			adjusted_amt = 0.0
-			if item.billed_amt and item.amount:
+			if item.billed_amt is not None and item.amount is not None:
 				adjusted_amt = flt(item.billed_amt) - flt(item.amount)
 
 			adjusted_amt = adjusted_amt * flt(pr_doc.conversion_rate)

@@ -29,6 +29,12 @@ from erpnext.accounts.utils import get_fiscal_year
 from erpnext.exceptions import InvalidAccountCurrency, PartyDisabled, PartyFrozen
 from erpnext.utilities.regional import temporary_flag
 
+try:
+	from frappe.contacts.doctype.address.address import render_address as _render_address
+except ImportError:
+	# Older frappe versions where this function is not available
+	from frappe.contacts.doctype.address.address import get_address_display as _render_address
+
 PURCHASE_TRANSACTION_TYPES = {
 	"Supplier Quotation",
 	"Purchase Order",
@@ -760,6 +766,17 @@ def validate_party_frozen_disabled(party_type, party_name):
 				frappe.msgprint(_("{0} {1} is not active").format(party_type, party_name), alert=True)
 
 
+def validate_account_party_type(self):
+	if self.party_type and self.party:
+		account_type = frappe.get_cached_value("Account", self.account, "account_type")
+		if account_type and (account_type not in ["Receivable", "Payable"]):
+			frappe.throw(
+				_(
+					"Party Type and Party can only be set for Receivable / Payable account<br><br>" "{0}"
+				).format(self.account)
+			)
+
+
 def get_dashboard_info(party_type, party, loyalty_program=None):
 	current_fiscal_year = get_fiscal_year(nowdate(), as_dict=True)
 
@@ -989,10 +1006,4 @@ def add_party_account(party_type, party, company, account):
 
 
 def render_address(address, check_permissions=True):
-	try:
-		from frappe.contacts.doctype.address.address import render_address as _render
-	except ImportError:
-		# Older frappe versions where this function is not available
-		from frappe.contacts.doctype.address.address import get_address_display as _render
-
-	return frappe.call(_render, address, check_permissions=check_permissions)
+	return frappe.call(_render_address, address, check_permissions=check_permissions)

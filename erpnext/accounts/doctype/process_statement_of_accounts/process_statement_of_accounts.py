@@ -42,6 +42,9 @@ class ProcessStatementOfAccounts(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		from erpnext.accounts.doctype.process_statement_of_accounts_cc.process_statement_of_accounts_cc import (
+			ProcessStatementOfAccountsCC,
+		)
 		from erpnext.accounts.doctype.process_statement_of_accounts_customer.process_statement_of_accounts_customer import (
 			ProcessStatementOfAccountsCustomer,
 		)
@@ -52,7 +55,7 @@ class ProcessStatementOfAccounts(Document):
 		ageing_based_on: DF.Literal["Due Date", "Posting Date"]
 		based_on_payment_terms: DF.Check
 		body: DF.TextEditor | None
-		cc_to: DF.Link | None
+		cc_to: DF.TableMultiSelect[ProcessStatementOfAccountsCC]
 		collection_name: DF.DynamicLink | None
 		company: DF.Link
 		cost_center: DF.TableMultiSelect[PSOACostCenter]
@@ -573,7 +576,7 @@ def get_recipients_and_cc(customer, doc):
 	cc = []
 	if doc.cc_to != "":
 		try:
-			cc = [frappe.get_value("User", doc.cc_to, "email")]
+			cc = [frappe.get_value("User", user.cc, "email") for user in doc.cc_to]
 		except Exception:
 			pass
 
