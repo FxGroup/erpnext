@@ -486,7 +486,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	setup_sms() {
 		var me = this;
 		let blacklist = ['Purchase Invoice', 'BOM'];
-		if(this.frm.doc.docstatus===1 && !["Lost", "Stopped", "Closed"].includes(this.frm.doc.status)
+		if(frappe.boot.sms_gateway_enabled && this.frm.doc.docstatus===1 && !["Lost", "Stopped", "Closed"].includes(this.frm.doc.status)
 			&& !blacklist.includes(this.frm.doctype)) {
 			this.frm.page.add_menu_item(__('Send SMS'), function() { me.send_sms(); });
 		}
@@ -959,7 +959,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 				let is_drop_ship = me.frm.doc.items.some(item => item.delivered_by_supplier);
 
 				if (!is_drop_ship) {
-					console.log('get_shipping_address');
 					erpnext.utils.get_shipping_address(this.frm, function() {
 						set_party_account(set_pricing);
 					});
@@ -975,6 +974,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	}
 
 	transaction_date() {
+		this.apply_pricing_rule()
 		if (this.frm.doc.transaction_date) {
 			this.frm.transaction_date = this.frm.doc.transaction_date;
 			frappe.ui.form.trigger(this.frm.doc.doctype, "currency");
@@ -983,6 +983,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 	posting_date() {
 		var me = this;
+		me.apply_pricing_rule()
 		if (this.frm.doc.posting_date) {
 			this.frm.posting_date = this.frm.doc.posting_date;
 
@@ -1124,7 +1125,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 	apply_discount_on_item(doc, cdt, cdn, field) {
 		var item = frappe.get_doc(cdt, cdn);
-		if(!item?.price_list_rate) {
+		if(item && !item.price_list_rate) {
 			item[field] = 0.0;
 		} else {
 			this.price_list_rate(doc, cdt, cdn);
@@ -2310,6 +2311,12 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 						fieldname: "batch_no",
 						label: __("Batch No"),
 						hidden: true
+					},
+					{
+						fieldtype: "Data",
+						fieldname: "child_row_reference",
+						label: __("Child Row Reference"),
+						hidden: true
 					}
 				]
 			}
@@ -2353,14 +2360,14 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			if (this.has_inspection_required(item)) {
 				let dialog_items = dialog.fields_dict.items;
 				dialog_items.df.data.push({
-					"docname": item.name,
 					"item_code": item.item_code,
 					"item_name": item.item_name,
 					"qty": item.qty,
 					"description": item.description,
 					"serial_no": item.serial_no,
 					"batch_no": item.batch_no,
-					"sample_size": item.sample_quantity
+					"sample_size": item.sample_quantity,
+					"child_row_reference": item.name,
 				});
 				dialog_items.grid.refresh();
 			}

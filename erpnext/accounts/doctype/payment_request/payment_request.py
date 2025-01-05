@@ -778,6 +778,8 @@ def get_existing_paid_amount(doctype, name):
 		.where(PL.against_voucher_type.eq(doctype))
 		.where(PL.against_voucher_no.eq(name))
 		.where(PL.amount < 0)
+		.where(PL.delinked == 0)
+		.where(PER.docstatus == 1)
 		.where(PER.payment_request.isnull())
 	)
 	response = query.run()
@@ -987,12 +989,7 @@ def get_open_payment_requests_query(doctype, txt, searchfield, start, page_len, 
 
 	open_payment_requests = frappe.get_list(
 		"Payment Request",
-		filters={
-			**filters,
-			"status": ["!=", "Paid"],
-			"outstanding_amount": ["!=", 0],  # for compatibility with old data
-			"docstatus": 1,
-		},
+		filters=filters,
 		fields=["name", "grand_total", "outstanding_amount"],
 		order_by="transaction_date ASC,creation ASC",
 	)

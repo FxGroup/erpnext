@@ -117,11 +117,13 @@ class POSInvoiceMergeLog(Document):
 		sales = [d for d in pos_invoice_docs if d.get("is_return") == 0]
 
 		sales_invoice, credit_note = "", ""
-		if returns:
-			credit_note = self.process_merging_into_credit_note(returns)
-
+		sales_invoice_doc = None
 		if sales:
-			sales_invoice = self.process_merging_into_sales_invoice(sales)
+			sales_invoice_doc = self.process_merging_into_sales_invoice(sales)
+			sales_invoice = sales_invoice_doc.name
+
+		if returns:
+			credit_note = self.process_merging_into_credit_note(returns, sales_invoice_doc)
 
 		self.save()  # save consolidated_sales_invoice & consolidated_credit_note ref in merge log
 		self.update_pos_invoices(pos_invoice_docs, sales_invoice, credit_note)
@@ -132,6 +134,7 @@ class POSInvoiceMergeLog(Document):
 		self.update_pos_invoices(pos_invoice_docs)
 		self.serial_and_batch_bundle_reference_for_pos_invoice()
 		self.cancel_linked_invoices()
+		self.delink_serial_and_batch_bundle()
 
 	def process_merging_into_sales_invoice(self, data):
 		sales_invoice = self.get_new_sales_invoice()
@@ -139,20 +142,35 @@ class POSInvoiceMergeLog(Document):
 
 		sales_invoice.is_consolidated = 1
 		sales_invoice.set_posting_time = 1
-		sales_invoice.posting_date = getdate(self.posting_date)
-		sales_invoice.posting_time = get_time(self.posting_time)
+
+		if not sales_invoice.posting_date:
+			sales_invoice.posting_date = getdate(self.posting_date)
+
+		if not sales_invoice.posting_time:
+			sales_invoice.posting_time = get_time(self.posting_time)
+
 		sales_invoice.save()
 		sales_invoice.submit()
 
 		self.consolidated_invoice = sales_invoice.name
 
-		return sales_invoice.name
+		return sales_invoice
 
-	def process_merging_into_credit_note(self, data):
+	def process_merging_into_credit_note(self, data, sales_invoice_doc=None):
 		credit_note = self.get_new_sales_invoice()
 		credit_note.is_return = 1
 
 		credit_note = self.merge_pos_invoice_into(credit_note, data)
+		referenes = {}
+
+		if sales_invoice_doc:
+			credit_note.return_against = sales_invoice_doc.name
+
+			for d in sales_invoice_doc.items:
+				referenes[d.item_code] = d.name
+
+			for d in credit_note.items:
+				d.sales_invoice_item = referenes.get(d.item_code)
 
 		credit_note.is_consolidated = 1
 		credit_note.set_posting_time = 1
@@ -179,6 +197,10 @@ class POSInvoiceMergeLog(Document):
 
 		for doc in data:
 			map_doc(doc, invoice, table_map={"doctype": invoice.doctype})
+
+			if doc.get("posting_date"):
+				invoice.posting_date = getdate(doc.posting_date)
+				invoice.posting_time = get_time(doc.posting_time)
 
 			if doc.redeem_loyalty_points:
 				invoice.loyalty_redemption_account = doc.loyalty_redemption_account
@@ -297,6 +319,8 @@ class POSInvoiceMergeLog(Document):
 		sales_invoice = frappe.new_doc("Sales Invoice")
 		sales_invoice.customer = self.customer
 		sales_invoice.is_pos = 1
+		sales_invoice.posting_date = None
+		sales_invoice.posting_time = None
 
 		return sales_invoice
 
@@ -319,8 +343,45 @@ class POSInvoiceMergeLog(Document):
 			for table_name in ["items", "packed_items"]:
 				pos_invoice.set_serial_and_batch_bundle(table_name)
 
+	def delink_serial_and_batch_bundle(self):
+		bundles = self.get_serial_and_batch_bundles()
+		if not bundles:
+			return
+
+		sle_table = frappe.qb.DocType("Stock Ledger Entry")
+		query = (
+			frappe.qb.update(sle_table)
+			.set(sle_table.serial_and_batch_bundle, None)
+			.where(sle_table.serial_and_batch_bundle.isin(bundles) & sle_table.is_cancelled == 1)
+		)
+
+		query.run()
+
+	def get_serial_and_batch_bundles(self):
+		pos_invoices = []
+		for d in self.pos_invoices:
+			pos_invoices.append(d.pos_invoice)
+
+		if pos_invoices:
+			return frappe.get_all(
+				"POS Invoice Item",
+				filters={
+					"docstatus": 1,
+					"parent": ["in", pos_invoices],
+					"serial_and_batch_bundle": ["is", "set"],
+				},
+				pluck="serial_and_batch_bundle",
+			)
+
+		return []
+
 	def cancel_linked_invoices(self):
-		for si_name in [self.consolidated_invoice, self.consolidated_credit_note]:
+		invoices = [self.consolidated_invoice, self.consolidated_credit_note]
+		if not invoices:
+			return
+
+		invoices.reverse()
+		for si_name in invoices:
 			if not si_name:
 				continue
 			si = frappe.get_doc("Sales Invoice", si_name)
@@ -503,6 +564,9 @@ def cancel_merge_logs(merge_logs, closing_entry=None):
 	try:
 		for log in merge_logs:
 			merge_log = frappe.get_doc("POS Invoice Merge Log", log)
+			if merge_log.docstatus == 2:
+				continue
+
 			merge_log.flags.ignore_permissions = True
 			merge_log.cancel()
 

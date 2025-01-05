@@ -19,6 +19,7 @@ from frappe.utils import (
 )
 
 import erpnext
+from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import get_dimensions
 from erpnext.accounts.general_ledger import make_reverse_gl_entries
 from erpnext.assets.doctype.asset.depreciation import (
 	get_comma_separated_links,
@@ -308,12 +309,14 @@ class Asset(AccountsController):
 				)
 
 	def validate_precision(self):
-		float_precision = cint(frappe.db.get_default("float_precision")) or 2
 		if self.gross_purchase_amount:
-			self.gross_purchase_amount = flt(self.gross_purchase_amount, float_precision)
+			self.gross_purchase_amount = flt(
+				self.gross_purchase_amount, self.precision("gross_purchase_amount")
+			)
+
 		if self.opening_accumulated_depreciation:
 			self.opening_accumulated_depreciation = flt(
-				self.opening_accumulated_depreciation, float_precision
+				self.opening_accumulated_depreciation, self.precision("opening_accumulated_depreciation")
 			)
 
 	def validate_asset_values(self):
@@ -410,6 +413,9 @@ class Asset(AccountsController):
 			)
 
 	def validate_asset_finance_books(self, row):
+		row.expected_value_after_useful_life = flt(
+			row.expected_value_after_useful_life, self.precision("gross_purchase_amount")
+		)
 		if flt(row.expected_value_after_useful_life) >= flt(self.gross_purchase_amount):
 			frappe.throw(
 				_("Row {0}: Expected Value After Useful Life must be less than Gross Purchase Amount").format(
@@ -430,7 +436,10 @@ class Asset(AccountsController):
 			self.opening_accumulated_depreciation = 0
 			self.opening_number_of_booked_depreciations = 0
 		else:
-			depreciable_amount = flt(self.gross_purchase_amount) - flt(row.expected_value_after_useful_life)
+			depreciable_amount = flt(
+				flt(self.gross_purchase_amount) - flt(row.expected_value_after_useful_life),
+				self.precision("gross_purchase_amount"),
+			)
 			if flt(self.opening_accumulated_depreciation) > depreciable_amount:
 				frappe.throw(
 					_("Opening Accumulated Depreciation must be less than or equal to {0}").format(
@@ -481,11 +490,7 @@ class Asset(AccountsController):
 
 	def validate_expected_value_after_useful_life(self):
 		for row in self.get("finance_books"):
-			row.expected_value_after_useful_life = flt(
-				row.expected_value_after_useful_life, self.precision("gross_purchase_amount")
-			)
 			depr_schedule = get_depr_schedule(self.name, "Draft", row.finance_book)
-
 			if not depr_schedule:
 				continue
 
@@ -798,6 +803,9 @@ class Asset(AccountsController):
 			):
 				return args.get("rate_of_depreciation")
 
+			if args.get("rate_of_depreciation") and not flt(args.get("expected_value_after_useful_life")):
+				return args.get("rate_of_depreciation")
+
 			if self.flags.increase_in_asset_value_due_to_repair:
 				value = flt(args.get("expected_value_after_useful_life")) / flt(
 					args.get("value_after_depreciation")
@@ -880,6 +888,7 @@ def get_asset_naming_series():
 
 @frappe.whitelist()
 def make_sales_invoice(asset, item_code, company, serial_no=None):
+	asset_doc = frappe.get_doc("Asset", asset)
 	si = frappe.new_doc("Sales Invoice")
 	si.company = company
 	si.currency = frappe.get_cached_value("Company", company, "default_currency")
@@ -896,6 +905,16 @@ def make_sales_invoice(asset, item_code, company, serial_no=None):
 			"qty": 1,
 		},
 	)
+
+	accounting_dimensions = get_dimensions(with_cost_center_and_project=True)
+	for dimension in accounting_dimensions[0]:
+		si.update(
+			{
+				dimension["fieldname"]: asset_doc.get(dimension["fieldname"])
+				or dimension.get("default_dimension")
+			}
+		)
+
 	si.set_missing_values()
 	return si
 
