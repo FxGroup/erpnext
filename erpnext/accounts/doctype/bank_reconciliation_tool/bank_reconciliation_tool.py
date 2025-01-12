@@ -348,6 +348,7 @@ def create_payment_entry_bts(
 	pe.mode_of_payment = mode_of_payment
 	pe.project = project
 	pe.cost_center = cost_center
+	pe.bank_account = bank_account
 
 	pe.validate()
 
