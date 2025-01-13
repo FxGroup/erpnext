@@ -178,7 +178,7 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 			'show_due_date': 1,
 			'include_default_book_entries': 0,
 			'tax_id': tax_id if tax_id else None,
-			'show_statement_remarks': 1
+			'show_statement_remarks': 1 
 		})
 		
 		col, res = get_soa(filters)
@@ -239,10 +239,10 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 				'range4': 120,
 				'party_type': "Customer",
 				'party': [entry.customer],
-				'show_not_yet_due': 1
+				'show_not_yet_due': 1,
+				'in_party_currency': 1
 			})
 			col1, ageing = get_ageing(ageing_filters)
-
 			if ageing:
 				ageing[0]["ageing_based_on"] = doc.ageing_based_on
 	
