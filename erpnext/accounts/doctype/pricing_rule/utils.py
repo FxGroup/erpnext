@@ -719,24 +719,10 @@ def get_product_discount_rule(pricing_rule, item_details, args=None, doc=None):
 
 	qty = pricing_rule.free_qty or 1
 	if pricing_rule.is_recursive:
-		
-		transaction_qty = sum(
-			[
-				row.qty
-				for row in doc.items
-				if not row.is_free_item
-				and row.item_code == args.item_code
-				and row.pricing_rules == args.pricing_rules
-			]
-		)
-		transaction_qty = transaction_qty - pricing_rule.apply_recursion_over
-
-		# Old code might be needed
+		transaction_qty = (args.get("qty") if args else doc.total_qty) - pricing_rule.apply_recursion_over
 		if transaction_qty:
 			if flt(pricing_rule.recurse_for) <= 0:
 				pricing_rule.recurse_for = 1
-
-		if transaction_qty and transaction_qty > 0:
 			qty = flt(transaction_qty) * qty / pricing_rule.recurse_for
 			if pricing_rule.round_free_qty:
 				qty = (flt(transaction_qty) // pricing_rule.recurse_for) * (pricing_rule.free_qty or 1)
@@ -843,7 +829,6 @@ def get_pricing_rule_items(pr_doc, other_items=False) -> list:
 		apply_on_data['apply_on_items'].append(pr_doc.get("other_" + apply_on))
 	apply_on_data['items'] = list(set(apply_on_data['items']))
 	return apply_on_data
-
 
 
 def validate_coupon_code(coupon_name):
