@@ -504,14 +504,25 @@ def get_qty_and_rate_for_mixed_conditions(doc, pr_doc, args):
 	sum_qty, sum_amt = [0, 0]
 	items = get_pricing_rule_items(pr_doc)['items'] or []
 	apply_on = frappe.scrub(pr_doc.get("apply_on"))
-	
 	for field in ["items", "backorder_items"]:
 		if items and doc.get(field):
 			for row in doc.get(field):
 				if args.child_docname == row.name:
 					row.batch_no = args.batch_no
 				if (row.get(apply_on)) not in items or row.is_free_item:
-					continue
+					if not row.get(apply_on):
+						if row.get("item_code"):
+							item_doc = frappe.get_doc("Item", row.get("item_code"))
+							if apply_on == "brand":
+								if item_doc.brand not in items:
+									continue
+							elif apply_on == "item_group":
+								if item_doc.item_group not in items:
+									continue
+						else:
+							continue
+					else:
+						continue
 				if (row.pricing_rules and pr_doc.name not in row.pricing_rules):
 					row_rules = json.loads(row.pricing_rules)
 					max_priority = -9999
