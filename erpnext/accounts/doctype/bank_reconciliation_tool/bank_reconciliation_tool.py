@@ -19,6 +19,7 @@ from erpnext.accounts.report.bank_reconciliation_statement.bank_reconciliation_s
 )
 from erpnext.accounts.utils import get_account_currency, get_balance_on
 from erpnext.setup.utils import get_exchange_rate
+from erpnext import get_default_company
 
 
 class BankReconciliationTool(Document):
@@ -79,7 +80,9 @@ def get_bank_transactions(bank_account, from_date=None, to_date=None):
 
 
 @frappe.whitelist()
-def get_account_balance(bank_account, till_date, company):
+def get_account_balance(bank_account, till_date, company=None):
+	if not company:
+		company = get_default_company()
 	# returns account balance till the specified date
 	account = frappe.db.get_value("Bank Account", bank_account, "account")
 	filters = frappe._dict(
