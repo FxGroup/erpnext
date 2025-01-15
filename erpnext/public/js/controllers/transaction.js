@@ -306,12 +306,16 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			return;
 		}
 
+		let show_qc_button = true;
+		if (["Sales Invoice", "Purchase Invoice"].includes(this.frm.doc.doctype)) {
+			show_qc_button = this.frm.doc.update_stock;
+		}
+
 		const me = this;
-		if (!this.frm.is_new() && this.frm.doc.docstatus === 0 && frappe.model.can_create("Quality Inspection")) {
+		if (!this.frm.is_new() && this.frm.doc.docstatus === 0 && frappe.model.can_create("Quality Inspection") && show_qc_button) {
 			this.frm.add_custom_button(__("Quality Inspection(s)"), () => {
 				me.make_quality_inspection();
 			}, __("Create"));
-			this.frm.page.set_inner_btn_group_as_primary(__('Create'));
 		}
 
 		const inspection_type = ["Purchase Receipt", "Purchase Invoice", "Subcontracting Receipt"].includes(this.frm.doc.doctype)
@@ -819,7 +823,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	}
 
 	transaction_date() {
-		this.apply_pricing_rule()
 		if (this.frm.doc.transaction_date) {
 			this.frm.transaction_date = this.frm.doc.transaction_date;
 			frappe.ui.form.trigger(this.frm.doc.doctype, "currency");
@@ -828,7 +831,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 	posting_date() {
 		var me = this;
-		me.apply_pricing_rule()
 		if (this.frm.doc.posting_date) {
 			this.frm.posting_date = this.frm.doc.posting_date;
 
@@ -1196,7 +1198,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			update_stock = cint(me.frm.doc.update_stock);
 			// show_batch_dialog = update_stock;
 	
-		} else if((this.frm.doc.doctype === 'Purchase Receipt' && me.frm.doc.is_return) ||
+		} else if((this.frm.doc.doctype === 'Purchase Receipt') ||
 			this.frm.doc.doctype === 'Delivery Note') {
 			show_batch_dialog = 1;
 		}
@@ -1994,6 +1996,25 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 					if(!me.set_items.includes(item.name) && data.apply_rule_on_other_items.includes(item[data.apply_rule_on])){
 						me.get_and_set_item_details(me.frm.doc, item.doctype, item.name)
 						me.set_items.push(item.name)
+
+						//@STAN
+						//From V15 Start - Incorrectly indented but kept during merge for checking (Start row 1991)
+						// const fields = ["pricing_rules"];
+
+						// for(var k in args) {
+						// 	let data = args[k];
+
+						// 	if (data && data.apply_rule_on_other_items && JSON.parse(data.apply_rule_on_other_items)) {
+						// 		fields.push(frappe.scrub(data.pricing_rule_for))
+						// 		me.frm.doc.items.forEach(d => {
+						// 			if (JSON.parse(data.apply_rule_on_other_items).includes(d[data.apply_rule_on])) {
+						// 				for(var k in data) {
+
+						// 					if (in_list(fields, k) && data[k] && (data.price_or_product_discount === 'Price' || k === 'pricing_rules')) {
+						// 						frappe.model.set_value(d.doctype, d.name, k, data[k]);
+						// 					}
+						//
+						//From V15 End 				}
 					}
 					
 					// if (in_list(data.apply_rule_on_other_items, item[data.apply_rule_on])) {

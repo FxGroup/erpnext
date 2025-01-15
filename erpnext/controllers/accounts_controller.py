@@ -782,7 +782,14 @@ class AccountsController(TransactionBase):
 					ret = get_item_details(args, self, for_validate=for_validate, overwrite_warehouse=False)
 					for fieldname, value in ret.items():
 						if item.meta.get_field(fieldname) and value is not None:
-							if item.get(fieldname) is None or fieldname in force_item_fields:
+							if (
+								item.get(fieldname) is None
+								or fieldname in force_item_fields
+								or (
+									fieldname in ["serial_no", "batch_no"]
+									and item.get("use_serial_batch_fields")
+								)
+							):
 								item.set(fieldname, value)
 
 							elif fieldname in ["cost_center", "conversion_factor"] and not item.get(
@@ -2379,6 +2386,7 @@ class AccountsController(TransactionBase):
 			return
 
 		for d in self.get("payment_schedule"):
+			d.validate_from_to_dates("discount_date", "due_date")
 			if self.doctype == "Sales Order" and getdate(d.due_date) < getdate(self.transaction_date):
 				frappe.throw(
 					_("Row {0}: Due Date in the Payment Terms table cannot be before Posting Date").format(
