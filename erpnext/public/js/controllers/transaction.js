@@ -302,12 +302,16 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			return;
 		}
 
+		let show_qc_button = true;
+		if (["Sales Invoice", "Purchase Invoice"].includes(this.frm.doc.doctype)) {
+			show_qc_button = this.frm.doc.update_stock;
+		}
+
 		const me = this;
-		if (!this.frm.is_new() && this.frm.doc.docstatus === 0 && frappe.model.can_create("Quality Inspection")) {
+		if (!this.frm.is_new() && this.frm.doc.docstatus === 0 && frappe.model.can_create("Quality Inspection") && show_qc_button) {
 			this.frm.add_custom_button(__("Quality Inspection(s)"), () => {
 				me.make_quality_inspection();
 			}, __("Create"));
-			this.frm.page.set_inner_btn_group_as_primary(__('Create'));
 		}
 
 		const inspection_type = ["Purchase Receipt", "Purchase Invoice", "Subcontracting Receipt"].includes(this.frm.doc.doctype)
@@ -575,6 +579,8 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 							child_doctype: item.doctype,
 							child_docname: item.name,
 							is_old_subcontracting_flow: me.frm.doc.is_old_subcontracting_flow,
+							use_serial_batch_fields: item.use_serial_batch_fields,
+							serial_and_batch_bundle: item.serial_and_batch_bundle,
 						}
 					},
 
@@ -974,7 +980,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	}
 
 	transaction_date() {
-		this.apply_pricing_rule()
 		if (this.frm.doc.transaction_date) {
 			this.frm.transaction_date = this.frm.doc.transaction_date;
 			frappe.ui.form.trigger(this.frm.doc.doctype, "currency");
@@ -983,7 +988,6 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 	posting_date() {
 		var me = this;
-		me.apply_pricing_rule()
 		if (this.frm.doc.posting_date) {
 			this.frm.posting_date = this.frm.doc.posting_date;
 
@@ -1823,18 +1827,16 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 	apply_rule_on_other_items(args) {
 		const me = this;
-		const fields = ["discount_percentage", "pricing_rules", "discount_amount", "rate"];
+		const fields = ["pricing_rules"];
 
 		for(var k in args) {
 			let data = args[k];
 
 			if (data && data.apply_rule_on_other_items && JSON.parse(data.apply_rule_on_other_items)) {
+				fields.push(frappe.scrub(data.pricing_rule_for))
 				me.frm.doc.items.forEach(d => {
-					if (in_list(JSON.parse(data.apply_rule_on_other_items), d[data.apply_rule_on]) && d.item_code === data.item_code) {
+					if (JSON.parse(data.apply_rule_on_other_items).includes(d[data.apply_rule_on])) {
 						for(var k in data) {
-							if (data.pricing_rule_for == "Discount Percentage" && data.apply_rule_on_other_items && k == "discount_amount") {
-								continue;
-							}
 
 							if (in_list(fields, k) && data[k] && (data.price_or_product_discount === 'Price' || k === 'pricing_rules')) {
 								frappe.model.set_value(d.doctype, d.name, k, data[k]);

@@ -58,27 +58,41 @@ def search_by_term(search_term, warehouse, price_list):
 	item_stock_qty = item_stock_qty // item.get("conversion_factor", 1)
 	item.update({"actual_qty": item_stock_qty})
 
+	price_filters = {
+		"price_list": price_list,
+		"item_code": item_code,
+	}
+
+	if batch_no:
+		price_filters["batch_no"] = ["in", [batch_no, ""]]
+
 	price = frappe.get_list(
 		doctype="Item Price",
-		filters={
-			"price_list": price_list,
-			"item_code": item_code,
-			"batch_no": batch_no,
-		},
+		filters=price_filters,
 		fields=["uom", "currency", "price_list_rate", "batch_no"],
 	)
 
 	def __sort(p):
 		p_uom = p.get("uom")
+		p_batch = p.get("batch_no")
+		batch_no = item.get("batch_no")
+
+		if batch_no and p_batch and p_batch == batch_no:
+			if p_uom == item.get("uom"):
+				return 0
+			elif p_uom == item.get("stock_uom"):
+				return 1
+			else:
+				return 2
 
 		if p_uom == item.get("uom"):
-			return 0
+			return 3
 		elif p_uom == item.get("stock_uom"):
-			return 1
+			return 4
 		else:
-			return 2
+			return 5
 
-	# sort by fallback preference. always pick exact uom match if available
+	# sort by fallback preference. always pick exact uom and batch number match if available
 	price = sorted(price, key=__sort)
 
 	if len(price) > 0:
