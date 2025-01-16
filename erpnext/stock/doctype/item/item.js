@@ -964,6 +964,7 @@ function open_form(frm, doctype, child_doctype, parentfield) {
 	frappe.model.with_doctype(doctype, () => {
 		let new_doc = frappe.model.get_new_doc(doctype);
 		if (["Purchase Order", "Purchase Invoice", "Purchase Receipt"].includes(doctype) && frm.doc.doctype == "Item" && !new_doc.supplier) {
+			// Custom code needed for connections functionality.
 			frappe.call({
 				method: 'fxnmrnth.utils.item.get_item_supplier',
 				args: {
@@ -975,10 +976,10 @@ function open_form(frm, doctype, child_doctype, parentfield) {
 				callback: function (r) {
 					if (r.message) {
 						new_doc.supplier = r.message.supplier;
-						new_doc.currency = r.message.currency;
-						new_doc.plc_conversion_rate = r.message.exchange_rate;
-						new_doc.conversion_rate = r.message.exchange_rate;
-						new_doc.buying_price_list = r.message.price_list;
+						if (r.message.currency) new_doc.currency = r.message.currency;
+						if (r.message.exchange_rate) new_doc.plc_conversion_rate = r.message.exchange_rate;
+						if (r.message.exchange_rate) new_doc.conversion_rate = r.message.exchange_rate;
+						if (r.message.price_list) new_doc.buying_price_list = r.message.price_list;
 					}
 				}
 			})
