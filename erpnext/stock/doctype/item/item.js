@@ -963,6 +963,26 @@ frappe.tour["Item"] = [
 function open_form(frm, doctype, child_doctype, parentfield) {
 	frappe.model.with_doctype(doctype, () => {
 		let new_doc = frappe.model.get_new_doc(doctype);
+		if (["Purchase Order", "Purchase Invoice", "Purchase Receipt"].includes(doctype) && frm.doc.doctype == "Item" && !new_doc.supplier) {
+			frappe.call({
+				method: 'fxnmrnth.utils.item.get_item_supplier',
+				args: {
+					item_code: frm.doc.name,
+					brand: frm.doc.brand,
+					prev_currency: new_doc.currency
+				},
+				async: false,
+				callback: function (r) {
+					if (r.message) {
+						new_doc.supplier = r.message.supplier;
+						new_doc.currency = r.message.currency;
+						new_doc.plc_conversion_rate = r.message.exchange_rate;
+						new_doc.conversion_rate = r.message.exchange_rate;
+						new_doc.buying_price_list = r.message.price_list;
+					}
+				}
+			})
+		}
 
 		let new_child_doc = frappe.model.add_child(new_doc, child_doctype, parentfield);
 		new_child_doc.item_code = frm.doc.name;
