@@ -46,9 +46,18 @@ class ReceivablePayableReport:
 		self.qb_selection_filter = []
 		self.ple = qb.DocType("Payment Ledger Entry")
 		self.filters.report_date = getdate(self.filters.report_date or nowdate())
+		# self.age_as_on = (
+		# 	getdate(nowdate()) if self.filters.report_date > getdate(nowdate()) else self.filters.report_date
+		# )
+
+		#This change allows us to push the 'Report Date' forward and estimate who will be overdue at this date
+		#This has some challenges because we don't know if they will pay between now and the report date
 		self.age_as_on = (
-			getdate(nowdate()) if self.filters.report_date > getdate(nowdate()) else self.filters.report_date
+			self.filters.report_date if self.filters.report_date  else getdate(nowdate())
 		)
+
+		if self.filters.report_date > getdate(nowdate()):
+			frappe.msgprint(msg="You are using a report date in the future. The values shown are accurate insofar as nothing changes between now and the report date",title="Warning",indicator="red")
 
 		if not self.filters.range:
 			self.filters.range = "30, 60, 90, 120"
