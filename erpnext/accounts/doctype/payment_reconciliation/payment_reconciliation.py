@@ -810,7 +810,7 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 		jv.accounts[1].update(dimensions_dict)
 
 		jv.flags.ignore_mandatory = True
-		jv.flags.ignore_exchange_rate = True
+		jv.flags.ignore_exchange_rate = False
 		jv.remark = None
 		jv.flags.skip_remarks_creation = True
 		jv.is_system_generated = True
