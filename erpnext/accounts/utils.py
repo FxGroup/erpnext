@@ -2027,6 +2027,7 @@ class QueryPaymentLedger:
 			.where(Criterion.all(filter_on_against_voucher_no))
 			.where(Criterion.all(self.common_filter))
 			.groupby(ple.against_voucher_type, ple.against_voucher_no, ple.party_type, ple.party)
+			.having(Sum(ple.amount_in_account_currency) != 0) #Mitch Added
 		)
 
 		# build CTE for combining voucher amount and outstanding
