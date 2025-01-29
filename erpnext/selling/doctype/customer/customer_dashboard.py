@@ -14,7 +14,7 @@ def get_data():
 			"Bank Account": "party",
 			"Subscription": "party",
 			'Journal Entry': 'party',
-			'Customer': 'creation'
+			'Customer': 'creation',
 		},
 		"dynamic_links": {
 			"party_name": ["Customer", "quotation_to"],
@@ -69,5 +69,11 @@ def get_data():
 
 
 		#TODO: Placeholder so link will render
-	
+
+	if company == "FxMed":
+		dashboardData["transactions"].append({
+			'label': 'FxLearn Courses',
+			'items': ['Enrolment']
+		})
+		
 	return dashboardData
