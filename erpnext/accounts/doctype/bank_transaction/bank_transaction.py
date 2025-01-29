@@ -187,6 +187,15 @@ class BankTransaction(Document):
 					if should_clear:
 						latest_transaction.clear_linked_payment_entry(payment_entry)
 
+				elif 0.0 < remaining_amount < unallocated_amount:
+					frappe.throw(_("You are attempting to partially reconcile a {0}.<br><br>Bank Transaction Unallocated Amount: {1}.<br> {0} Unallocated Amount: {2}.<br><br>Please select an entry that is less than or equal to {1}").format(
+						payment_entry.payment_document,
+						frappe.bold(frappe.format(remaining_amount, {"fieldtype": "Currency", "options": "NZD"})),
+						frappe.bold(frappe.format(unallocated_amount, {"fieldtype": "Currency", "options": "NZD"}))
+						),
+						title="Cannot allocate part of an entry"
+					)
+
 				elif 0.0 < unallocated_amount:
 					payment_entry.allocated_amount = remaining_amount
 					remaining_amount = 0.0
