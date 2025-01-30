@@ -434,6 +434,10 @@ class PaymentReconciliation(Document):
 	def allocate_entries(self, args):
 		self.validate_entries()
 
+		exc_gain_loss_posting_date = frappe.db.get_single_value(
+			"Accounts Settings", "exchange_gain_loss_posting_date", cache=True
+		)
+
 		invoice_exchange_map = self.get_invoice_exchange_map(args.get("invoices"), args.get("payments"))
 		default_exchange_gain_loss_account = frappe.get_cached_value(
 			"Company", self.company, "exchange_gain_loss_account"
@@ -460,6 +464,11 @@ class PaymentReconciliation(Document):
 				res.difference_account = default_exchange_gain_loss_account
 				res.exchange_rate = inv.get("exchange_rate")
 				res.update({"gain_loss_posting_date": pay.get("posting_date")})
+				if not pay.get("is_advance"):
+					if exc_gain_loss_posting_date == "Invoice":
+						res.update({"gain_loss_posting_date": inv.get("invoice_date")})
+					elif exc_gain_loss_posting_date == "Reconciliation Date":
+						res.update({"gain_loss_posting_date": nowdate()})
 
 				if pay.get("amount") == 0:
 					entries.append(res)
@@ -637,7 +646,7 @@ class PaymentReconciliation(Document):
 					as_list=1,
 				)
 			)
-
+			#TODO: Not sure if teh conversion rate here is being mapped correctly.
 			invoice_exchange_map.update(purchase_invoice_map)
 
 		journals = [d.get("invoice_number") for d in invoices if d.get("invoice_type") == "Journal Entry"]
@@ -810,7 +819,8 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 		jv.accounts[1].update(dimensions_dict)
 
 		jv.flags.ignore_mandatory = True
-		jv.flags.ignore_exchange_rate = False
+		# TODO: Might need to toggle this flow if the voucher type is a purchase invoice.
+		jv.flags.ignore_exchange_rate = True
 		jv.remark = None
 		jv.flags.skip_remarks_creation = True
 		jv.is_system_generated = True
