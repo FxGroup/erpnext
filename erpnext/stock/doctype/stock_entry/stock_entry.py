@@ -2042,7 +2042,7 @@ class StockEntry(StockController):
 		from erpnext.manufacturing.doctype.bom.bom import get_bom_items_as_dict
 
 		if (
-			frappe.db.get_single_value("Manufacturing Settings", "set_op_cost_and_scrap_from_sub_assemblies")
+			frappe.db.get_single_value("Manufacturing Settings", "set_op_cost_and_scrape_from_sub_assemblies")
 			and self.work_order
 			and frappe.get_cached_value("Work Order", self.work_order, "use_multi_level_bom")
 		):
@@ -2849,7 +2849,7 @@ def get_operating_cost_per_unit(work_order=None, bom_no=None):
 		if (
 			bom_no
 			and frappe.db.get_single_value(
-				"Manufacturing Settings", "set_op_cost_and_scrap_from_sub_assemblies"
+				"Manufacturing Settings", "set_op_cost_and_scrape_from_sub_assemblies"
 			)
 			and frappe.get_cached_value("Work Order", work_order, "use_multi_level_bom")
 		):
@@ -2869,6 +2869,17 @@ def get_operating_cost_per_unit(work_order=None, bom_no=None):
 		bom = frappe.db.get_value("BOM", bom_no, ["operating_cost", "quantity"], as_dict=1)
 		if bom.quantity:
 			operating_cost_per_unit = flt(bom.operating_cost) / flt(bom.quantity)
+
+	if (
+		work_order
+		and work_order.produced_qty
+		and cint(
+			frappe.db.get_single_value(
+				"Manufacturing Settings", "add_corrective_operation_cost_in_finished_good_valuation"
+			)
+		)
+	):
+		operating_cost_per_unit += flt(work_order.corrective_operation_cost) / flt(work_order.produced_qty)
 
 	return operating_cost_per_unit
 
@@ -3235,13 +3246,12 @@ def create_serial_and_batch_bundle(parent_doc, row, child, type_of_transaction=N
 		}
 	)
 
-	precision = frappe.get_precision("Stock Entry Detail", "qty")
 	if row.serial_nos and row.batches_to_be_consume:
 		doc.has_serial_no = 1
 		doc.has_batch_no = 1
 		batchwise_serial_nos = get_batchwise_serial_nos(child.item_code, row)
 		for batch_no, qty in row.batches_to_be_consume.items():
-			while flt(qty, precision) > 0:
+			while qty > 0:
 				qty -= 1
 				doc.append(
 					"entries",
@@ -3262,9 +3272,8 @@ def create_serial_and_batch_bundle(parent_doc, row, child, type_of_transaction=N
 		precision = frappe.get_precision("Serial and Batch Entry", "qty")
 		doc.has_batch_no = 1
 		for batch_no, qty in row.batches_to_be_consume.items():
-			if flt(qty, precision) > 0:
-				qty = flt(qty, precision)
-				doc.append("entries", {"batch_no": batch_no, "warehouse": row.warehouse, "qty": qty * -1})
+			qty = flt(qty, precision)
+			doc.append("entries", {"batch_no": batch_no, "warehouse": row.warehouse, "qty": qty * -1})
 
 	if not doc.entries:
 		return None

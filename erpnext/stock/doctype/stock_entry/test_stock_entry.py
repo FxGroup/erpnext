@@ -1797,7 +1797,7 @@ class TestStockEntry(FrappeTestCase):
 
 		for serial_no in serial_nos:
 			self.assertTrue(frappe.db.exists("Serial No", serial_no))
-			self.assertEqual(frappe.db.get_value("Serial No", serial_no, "status"), "Consumed")
+			self.assertEqual(frappe.db.get_value("Serial No", serial_no, "status"), "Delivered")
 
 	def test_serial_batch_bundle_type_of_transaction(self):
 		item = make_item(

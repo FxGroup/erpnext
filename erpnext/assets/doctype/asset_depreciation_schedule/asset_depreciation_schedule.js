@@ -34,7 +34,6 @@ frappe.ui.form.on("Depreciation Schedule", {
 					asset_depr_schedule_name: frm.doc.name,
 					date: row.schedule_date,
 				},
-				debounce: 1000,
 				callback: function (r) {
 					frappe.model.sync(r.message);
 					frm.refresh();
