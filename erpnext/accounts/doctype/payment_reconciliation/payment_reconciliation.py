@@ -434,10 +434,6 @@ class PaymentReconciliation(Document):
 	def allocate_entries(self, args):
 		self.validate_entries()
 
-		exc_gain_loss_posting_date = frappe.db.get_single_value(
-			"Accounts Settings", "exchange_gain_loss_posting_date", cache=True
-		)
-
 		invoice_exchange_map = self.get_invoice_exchange_map(args.get("invoices"), args.get("payments"))
 		default_exchange_gain_loss_account = frappe.get_cached_value(
 			"Company", self.company, "exchange_gain_loss_account"
@@ -464,11 +460,6 @@ class PaymentReconciliation(Document):
 				res.difference_account = default_exchange_gain_loss_account
 				res.exchange_rate = inv.get("exchange_rate")
 				res.update({"gain_loss_posting_date": pay.get("posting_date")})
-				if not pay.get("is_advance"):
-					if exc_gain_loss_posting_date == "Invoice":
-						res.update({"gain_loss_posting_date": inv.get("invoice_date")})
-					elif exc_gain_loss_posting_date == "Reconciliation Date":
-						res.update({"gain_loss_posting_date": nowdate()})
 
 				if pay.get("amount") == 0:
 					entries.append(res)
