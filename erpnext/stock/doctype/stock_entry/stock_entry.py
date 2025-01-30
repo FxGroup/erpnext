@@ -2435,7 +2435,7 @@ class StockEntry(StockController):
 			se_child.is_scrap_item = item_row.get("is_scrap_item", 0)
 			se_child.po_detail = item_row.get("po_detail")
 			se_child.sco_rm_detail = item_row.get("sco_rm_detail")
-
+			se_child.use_serial_batch_fields = 1
 			for field in [
 				self.subcontract_data.rm_detail_field,
 				"original_item",
