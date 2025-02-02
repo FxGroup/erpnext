@@ -334,12 +334,11 @@ def calculate_ws_commission(entries, filters):
 		if entry['is_return']:
 			entry['wholesale_price'] = entry['wholesale_price'] * -1
 			entry['wholesale_amount'] = entry['wholesale_amount'] * -1
-		if entry['wholesale_price']:
+		if entry['wholesale_price'] or entry['wholesale_price'] == 0:
 			entry["commission_wholesale"] = flt(entry["amount"] - (entry['wholesale_price']*abs(entry["qty"])), 2)
 			if entry["commission_wholesale"] < 0 and not entry['is_return']:
 				entry["commission_wholesale"] = 0
 		else:
-
 			msgprint("No wholesale price for <a href='" + get_url() + "/app/item/" + entry["item_code"] + "' target='_blank'>" + entry["item_code"] + "</a>. Please set a wholesale price and then re-run report")
 			return []
 		
@@ -356,7 +355,7 @@ def get_wholesale_price(entry):
 	price_list = entry.price_list.split(" ")[0] + " Wholesale"
 	get_price_list_rate_args['price_list'] = price_list
 	price_list_rate = get_price_list_rate_for(get_price_list_rate_args, entry.item_code)
-	if price_list_rate:
+	if price_list_rate or price_list_rate == 0:
 		return abs(price_list_rate), abs(price_list_rate)*abs(entry.qty)
 	else:
 		return None, None
