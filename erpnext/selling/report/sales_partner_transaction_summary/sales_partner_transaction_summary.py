@@ -52,18 +52,6 @@ def get_columns(filters):
 			"fieldtype": "DATA",
 			"width": 200
 		},
-				{
-			"label": _("Branch Code"),
-			"fieldname": "branch_code",
-			"fieldtype": "data",
-			"width": 100
-		},
-		{
-			"label": _("Account Number"),
-			"fieldname": "account_number",
-			"fieldtype": "data",
-			"width": 100
-		},
 		{
 			"label": _("Sales Partner Rebate preference"),
 			"fieldname": "bank_details",
@@ -102,16 +90,16 @@ def get_columns(filters):
 			"fieldtype": "Date",
 			"width": 100
 		},
-		# {
-		# 	"label": _("Item Code"),
-		# 	"fieldname": "item_code",
-		# 	"fieldtype": "Link",
-		# 	"options": "Item",
-		# 	"width": 120
-		# },
 	]
 	if filters.get("group_by") != "Customer Name":
 		columns += [
+			{
+				"label": _("Item Code"),
+				"fieldname": "item_code",
+				"fieldtype": "Link",
+				"options": "Item",
+				"width": 120
+			},
 			{
 				"label": _("Item Name"),
 				"fieldname": "item_name",
@@ -125,13 +113,13 @@ def get_columns(filters):
 			# 	"options": "Item Group",
 			# 	"width": 100
 			# },
-			# {
-			# 	"label": _("Brand"),
-			# 	"fieldname": "brand",
-			# 	"fieldtype": "Link",
-			# 	"options": "Brand",
-			# 	"width": 100
-			# },
+			{
+				"label": _("Brand"),
+				"fieldname": "brand",
+				"fieldtype": "Link",
+				"options": "Brand",
+				"width": 100
+			},
 		]
 	columns += [ 
 		{
