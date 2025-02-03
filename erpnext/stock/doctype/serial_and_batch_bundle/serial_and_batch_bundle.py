@@ -2441,15 +2441,16 @@ def get_stock_ledgers_batches(kwargs):
 		else:
 			query = query.where(stock_ledger_entry[field] == kwargs.get(field))
 
-	if kwargs.get("posting_date"):
-		if kwargs.get("posting_time") is None:
-			kwargs.posting_time = nowtime()
+	#TODO: Removing posting date parameter to allow for future date orders.
+	# if kwargs.get("posting_date"):
+	# 	if kwargs.get("posting_time") is None:
+	# 		kwargs.posting_time = nowtime()
 
-		timestamp_condition = stock_ledger_entry.posting_datetime <= get_combine_datetime(
-			kwargs.posting_date, kwargs.posting_time
-		)
+	# 	timestamp_condition = stock_ledger_entry.posting_datetime <= get_combine_datetime(
+	# 		kwargs.posting_date, kwargs.posting_time
+	# 	)
 
-		query = query.where(timestamp_condition)
+	# 	query = query.where(timestamp_condition)
 
 	if kwargs.get("ignore_voucher_nos"):
 		query = query.where(stock_ledger_entry.voucher_no.notin(kwargs.get("ignore_voucher_nos")))
