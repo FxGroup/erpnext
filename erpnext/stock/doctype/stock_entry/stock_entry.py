@@ -969,9 +969,8 @@ class StockEntry(StockController):
 		for d in self.get("items"):
 			if d.transfer_qty:
 				d.amount = flt(flt(d.basic_amount) + flt(d.additional_cost), d.precision("amount"))
-				if not self.ignore_valuation:
-					# Do not round off valuation rate to avoid precision loss
-					d.valuation_rate = flt(d.basic_rate) + (flt(d.additional_cost) / flt(d.transfer_qty))
+				# Do not round off valuation rate to avoid precision loss
+				d.valuation_rate = flt(d.basic_rate) + (flt(d.additional_cost) / flt(d.transfer_qty))
 
 	def set_total_incoming_outgoing_value(self):
 		self.total_incoming_value = self.total_outgoing_value = 0.0

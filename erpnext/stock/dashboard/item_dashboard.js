@@ -146,16 +146,20 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 			});
 
 			frappe.call({
-				method: 'fxnmrnth.utils.stock_receiver.get_valuation_rate',
+				method: 'fxnmrnth.utils.stock_receiver.get_item_valuation_rate',
 				args: {
 					params: {
 						item_code: item,
+						action: action,
+						method: "valuation_rate",
+						target_site: target_site,
+						current_site: current_site
 					}
 				},
 				async: false,
 				callback: function (r) {
-					if (r.message.valuation_rate) {
-						valuation_rate = r.message.valuation_rate;
+					if (r.message) {
+						valuation_rate = r.message;
 					}
 				}
 			});
