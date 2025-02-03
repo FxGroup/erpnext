@@ -29,7 +29,7 @@ frappe.ui.form.on("Plaid Settings", {
 							"Bank Transaction",
 							"",
 							true,
-							__("Bank Transaction")
+							"Bank Transaction"
 						);
 
 						frappe.msgprint({

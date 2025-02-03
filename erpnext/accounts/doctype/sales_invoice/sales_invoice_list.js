@@ -32,16 +32,12 @@ frappe.listview_settings["Sales Invoice"] = {
 	right_column: "grand_total",
 
 	onload: function (listview) {
-		if (frappe.model.can_create("Delivery Note")) {
-			listview.page.add_action_item(__("Delivery Note"), () => {
-				erpnext.bulk_transaction_processing.create(listview, "Sales Invoice", "Delivery Note");
-			});
-		}
+		listview.page.add_action_item(__("Delivery Note"), () => {
+			erpnext.bulk_transaction_processing.create(listview, "Sales Invoice", "Delivery Note");
+		});
 
-		if (frappe.model.can_create("Payment Entry")) {
-			listview.page.add_action_item(__("Payment"), () => {
-				erpnext.bulk_transaction_processing.create(listview, "Sales Invoice", "Payment Entry");
-			});
-		}
+		listview.page.add_action_item(__("Payment"), () => {
+			erpnext.bulk_transaction_processing.create(listview, "Sales Invoice", "Payment Entry");
+		});
 	},
 };

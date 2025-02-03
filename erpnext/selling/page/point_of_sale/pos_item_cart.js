@@ -988,8 +988,8 @@ erpnext.PointOfSale.ItemCart = class {
 					.html(`${__("Last transacted")} ${__(elapsed_time)}`);
 
 				res.forEach((invoice) => {
-					const posting_datetime = frappe.datetime.str_to_user(
-						invoice.posting_date + " " + invoice.posting_time
+					const posting_datetime = moment(invoice.posting_date + " " + invoice.posting_time).format(
+						"Do MMMM, h:mma"
 					);
 					let indicator_color = {
 						Paid: "green",

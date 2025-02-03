@@ -119,7 +119,6 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 			let target_site = unescape(element.attr('data-target_site'));
 			let current_site = unescape(element.attr('data-current_site'));
 			let has_batch_no = Number(unescape(element.attr('data-has_batch_no')));
-			let valuation_rate;
 			let price_data = [];
 			let tar_batch_data = [];
 			let cur_batch_data = [];
@@ -164,6 +163,7 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 				}
 			});
 			
+
 			if (price_data && price_data.length > 0) {
 				let price_message = price_data.map(data => 
 					`<li>${data.message}</li>`
@@ -231,7 +231,7 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 				});
 
 				stock_transfer_dialog(item, cur_batch_data, tar_batch_data, current_site, target_site, current_site_qty, has_batch_no, action, function (values) {
-					create_stock_entry(item, current_site, target_site, values, action, has_batch_no, valuation_rate);
+					create_stock_entry(item, current_site, target_site, values, action, has_batch_no);
 					me.refresh();
 				});
 			}
@@ -1027,7 +1027,7 @@ function stock_transfer_dialog(item_code, cur_batch_data, tar_batch_data, curren
 	});
 }
 
-function create_stock_entry(item_code, current_site, target_site, values, action, has_batch_no, valuation_rate) {
+function create_stock_entry(item_code, current_site, target_site, values, action, has_batch_no) {
 	// Used to store reference of source and target site stock entries
 	function generateRandomHash(length) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -1051,7 +1051,6 @@ function create_stock_entry(item_code, current_site, target_site, values, action
 				current_site: current_site,
 				has_batch_no: has_batch_no,
 				batch_data: values,
-				valuation_rate: valuation_rate,
 				intersite_key: intersite_key,
 				user_email: frappe.session.user_email,
 				user_name: frappe.session.user_fullname

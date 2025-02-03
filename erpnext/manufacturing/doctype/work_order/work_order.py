@@ -348,9 +348,8 @@ class WorkOrder(Document):
 				if flt(self.material_transferred_for_manufacturing) > 0:
 					status = "In Process"
 
-				precision = frappe.get_precision("Work Order", "produced_qty")
-				total_qty = flt(self.produced_qty, precision) + flt(self.process_loss_qty, precision)
-				if flt(total_qty, precision) >= flt(self.qty, precision):
+				total_qty = flt(self.produced_qty) + flt(self.process_loss_qty)
+				if flt(total_qty) >= flt(self.qty):
 					status = "Completed"
 		else:
 			status = "Cancelled"
