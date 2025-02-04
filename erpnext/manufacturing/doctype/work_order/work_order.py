@@ -533,7 +533,7 @@ class WorkOrder(Document):
 			else:
 				qty = total_qty
 				total_qty = 0
-
+				
 			make_batch(
 				frappe._dict(
 					{
@@ -541,6 +541,7 @@ class WorkOrder(Document):
 						"qty_to_produce": qty,
 						"reference_doctype": self.doctype,
 						"reference_name": self.name,
+						"expiry_date": "2600-01-01"
 					}
 				)
 			)
