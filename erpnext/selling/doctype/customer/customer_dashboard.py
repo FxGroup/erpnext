@@ -68,11 +68,9 @@ def get_data():
 		dashboardData['non_standard_fieldnames']['Rebate Statement'] = "sales_partner_customer"
 
 
-		#TODO: Placeholder so link will render
-
 	if company == "FxMed":
 		dashboardData["transactions"].append({
-			'label': 'FxLearn Courses',
+			'label': 'FxLearn',
 			'items': ['Enrolment']
 		})
 		
