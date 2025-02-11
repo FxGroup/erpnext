@@ -1,8 +1,8 @@
 from frappe import _
-
+from erpnext import get_default_company
 
 def get_data():
-	return {
+	args = {
 		"heatmap": True,
 		"heatmap_message": _("This is based on stock movement. See {0} for details").format(
 			'<a href="/app/query-report/Stock Ledger">' + _("Stock Ledger") + "</a>"
@@ -46,3 +46,12 @@ def get_data():
 			}
 		]
 	}
+
+	if get_default_company() == "FxMed":
+		args['non_standard_fieldnames']['Course'] = "education_item"
+		args['transactions'].append({
+			'label': 'FxLearn',
+			'items': ["Course"]
+		})
+	
+	return args
