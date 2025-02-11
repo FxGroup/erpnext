@@ -164,7 +164,6 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 				}
 			});
 			
-
 			if (price_data && price_data.length > 0) {
 				let price_message = price_data.map(data => 
 					`<li>${data.message}</li>`
@@ -202,6 +201,18 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 					dialog.hide();
 				});
 		
+				return; 
+			}
+
+			if (!valuation_rate) {
+				let site;
+				if (action == "transfer") {
+					site = current_site;
+				} else {
+					site = target_site;
+				}
+
+				frappe.msgprint(`The valuation rate for item <b>${item}</b> could not be found in <b>${site}</b>. Unable to perform the stock transfer.<br><br>Please update the valuation rate in <b>${site}</b> and try again.`)
 				return; 
 			}
 
