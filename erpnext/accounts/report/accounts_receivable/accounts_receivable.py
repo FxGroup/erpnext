@@ -1167,7 +1167,7 @@ class ReceivablePayableReport:
 		if fieldtype == "Currency":
 			options = "currency"
 		if fieldtype == "Date":
-			width = 90
+			width = 110
 
 		self.columns.append(
 			dict(label=label, fieldname=fieldname, fieldtype=fieldtype, options=options, width=width)
