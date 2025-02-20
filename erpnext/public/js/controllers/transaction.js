@@ -11,12 +11,11 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		this.frm.ignore_doctypes_on_cancel_all = ['Serial and Batch Bundle'];
 
 		frappe.flags.hide_serial_batch_dialog = true;
-		frappe.ui.form.on(this.frm.doctype + " Item", "rate", function(frm, cdt, cdn) {
+		this.calculate_item_discounts = function(frm, cdt, cdn) {
 			var item = frappe.get_doc(cdt, cdn);
 			var has_margin_field = frappe.meta.has_field(cdt, 'margin_type');
 
 			frappe.model.round_floats_in(item, ["rate", "price_list_rate"]);
-
 			if(item.price_list_rate && !item.blanket_order_rate) {
 				if(item.rate > item.price_list_rate && has_margin_field) {
 					// if rate is greater than price_list_rate, set margin
@@ -27,12 +26,19 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 						precision("margin_rate_or_amount", item));
 					item.rate_with_margin = item.rate;
 				} else {
+					//Test whether can round discount to a 'nicer' percentage
 					var discount_percentage = flt((1 - item.rate / item.price_list_rate) * 100.0,
 						precision("discount_percentage", item));
-					if (Math.abs(item.discount_percentage - discount_percentage) > 0.06){
-						item.discount_percentage = discount_percentage
-					}
-					
+					let rounded_discount = Math.round(discount_percentage); // Nearest whole number
+					let difference = Math.abs(discount_percentage - rounded_discount);
+
+					let recalculated_rate = item.price_list_rate * (1 - (rounded_discount / 100));
+					let original_rate_rounded = Math.round(item.rate * 100) / 100;
+					let recalculated_rate_rounded = Math.round(recalculated_rate * 100) / 100;
+					if (difference <= 0.03 && original_rate_rounded == recalculated_rate_rounded) {
+						item.discount_percentage = rounded_discount
+					} 
+
 					item.discount_amount = flt(item.price_list_rate) - flt(item.rate);
 					item.margin_type = '';
 					item.margin_rate_or_amount = 0;
@@ -49,6 +55,11 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			cur_frm.cscript.set_gross_profit(item);
 			cur_frm.cscript.calculate_taxes_and_totals();
 			cur_frm.cscript.calculate_stock_uom_rate(frm, cdt, cdn);
+		}
+
+		frappe.ui.form.on(this.frm.doctype + " Item", "rate", function(frm, cdt, cdn) {
+			me.calculate_item_discounts(frm, cdt, cdn);
+			me.has_calculated_on_load = true;
 		});
 
 		frappe.ui.form.on(this.frm.cscript.tax_table, "rate", function(frm, cdt, cdn) {
@@ -269,6 +280,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 	onload() {
 		var me = this;
+		me.has_calculated_on_load = false;
 
 		if(this.frm.doc.__islocal) {
 			var currency = frappe.defaults.get_user_default("currency");
@@ -394,6 +406,12 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		this.setup_sms();
 		this.setup_quality_inspection();
 		this.validate_has_items();
+		if (!this.has_calculated_on_load && this.frm.doc.doctype == "Sales Invoice" && this.frm.doc.docstatus == 0) {
+			for (let i = 0; i < this.frm.doc.items.length; i++) {
+				let item = this.frm.doc.items[i];
+				this.calculate_item_discounts(this.frm, item.doctype, item.name);
+			}
+		}
 		erpnext.utils.view_serial_batch_nos(this.frm);
 		this.set_route_options_for_new_doc();
 	}
