@@ -456,6 +456,8 @@ class SalesInvoice(SellingController):
 
 				self.make_bundle_for_sales_purchase_return(table_name)
 				self.make_bundle_using_old_serial_batch_fields(table_name)
+
+			self.update_stock_reservation_entries()
 			self.update_stock_ledger()
 
 		# this sequence because outstanding may get -ve
@@ -557,6 +559,7 @@ class SalesInvoice(SellingController):
 		self.make_gl_entries_on_cancel()
 
 		if self.update_stock == 1:
+			self.update_stock_reservation_entries()
 			self.repost_future_sle_and_gle()
 
 		self.db_set("status", "Cancelled")
