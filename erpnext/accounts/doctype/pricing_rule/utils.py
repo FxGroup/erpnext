@@ -820,7 +820,7 @@ def apply_pricing_rule_for_free_items(doc, pricing_rule_args):
 				if args.qty != 0:
 					doc.append("items", args)
 					
-		for free_item in args.values():
+		for free_item in pricing_rule_args:
 			if doc.is_new() or not frappe.get_value(
 				"Pricing Rule", free_item["pricing_rules"], "dont_enforce_free_item_qty"
 			):
