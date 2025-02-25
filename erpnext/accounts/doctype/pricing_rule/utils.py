@@ -819,12 +819,12 @@ def apply_pricing_rule_for_free_items(doc, pricing_rule_args):
 			if not items or (args.get("item_code"), args.get("pricing_rules")) not in items:
 				if args.qty != 0:
 					doc.append("items", args)
-					
 		for free_item in pricing_rule_args:
 			if doc.is_new() or not frappe.get_value(
 				"Pricing Rule", free_item["pricing_rules"], "dont_enforce_free_item_qty"
 			):
-				doc.append("items", free_item)
+				if not items or (args.get("item_code"), args.get("pricing_rules")) not in items:
+					doc.append("items", free_item)
 
 
 def get_pricing_rule_items(pr_doc, other_items=False) -> list:
