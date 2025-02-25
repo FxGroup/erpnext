@@ -99,6 +99,7 @@
   "weight_per_unit",
   "total_weight",
   "column_break_40",
+  "inventory_location",
   "weight_uom",
   "accounting_dimensions_section",
   "project",
@@ -918,6 +919,13 @@
    "label": "Subcontracted Quantity",
    "no_copy": 1,
    "non_negative": 1,
+   "read_only": 1
+  },
+  {
+   "fetch_from": "fg_item.inventory_location",
+   "fieldname": "inventory_location",
+   "fieldtype": "Data",
+   "label": "Inventory Location",
    "read_only": 1
   }
  ],

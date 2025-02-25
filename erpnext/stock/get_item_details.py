@@ -11,6 +11,7 @@ from frappe.model.meta import get_field_precision
 from frappe.model.utils import get_fetch_values
 from frappe.query_builder.functions import IfNull, Sum
 from frappe.utils import add_days, add_months, cint, cstr, flt, getdate, parse_json
+from erpnext.stock.doctype.batch.batch import get_batch_no
 
 from erpnext import get_company_currency
 from erpnext.accounts.doctype.pricing_rule.pricing_rule import (
@@ -113,18 +114,16 @@ def get_item_details(args, doc=None, for_validate=False, overwrite_warehouse=Tru
 	for key, value in out.items():
 		if args.get(key) is None:
 			args[key] = value
-
+	if (
+		(frappe.db.get_single_value("Stock Settings", "auto_create_serial_and_batch_bundle_for_outward")
+		and not args.get("serial_and_batch_bundle"))
+		or (args.get("use_serial_batch_fields") or args.get("doctype") == "POS Invoice")
+	):
+		test = update_stock(args, out, doc)
+	args2 = args
 	data = get_pricing_rule_for_item(args, doc=doc, for_validate=for_validate)
-
-	
 	out.update(data)
 
-	if (
-		frappe.db.get_single_value("Stock Settings", "auto_create_serial_and_batch_bundle_for_outward")
-		and not args.get("serial_and_batch_bundle")
-		and (args.get("use_serial_batch_fields") or args.get("doctype") == "POS Invoice")
-	):
-		update_stock(args, out, doc)
 
 	if args.transaction_date and item.lead_time_days:
 		out.schedule_date = out.lead_time_date = add_days(args.transaction_date, item.lead_time_days)
@@ -139,7 +138,6 @@ def get_item_details(args, doc=None, for_validate=False, overwrite_warehouse=Tru
 
 	out = remove_standard_fields(out)
 	return out
-
 
 def remove_standard_fields(details):
 	for key in child_table_fields + default_fields:
@@ -241,6 +239,7 @@ def update_stock(ctx, out, doc=None):
 			serial_nos = get_filtered_serial_nos(serial_nos, doc)
 
 			out["serial_no"] = "\n".join(serial_nos[: cint(out.stock_qty)])
+	return out
 
 
 def has_incorrect_serial_nos(ctx, out):
@@ -1390,7 +1389,6 @@ def apply_price_list(args, as_doc=False, doc=None):
 	        }
 	"""
 	args = process_args(args)
-
 
 	parent = get_price_list_currency_and_exchange_rate(args)
 	args.update(parent)

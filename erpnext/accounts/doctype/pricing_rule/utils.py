@@ -533,9 +533,9 @@ def get_qty_and_rate_for_mixed_conditions(doc, pr_doc, args):
 				if pr_doc.mixed_conditions:
 					amt = args.get("qty") * args.get("price_list_rate", 0)
 					if args.get("item_code") != row.get("item_code"):
-						amt = flt(row.get("qty")) * flt(row.get("price_list_rate", 0) or args.get("rate", 0))
+						amt = flt(row.get("qty")) * flt(row.get("price_list_rate", 0) or row.get("rate", 0))
 
-					sum_qty += flt(row.get("stock_qty")) or flt(args.get("stock_qty")) or flt(args.get("qty"))
+					sum_qty += flt(row.get("stock_qty")) or flt(row.get("stock_qty")) or flt(row.get("qty"))
 					sum_amt += amt
 
 			if pr_doc.is_cumulative:
@@ -820,7 +820,7 @@ def apply_pricing_rule_for_free_items(doc, pricing_rule_args):
 				if args.qty != 0:
 					doc.append("items", args)
 					
-		for free_item in args.values():
+		for free_item in pricing_rule_args:
 			if doc.is_new() or not frappe.get_value(
 				"Pricing Rule", free_item["pricing_rules"], "dont_enforce_free_item_qty"
 			):
