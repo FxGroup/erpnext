@@ -369,7 +369,7 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 			continue
 		
 		for item in data:
-			if itemid != item["name"]:
+			if itemid != item["name"] and item.get("batch_no"):
 				if item["batch_no"] == batch.batch_no:
 					batch.qty -= float(item["qty"])
 
