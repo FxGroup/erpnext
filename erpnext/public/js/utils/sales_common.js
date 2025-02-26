@@ -488,7 +488,16 @@ erpnext.sales_common = {
 				}
 		
 				let me = this
-				let args = {'item_code': doc.item_code, 'item_name': doc.item_name, 'warehouse': cur_frm.doc.set_warehouse, 'qty': flt(doc.qty) * flt(doc.conversion_factor), "cur_batch_no": doc.batch_no, "accepts_backorders": cur_frm.doc.accepts_backorders, "actual_qty": doc.actual_qty};
+				let args = {
+					'item_code': doc.item_code, 
+					'item_name': doc.item_name, 
+					'warehouse': cur_frm.doc.set_warehouse, 
+					'qty': flt(doc.qty) * flt(doc.conversion_factor), 
+					"cur_batch_no": doc.batch_no, "accepts_backorders": cur_frm.doc.accepts_backorders, 
+					"actual_qty": doc.actual_qty,
+					"data": this.frm.doc[doc.parentfield],
+					"itemid": doc.name
+				};
 				if (doc.has_serial_no && doc.serial_no) {
 					args['serial_no'] = doc.serial_no
 				}
@@ -506,6 +515,7 @@ erpnext.sales_common = {
 						frappe.model.set_value(doc.doctype, doc.name, 'batch_no', r.message);
 						// debugger
 						if (r.content) {
+							console.log(r.content)
 							me.batch_selection(doc, r.content, r.lock_dialog, r.dialog_type);
 						}
 					}
@@ -528,6 +538,7 @@ erpnext.sales_common = {
 					}
 				}
 		
+
 				let this_frm = doc
 		
 				let secondary_label = ""
@@ -543,16 +554,8 @@ erpnext.sales_common = {
 						break;
 				}
 		
-				if (!me.batch_dialog_items) {
-					me.batch_dialog_items = {}
-				} else {
-					if (me.batch_dialog_items[doc.item_code]) {
-						return
-					}
-				}
-				
-				me.batch_dialog_items[doc.item_code] = true
-						erpnext.show_serial_batch_selector(me.frm, this_frm, "", undefined, true);
+
+				erpnext.show_serial_batch_selector(me.frm, this_frm, "", undefined, true);
 			}
 		};
 	},

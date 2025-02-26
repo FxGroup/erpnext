@@ -12,7 +12,7 @@ from frappe.query_builder.functions import CurDate, Sum
 from frappe.utils import cint, flt, get_link_to_form
 from frappe.utils.data import add_days
 from frappe.utils.jinja import render_template
-
+import json
 
 class UnableToSelectBatchError(frappe.ValidationError):
 	pass
@@ -337,7 +337,7 @@ def make_batch_bundle(
 	from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
 @frappe.whitelist()
-def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None, cur_batch_no=None, return_error=True, return_shortdated = False):
+def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None, cur_batch_no=None, return_error=True, return_shortdated = False, data = None, itemid = None):
 	"""
 	Get batch number using First Expiring First Out method.
 	:param item_code: `item_code` of Item Document
@@ -349,7 +349,6 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 	today_date = getdate(today())
 	alert_date = add_months(today_date, int(frappe.get_value("Item", item_code, "shortdated_timeframe_in_months")))
 
-
 	batch_no = None
 	message = None
 	batches = get_batches_by_oldest(item_code=item_code, warehouse=warehouse)
@@ -358,7 +357,7 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 	batches = [batch[0] for batch in batches]
 	## Filtered out the batch so that only batch have actual qty
 	batches = list(filter(lambda batch : batch.qty > 0, batches)) 
-
+	data = json.loads(data)
 	found = False
 	shortdated_available = False
 	for batch in batches:
@@ -368,6 +367,12 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 			shortdated_available = True
 		if found == True:
 			continue
+		
+		for item in data:
+			if itemid != item["name"]:
+				if item["batch_no"] == batch.batch_no:
+					batch.qty -= float(item["qty"])
+
 		if cint(qty) <= cint(batch.qty):
 			if not batch_no:
 				batch_no = batch.batch_no
@@ -438,6 +443,7 @@ def get_single_batch_no(item_code, warehouse, qty=1, throw=False, serial_no=None
 				frappe.response.dialog_type = "longdated"
 		if return_shortdated:
 			return batch_no, shortdated
+			
 	return batch_no
 
 
