@@ -801,6 +801,7 @@ def apply_pricing_rule_for_free_items(doc, pricing_rule_args):
 					bo_items.append(data)
 				except ValueError:
 					bo_items.append((d.item_code, f'["{d.pricing_rules}"]'))
+		# items += bo_items
 		for args in pricing_rule_args:
 			if args.get("pricing_rules") :
 				args["pricing_rules"] = json.dumps([args.get("pricing_rules")])
@@ -815,15 +816,13 @@ def apply_pricing_rule_for_free_items(doc, pricing_rule_args):
 
 					if (args.get("item_code"), args.get("pricing_rules")) == data:
 						args["qty"] -= bo_item.qty
-
-			if not items or (args.get("item_code"), args.get("pricing_rules")) not in items:
-				if args.qty != 0:
-					doc.append("items", args)
+						
 		for free_item in pricing_rule_args:
 			if doc.is_new() or not frappe.get_value(
 				"Pricing Rule", free_item["pricing_rules"], "dont_enforce_free_item_qty"
 			):
-				if not items or (args.get("item_code"), args.get("pricing_rules")) not in items:
+				if not items or (args.get("item_code"), args.get("pricing_rules")) not in items and free_item.qty != 0:
+					free_item.use_serial_batch_fields = 1
 					doc.append("items", free_item)
 
 
