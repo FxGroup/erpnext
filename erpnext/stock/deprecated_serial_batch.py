@@ -293,6 +293,60 @@ class DeprecatedBatchNoValuation:
 		return data[0] if data else {}
 
 	@deprecated
+	def get_last_sle_for_sabb_no_batchwise_valuation(self):
+		sabb = frappe.qb.DocType("Serial and Batch Bundle")
+		sabb_entry = frappe.qb.DocType("Serial and Batch Entry")
+		batch = frappe.qb.DocType("Batch")
+
+		posting_datetime = CombineDatetime(self.sle.posting_date, self.sle.posting_time)
+		timestamp_condition = CombineDatetime(sabb.posting_date, sabb.posting_time) < posting_datetime
+
+		if self.sle.creation:
+			timestamp_condition |= (
+				CombineDatetime(sabb.posting_date, sabb.posting_time) == posting_datetime
+			) & (sabb.creation < self.sle.creation)
+
+		query = (
+			frappe.qb.from_(sabb)
+			.inner_join(sabb_entry)
+			.on(sabb.name == sabb_entry.parent)
+			.inner_join(batch)
+			.on(sabb_entry.batch_no == batch.name)
+			.select(sabb.name)
+			.where(
+				(sabb.item_code == self.sle.item_code)
+				& (sabb.warehouse == self.sle.warehouse)
+				& (sabb_entry.batch_no.isnotnull())
+				& (batch.use_batchwise_valuation == 0)
+				& (sabb.is_cancelled == 0)
+				& (sabb.docstatus == 1)
+			)
+			.where(timestamp_condition)
+			.orderby(sabb.posting_date, order=Order.desc)
+			.orderby(sabb.posting_time, order=Order.desc)
+			.orderby(sabb.creation, order=Order.desc)
+			.limit(1)
+		)
+
+		if self.sle.voucher_detail_no:
+			query = query.where(sabb.voucher_detail_no != self.sle.voucher_detail_no)
+
+		query = query.where(sabb.voucher_type != "Pick List")
+
+		data = query.run(as_dict=True)
+		if not data:
+			return {}
+
+		sle = frappe.db.get_value(
+			"Stock Ledger Entry",
+			{"serial_and_batch_bundle": data[0].name},
+			["stock_value", "qty_after_transaction"],
+			as_dict=1,
+		)
+
+		return sle if sle else {}
+
+	@deprecated
 	def set_balance_value_from_bundle(self) -> None:
 		bundle = frappe.qb.DocType("Serial and Batch Bundle")
 		bundle_child = frappe.qb.DocType("Serial and Batch Entry")
