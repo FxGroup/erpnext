@@ -200,7 +200,6 @@ class AccountsController(TransactionBase):
 			self.validate_enabled_taxes_and_charges()
 			self.validate_tax_account_company()
 
-		self.set_taxes_and_charges()
 
 		if self.meta.get_field("currency"):
 			self.calculate_taxes_and_totals()
