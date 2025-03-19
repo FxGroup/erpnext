@@ -1,7 +1,8 @@
 erpnext.PointOfSale.PastOrderSummary = class {
-	constructor({ wrapper, events }) {
+	constructor({ wrapper, settings, events }) {
 		this.wrapper = wrapper;
 		this.events = events;
+		this.print_receipt_on_order_complete = settings.print_receipt_on_order_complete;
 
 		this.init_component();
 	}
@@ -357,8 +358,8 @@ erpnext.PointOfSale.PastOrderSummary = class {
 
 		this.add_summary_btns(condition_btns_map);
 
-		if (after_submission) {
-			this.print_receipt_on_order_complete();
+		if (after_submission && this.print_receipt_on_order_complete) {
+			this.print_receipt();
 		}
 	}
 

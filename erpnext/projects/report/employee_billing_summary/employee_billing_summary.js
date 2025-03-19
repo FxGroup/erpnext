@@ -8,7 +8,6 @@ frappe.query_reports["Employee Billing Summary"] = {
 			label: __("Employee"),
 			fieldtype: "Link",
 			options: "Employee",
-			reqd: 1,
 		},
 		{
 			fieldname: "from_date",

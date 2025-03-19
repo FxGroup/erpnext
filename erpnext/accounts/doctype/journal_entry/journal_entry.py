@@ -1070,7 +1070,10 @@ class JournalEntry(AccountsController):
 				if row.account_currency != company_currency:
 					# Journal assumes the first foreign currency as transaction currency
 					self.transaction_currency = row.account_currency
-					self.transaction_exchange_rate = row.exchange_rate
+					if row.exchange_rate and isinstance(row.exchange_rate, str):
+						self.transaction_exchange_rate = float(row.exchange_rate)
+					elif row.exchange_rate:
+						self.transaction_exchange_rate = row.exchange_rate
 					break
 
 		for d in self.get("accounts"):
