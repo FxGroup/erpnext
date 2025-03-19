@@ -2099,8 +2099,8 @@ def get_auto_batch_nos(kwargs):
 			picked_batches,
 		)
 
-	if available_batches and kwargs.get("posting_date"):
-		filter_zero_near_batches(available_batches, kwargs)
+	# if available_batches and kwargs.get("posting_date"):
+	# 	filter_zero_near_batches(available_batches, kwargs)
 
 	if not kwargs.consider_negative_batches:
 		available_batches = list(filter(lambda x: x.qty > 0, available_batches))

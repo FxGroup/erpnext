@@ -8,7 +8,7 @@ from collections import defaultdict
 import frappe
 from frappe import _, bold, qb, throw
 from frappe.model.workflow import get_workflow_name, is_transition_condition_satisfied
-from frappe.query_builder import Criterion
+from frappe.query_builder import Criterion, DocType
 from frappe.query_builder.custom import ConstantColumn
 from frappe.query_builder.functions import Abs, Sum
 from frappe.utils import (
@@ -200,7 +200,6 @@ class AccountsController(TransactionBase):
 			self.validate_enabled_taxes_and_charges()
 			self.validate_tax_account_company()
 
-		self.set_taxes_and_charges()
 
 		if self.meta.get_field("currency"):
 			self.calculate_taxes_and_totals()
