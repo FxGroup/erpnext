@@ -1616,7 +1616,7 @@ def create_job_card(work_order, row, enable_capacity_planning=False, auto_create
 			"posting_date": nowdate(),
 			"for_quantity": row.job_card_qty or work_order.get("qty", 0),
 			"operation_id": row.get("name"),
-			"bom_no": work_order.bom_no,
+			"bom_no": row.get("bom"),
 			"project": work_order.project,
 			"company": work_order.company,
 			"sequence_id": row.get("sequence_id"),

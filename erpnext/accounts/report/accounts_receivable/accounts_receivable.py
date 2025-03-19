@@ -520,7 +520,7 @@ class ReceivablePayableReport:
 				ps.description, ps.paid_amount, ps.discounted_amount
 			from `tab{row.voucher_type}` si, `tabPayment Schedule` ps
 			where
-				si.name = ps.parent and
+				si.name = ps.parent and ps.parenttype = '{row.voucher_type}' and
 				si.name = %s and
 				si.is_return = 0
 			order by ps.paid_amount desc, due_date
@@ -729,11 +729,13 @@ class ReceivablePayableReport:
 			"company": self.filters.company,
 			"update_outstanding_for_self": 0,
 		}
+
 		or_filters = {}
-		for party_type in self.party_type:
+		if party_type := self.filters.party_type:
 			party_field = scrub(party_type)
-			if self.filters.get(party_field):
-				or_filters.update({party_field: self.filters.get(party_field)})
+			if parties := self.filters.get("party"):
+				or_filters.update({party_field: ["in", parties]})
+
 		self.return_entries = frappe._dict(
 			frappe.get_all(
 				doctype, filters=filters, or_filters=or_filters, fields=["name", "return_against"], as_list=1
