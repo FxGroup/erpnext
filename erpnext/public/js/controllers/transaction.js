@@ -1115,6 +1115,9 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 	conversion_factor(doc, cdt, cdn, dont_fetch_price_list_rate) {
 		if(frappe.meta.get_docfield(cdt, "stock_qty", cdn)) {
 			var item = frappe.get_doc(cdt, cdn);
+			if (!item.qty) {
+				return
+			}
 			frappe.model.round_floats_in(item, ["qty", "conversion_factor"]);
 			item.stock_qty = flt(item.qty * item.conversion_factor, precision("stock_qty", item));
 			refresh_field("stock_qty", item.name, item.parentfield);
