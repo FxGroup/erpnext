@@ -483,7 +483,7 @@ erpnext.sales_common = {
 			}
 			
 			_set_batch_number(doc) {
-				if (doc.batch_no) {
+				if (doc.batch_no || doc.qty == 0) {
 					return
 				}
 		
