@@ -1267,7 +1267,7 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 								doctype:me.frm.doc.doctype,
 								name:me.frm.doc.name,
 								project:item.project || me.frm.doc.project,
-								qty:item.qty || 1,
+								qty:item.qty,
 								stock_qty:item.stock_qty,
 								conversion_factor:item.conversion_factor,
 								variant_of: false
