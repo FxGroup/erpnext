@@ -1282,12 +1282,9 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 					})
 				}
 				let qty;
-				if (me.frm.doc.doctype == "Purchase Order") {
-					// Allowing for 0 qty
-					qty = item.qty;
-				} else {
-					qty = item.qty || 1;
-				}
+
+				qty = item.qty;
+
 				item.pricing_rules = ''
 				return this.frm.call({
 					method: "erpnext.stock.get_item_details.get_item_details",
