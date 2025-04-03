@@ -561,6 +561,9 @@ def get_result_as_list(data, filters):
 	if filters.get("company") == "RN Labs":
 		si_patient_details = get_sales_invoice_patient_details()
 
+	data = add_transaction_date_to_si(data)
+
+	
 	for d in data:
 		if not d.get("posting_date"):
 			balance, _balance_in_account_currency = 0, 0
@@ -647,6 +650,54 @@ def get_sales_invoice_details(filters):
 
 	return inv_details
 
+# def add_transaction_date_to_si(data):
+# 	invoices = []
+# 	for item in data:
+# 		if item.get("voucher_type") == "Sales Invoice":
+# 			invoices.append(item["voucher_no"])
+
+# 	invoice_dates = frappe.get_all("Sales Invoice", filters = [["name", "IN", invoices]], fields = ["name", "transaction_date"])
+# 	invoice_dict = {}
+
+# 	for item in invoice_dates:
+# 		invoice_dict[item["name"]] = item["transaction_date"]
+
+# 	for item in data:
+# 		if item.get("voucher_type") == "Sales Invoice":
+# 			item["transaction_date"] = invoice_dict[item["voucher_no"]]
+
+# 	return data
+
+def add_transaction_date_to_si(data):
+	invoices = []
+	invoice_list = []
+	for item in data:
+		if item.get("voucher_type") == "Sales Invoice":
+			invoices.append(item["voucher_no"])
+			invoice_list.append(item)
+
+	invoice_dates = frappe.get_all("Sales Invoice", filters = [["name", "IN", invoices]], fields = ["name", "transaction_date"])
+	invoice_dict = {}
+
+	for item in invoice_dates:
+		invoice_dict[item["name"]] = item["transaction_date"]
+
+	for item in invoice_list:
+		if item.get("voucher_type") == "Sales Invoice":
+			item["transaction_date"] = invoice_dict[item["voucher_no"]]
+	
+	invoice_list.sort(key=lambda x: (x.get("transaction_date") or x.get("posting_date")))
+	invoice_list.reverse()
+
+	results = copy.copy(data)
+	counter = 0
+	for item in data:
+		if item.get("voucher_type") == "Sales Invoice":
+			results[counter] = invoice_list.pop()
+		counter += 1
+
+	return results
+
 def get_sales_invoice_patient_details():
 	inv_details = {}
 	for d in frappe.db.sql(
@@ -691,6 +742,7 @@ def get_columns(filters):
 			"hidden": 1,
 		},
 		{"label": _("Posting Date"), "fieldname": "posting_date", "fieldtype": "Date", "width": 100},
+		{"label": _("Transaction Date"), "fieldname": "transaction_date", "fieldtype": "Date", "width": 100},
 		{
 			"label": _("Account"),
 			"fieldname": "account",
