@@ -16,14 +16,14 @@ frappe.query_reports["Lead Details"] = {
 			label: __("From Date"),
 			fieldtype: "Date",
 			default: frappe.datetime.add_months(frappe.datetime.get_today(), -12),
-			reqd: 1,
+			reqd: 0,
 		},
 		{
 			fieldname: "to_date",
 			label: __("To Date"),
 			fieldtype: "Date",
 			default: frappe.datetime.get_today(),
-			reqd: 1,
+			reqd: 0,
 		},
 		{
 			fieldname: "status",
@@ -47,5 +47,11 @@ frappe.query_reports["Lead Details"] = {
 			fieldtype: "Link",
 			options: "Territory",
 		},
+		{
+			fieldname: "email_id",
+			label: __("Email"),
+			fieldtype: "Data",
+			reqd: 0
+		}
 	],
 };

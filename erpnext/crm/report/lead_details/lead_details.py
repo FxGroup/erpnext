@@ -98,13 +98,18 @@ def get_data(filters):
 			address.country,
 		)
 		.where(lead.company == filters.company)
-		.where(Date(lead.creation).between(filters.from_date, filters.to_date))
 	)
+
+	if filters.get('from_date') and filters.get('to_date'):
+		query = query.where(Date(lead.creation).between(filters.from_date, filters.to_date))
 
 	if filters.get("territory"):
 		query = query.where(lead.territory == filters.get("territory"))
 
 	if filters.get("status"):
 		query = query.where(lead.status == filters.get("status"))
+	
+	if filters.get('email_id'):
+		query = query.where(lead.email_id == filters.get('email_id'))
 
 	return query.run(as_dict=1)
