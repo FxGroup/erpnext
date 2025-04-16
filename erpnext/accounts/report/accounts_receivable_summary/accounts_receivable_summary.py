@@ -126,7 +126,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 	def set_party_details(self, row):
 		self.party_total[row.party].currency = row.currency
 
-		for key in ("territory", "customer_group", "supplier_group"):
+		for key in ("territory", "customer_group", "supplier_group", "customer_status"):
 			if row.get(key):
 				self.party_total[row.party][key] = row.get(key, "")
 		if row.sales_person:

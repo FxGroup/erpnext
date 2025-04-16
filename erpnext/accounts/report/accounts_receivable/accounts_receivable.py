@@ -945,6 +945,15 @@ class ReceivablePayableReport:
 
 		if self.filters.get("territory"):
 			self.get_hierarchical_filters("Territory", "territory")
+		
+		if self.filters.get("customer_status"):
+			self.qb_selection_filter.append(
+				self.ple.party.isin(
+					qb.from_(self.customer)
+					.select(self.customer.name)
+					.where(self.customer.customer_status == self.filters.get("customer_status"))
+				)
+			)
 
 		if self.filters.get("payment_terms_template"):
 			self.qb_selection_filter.append(
