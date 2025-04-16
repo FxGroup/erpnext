@@ -53,6 +53,12 @@ frappe.query_reports["Accounts Receivable"] = {
 			},
 		},
 		{
+			fieldname: "customer_status",
+			label: __("Customer Status"),
+			fieldtype: "Select",
+			options: ["", "Active", "Disabled", "Closed", "Stop Credit", "Stale"]
+		},
+		{
 			fieldname: "party",
 			label: __("Party"),
 			fieldtype: "MultiSelectList",
