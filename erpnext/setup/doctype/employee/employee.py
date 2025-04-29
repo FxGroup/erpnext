@@ -133,7 +133,6 @@ class Employee(NestedSet):
 			return
 
 		add_user_permission("Employee", self.name, self.user_id)
-		add_user_permission("Company", self.company, self.user_id)
 
 	def update_user(self):
 		# add employee role if missing
