@@ -92,6 +92,42 @@ class Employee(NestedSet):
 		employee_user_permission_exists = frappe.db.exists(
 			"User Permission", {"allow": "Employee", "for_value": self.name, "user": self.user_id}
 		)
+		
+		# Setting user permissions for additional leave approvers and adding new approver to existing docs.
+		if self.approvers:
+			for approver in self.approvers:
+				if approver.get("leave_approver"):
+					if not frappe.db.exists("Employee", {"user_id": approver.leave_approver}):
+						frappe.msgprint(f"Unable to find a valid employee for user {approver.leave_approver}, unable to add this additional approver user permission.")
+						continue
+
+					if not frappe.db.exists("User Permission", {"allow": "Employee", "for_value": self.name, "user": approver.leave_approver, "applicable_for": "Leave Application"}):
+						add_user_permission("Employee", self.name, approver.leave_approver, applicable_for="Leave Application", hide_descendants=1)
+
+					leave_applications = frappe.get_all("Leave Application", filters={"employee": self.name, "status": "Open"}, fields=["name"])
+					for leave_application in leave_applications:
+						leave_doc = frappe.get_doc("Leave Application", leave_application.name)
+						if approver.leave_approver not in [d.leave_approver for d in leave_doc.additional_leave_approvers]:
+							leave_doc.append("additional_leave_approvers", {"leave_approver": approver.leave_approver, "notification_level": approver.notification_level})
+							leave_doc.save(ignore_permissions=True)
+							frappe.db.commit()
+
+		# remove additional leave approvers from user permission on deletetion
+		exisiting_user_permission = frappe.get_all(
+			"User Permission",
+			filters={
+				"allow": "Employee",
+				"for_value": self.name,
+				"applicable_for": "Leave Application",
+			},
+			fields=["name", "user"],
+		)
+
+		leave_approvers = [d.leave_approver for d in self.approvers if d.leave_approver]
+		for permission in exisiting_user_permission:
+			if permission.user not in leave_approvers:
+				frappe.delete_doc("User Permission", permission.name)
+				frappe.db.commit()
 
 		if employee_user_permission_exists:
 			return
