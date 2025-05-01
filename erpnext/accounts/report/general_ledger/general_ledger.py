@@ -675,7 +675,7 @@ def add_transaction_date_to_si(data):
 		if item.get("voucher_type") == "Sales Invoice":
 			invoices.append(item["voucher_no"])
 			invoice_list.append(item)
-		if item.get("voucher_type") == "Purchase Receipt":
+		if item.get("voucher_type") == "Purchase Receipt" and frappe.db.exists("Purchase Receipt", item["voucher_no"]):
 			item['party_type'] = "Supplier" 
 			item['party'] = frappe.get_value('Purchase Receipt', item["voucher_no"], 'supplier')
 
