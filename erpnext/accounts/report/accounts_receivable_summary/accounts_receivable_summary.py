@@ -25,6 +25,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		self.account_type = args.get("account_type")
 		self.party_type = get_party_types_from_account_type(self.account_type)
 		self.party_naming_by = frappe.db.get_value(args.get("naming_by")[0], None, args.get("naming_by")[1])
+		self.company_currency = frappe.get_cached_value("Company", self.filters.company, "default_currency")
 		self.get_columns()
 		self.get_data(args)
 		return self.columns, self.data
@@ -86,6 +87,10 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 
 			if self.filters.show_future_payments:
 				row.remaining_balance = flt(row.outstanding) - flt(row.future_amount)
+
+			# Perform currency conversion if the filter is enabled
+			if self.filters.get("convert_currency") and row.currency != self.company_currency:
+				row = self.convert_row_to_company_currency(row)
 
 			self.data.append(row)
 
@@ -205,6 +210,32 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			label=_("Currency"), fieldname="currency", fieldtype="Link", options="Currency", width=80
 		)
 
+	def convert_row_to_company_currency(self, row):
+		# Fetch the exchange rate for the party's currency to the company's currency
+		exchange_rate = frappe.db.sql("""
+			SELECT exchange_rate
+			FROM `tabCurrency Exchange`
+			WHERE from_currency = %s
+			AND to_currency = %s
+			ORDER BY date DESC
+			LIMIT 1
+			""",
+			(self.company_currency, row.currency),
+			as_dict=1,
+		)
+		
+		exchange_rate = exchange_rate[0].exchange_rate if exchange_rate else 1
+
+		if not exchange_rate or exchange_rate <= 0:
+			frappe.throw(_("Invalid exchange rate for conversion from {0} to {1}").format(
+				row.currency, self.company_currency
+			))
+
+		for key, value in row.items():
+			if isinstance(value, (float, int)):
+				row[key] = flt(value) * flt(exchange_rate)
+
+		return row
 
 def get_gl_balance(report_date, company):
 	return frappe._dict(
