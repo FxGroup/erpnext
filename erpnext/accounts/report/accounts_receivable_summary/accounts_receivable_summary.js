@@ -132,6 +132,12 @@ frappe.query_reports["Accounts Receivable Summary"] = {
 			label: __("Revaluation Journals"),
 			fieldtype: "Check",
 		},
+		{
+			fieldname: "convert_currency",
+			label: __("In Party Currency"),
+			fieldtype: "Check",
+			default: 0
+		},
 	],
 
 	onload: function (report) {
