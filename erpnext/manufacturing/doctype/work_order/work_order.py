@@ -495,8 +495,8 @@ class WorkOrder(Document):
 			return
 
 		if not cint(
-			frappe.db.get_single_value("Manufacturing Settings", "make_serial_no_batch_from_work_order")
-		):
+			frappe.db.get_single_value("Manufacturing Settings", "make_serial_no_batch_from_work_order") 
+		) or not self.create_batch:
 			return
 
 		if self.has_batch_no:
