@@ -7,12 +7,18 @@ frappe.ui.form.ControlData = class ControlData extends frappe.ui.form.ControlDat
 		if (this.frm && this.frm.fields_dict) {
 			Object.values(this.frm.fields_dict).forEach(function (field) {
 				if (
+					field &&
+					field.df &&
 					field.df.read_only === 1 &&
 					field.df.options === "Phone" &&
-					field.disp_area.style[0] != "display" &&
+					field.disp_area &&
+					field.disp_area.style &&
+					typeof field.disp_area.style[0] !== "undefined" &&
 					!field.has_icon
 				) {
-					field.setup_phone && field.setup_phone();
+					if (typeof field.setup_phone === "function") {
+						field.setup_phone();
+					}
 					field.has_icon = true;
 				}
 			});
