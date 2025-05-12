@@ -375,7 +375,7 @@ def apply_pricing_rule(args, doc=None):
 		args_copy.update(item)
 		data = get_pricing_rule_for_item(args_copy, doc=doc)
 		out.append(data)
-
+	
 	return out
 
 
