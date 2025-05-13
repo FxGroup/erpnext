@@ -238,6 +238,7 @@ class StockBalanceReport:
 				"currency": self.company_currency,
 				"stock_uom": entry.stock_uom,
 				"item_name": entry.item_name,
+				"has_batch_no": entry.get('has_batch_no', 0),
 				"opening_qty": opening_data.get("bal_qty") or 0.0,
 				"opening_val": opening_data.get("bal_val") or 0.0,
 				"opening_fifo_queue": opening_data.get("fifo_queue") or [],
@@ -316,6 +317,7 @@ class StockBalanceReport:
 				item_table.item_group,
 				item_table.stock_uom,
 				item_table.item_name,
+				item_table.has_batch_no
 			)
 			.where((sle.docstatus < 2) & (sle.is_cancelled == 0))
 			.orderby(sle.posting_datetime)
@@ -425,6 +427,12 @@ class StockBalanceReport:
 					"fieldtype": "Link",
 					"options": "UOM",
 					"width": 90,
+				},
+				{
+					"label": _("Has Batch No"),
+					"fieldname": "has_batch_no",
+					"fieldtype": "Check",
+					"width": 90
 				},
 				{
 					"label": _("Balance Qty"),
