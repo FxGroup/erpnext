@@ -11,14 +11,18 @@ def get_data():
 			'Payment Request': 'reference_name',
 			'Sales Invoice': 'return_against',
 			'Auto Repeat': 'reference_document',
-			'Integration Request': 'reference_id_',
-			"Shipment Entry": "route_invoice"
+			# 'Backorder': 'backorder_references',
+			'Integration Request': 'reference_id_'
 		},
 		"internal_links": {
 			"Sales Order": ["items", "sales_order"],
 			"Timesheet": ["timesheets", "time_sheet"],
 		},
-		"transactions": [
+		'transactions': [
+			# {
+			# 	'label': _('Payment'),
+			# 	'items': ['Payment Entry', 'Payment Request', 'Journal Entry', 'Invoice Discounting']
+			# },
 			{
 				"label": _("Payment"),
 				"items": [
@@ -30,6 +34,10 @@ def get_data():
 					"Invoice Rebate"
 				],
 			},
+			# {
+			# 	'label': _('Reference'),
+			# 	'items': ['Timesheet', 'Delivery Note', 'Sales Order']
+			# },
 			{
 				'label': _('Returns & WooCommerce Integration'),
 				'items': ['Sales Invoice', 'Integration Request']
@@ -39,8 +47,12 @@ def get_data():
 				'items': ['Sample']
 			},
 			{
-				'label': _('Shipments'),
+				'label': 'Shipments',
 				'items': ['Shipment Entry']
 			},
+			# {
+			# 	'label': _('Subscription'),
+			# 	'items': ['Auto Repeat']
+			# },
 		]
 	}
