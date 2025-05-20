@@ -881,6 +881,10 @@ class update_entries_after:
 			and self.use_moving_avg_for_batch
 			and (sle.batch_no or sle.has_batch_no)
 		):
+			if sle.is_cancelled or flt(sle.actual_qty) == 0:
+				sle.valuation_rate = sle.valuation_rate or 0
+				return
+			
 			valuation_rate = flt(stock_value_difference) / flt(sle.actual_qty)
 			self.update_valuation_rate_in_serial_and_batch_bundle(sle, valuation_rate)
 
