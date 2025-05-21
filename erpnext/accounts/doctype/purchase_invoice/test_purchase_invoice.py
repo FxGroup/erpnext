@@ -16,7 +16,7 @@ from erpnext.buying.doctype.purchase_order.test_purchase_order import (
 	create_purchase_order,
 )
 from erpnext.buying.doctype.supplier.test_supplier import create_supplier
-from erpnext.controllers.accounts_controller import get_payment_terms
+from erpnext.controllers.accounts_controller import InvalidQtyError, get_payment_terms
 from erpnext.controllers.buying_controller import QtyMismatchError
 from erpnext.exceptions import InvalidCurrency
 from erpnext.projects.doctype.project.test_project import make_project
@@ -54,6 +54,16 @@ class TestPurchaseInvoice(FrappeTestCase, StockTestMixin):
 
 	def tearDown(self):
 		frappe.db.rollback()
+
+	def test_purchase_invoice_qty(self):
+		pi = make_purchase_invoice(qty=0, do_not_save=True)
+		with self.assertRaises(InvalidQtyError):
+			pi.save()
+
+		# No error with qty=1
+		pi.items[0].qty = 1
+		pi.save()
+		self.assertEqual(pi.items[0].qty, 1)
 
 	def test_purchase_invoice_received_qty(self):
 		"""
@@ -1695,6 +1705,9 @@ class TestPurchaseInvoice(FrappeTestCase, StockTestMixin):
 		# Configure Buying Settings to allow rate change
 		frappe.db.set_single_value("Buying Settings", "maintain_same_rate", 0)
 
+		# Configure Accounts Settings to allow 300% over billing
+		frappe.db.set_single_value("Accounts Settings", "over_billing_allowance", 300)
+
 		# Create PR: rate = 1000, qty = 5
 		pr = make_purchase_receipt(
 			item_code="_Test Non Stock Item", rate=1000, posting_date=add_days(nowdate(), -2)
@@ -2094,7 +2107,7 @@ class TestPurchaseInvoice(FrappeTestCase, StockTestMixin):
 			1,
 		)
 		pi = make_pi_from_pr(pr.name)
-		self.assertEqual(pi.payment_schedule[0].payment_amount, 2500)
+		self.assertEqual(pi.payment_schedule[0].payment_amount, 1000)
 
 		automatically_fetch_payment_terms(enable=0)
 		frappe.db.set_value(
@@ -2683,6 +2696,116 @@ class TestPurchaseInvoice(FrappeTestCase, StockTestMixin):
 
 		self.assertRaises(StockOverReturnError, return_doc.save)
 
+	def test_apply_discount_on_grand_total(self):
+		"""
+		To test if after applying discount on grand total,
+		the grand total is calculated correctly without any rounding errors
+		"""
+		invoice = make_purchase_invoice(qty=3, rate=100, do_not_save=True, do_not_submit=True)
+		invoice.append(
+			"items",
+			{
+				"item_code": "_Test Item",
+				"qty": 3,
+				"rate": 50.3,
+			},
+		)
+		invoice.append(
+			"taxes",
+			{
+				"charge_type": "On Net Total",
+				"account_head": "_Test Account VAT - _TC",
+				"description": "VAT",
+				"rate": 15,
+			},
+		)
+
+		# the grand total here will be 518.54
+		invoice.disable_rounded_total = 1
+		# apply discount on grand total to adjust the grand total to 518
+		invoice.discount_amount = 0.54
+
+		invoice.save()
+
+		# check if grand total is 518 and not something like 517.99 due to rounding errors
+		self.assertEqual(invoice.grand_total, 518)
+
+	def test_apply_discount_on_grand_total_with_previous_row_total_tax(self):
+		"""
+		To test if after applying discount on grand total,
+		where the tax is calculated on previous row total, the grand total is calculated correctly
+		"""
+
+		invoice = make_purchase_invoice(qty=2, rate=100, do_not_save=True, do_not_submit=True)
+		invoice.extend(
+			"taxes",
+			[
+				{
+					"charge_type": "Actual",
+					"account_head": "_Test Account VAT - _TC",
+					"description": "VAT",
+					"tax_amount": 100,
+				},
+				{
+					"charge_type": "On Previous Row Amount",
+					"account_head": "_Test Account VAT - _TC",
+					"description": "VAT",
+					"row_id": 1,
+					"rate": 10,
+				},
+				{
+					"charge_type": "On Previous Row Total",
+					"account_head": "_Test Account VAT - _TC",
+					"description": "VAT",
+					"row_id": 1,
+					"rate": 10,
+				},
+			],
+		)
+
+		# the total here will be 340, so applying 40 discount
+		invoice.discount_amount = 40
+		invoice.save()
+
+		self.assertEqual(invoice.grand_total, 300)
+
+	def test_pr_pi_over_billing(self):
+		from erpnext.stock.doctype.purchase_receipt.purchase_receipt import (
+			make_purchase_invoice as make_purchase_invoice_from_pr,
+		)
+
+		# Configure Buying Settings to allow rate change
+		frappe.db.set_single_value("Buying Settings", "maintain_same_rate", 0)
+
+		pr = make_purchase_receipt(qty=10, rate=10)
+		pi = make_purchase_invoice_from_pr(pr.name)
+
+		pi.items[0].rate = 12
+
+		# Test 1 - This will fail because over billing is not allowed
+		self.assertRaises(frappe.ValidationError, pi.submit)
+
+		frappe.db.set_single_value("Buying Settings", "set_landed_cost_based_on_purchase_invoice_rate", 1)
+		# Test 2 - This will now submit because over billing allowance is ignored when set_landed_cost_based_on_purchase_invoice_rate is checked
+		pi.submit()
+
+		frappe.db.set_single_value("Buying Settings", "set_landed_cost_based_on_purchase_invoice_rate", 0)
+		frappe.db.set_single_value("Accounts Settings", "over_billing_allowance", 20)
+		pi.cancel()
+		pi = make_purchase_invoice_from_pr(pr.name)
+		pi.items[0].rate = 12
+
+		# Test 3 - This will now submit because over billing is allowed upto 20%
+		pi.submit()
+
+		pi.reload()
+		pi.cancel()
+		pi = make_purchase_invoice_from_pr(pr.name)
+		pi.items[0].rate = 13
+
+		# Test 4 - Since this PI is overbilled by 130% and only 120% is allowed, it will fail
+		self.assertRaises(frappe.ValidationError, pi.submit)
+
 
 def set_advance_flag(company, flag, default_account):
 	frappe.db.set_value(
@@ -2792,7 +2915,7 @@ def make_purchase_invoice(**args):
 	bundle_id = None
 	if not args.use_serial_batch_fields and (args.get("batch_no") or args.get("serial_no")):
 		batches = {}
-		qty = args.qty or 5
+		qty = args.qty if args.qty is not None else 5
 		item_code = args.item or args.item_code or "_Test Item"
 		if args.get("batch_no"):
 			batches = frappe._dict({args.batch_no: qty})
@@ -2821,7 +2944,7 @@ def make_purchase_invoice(**args):
 			"item_code": args.item or args.item_code or "_Test Item",
 			"item_name": args.item_name,
 			"warehouse": args.warehouse or "_Test Warehouse - _TC",
-			"qty": args.qty or 5,
+			"qty": args.qty if args.qty is not None else 5,
 			"received_qty": args.received_qty or 0,
 			"rejected_qty": args.rejected_qty or 0,
 			"rate": args.rate or 50,

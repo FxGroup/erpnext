@@ -342,10 +342,20 @@ def get_returned_qty_map_for_row(return_against, party, row_name, doctype):
 def make_return_doc(doctype: str, source_name: str, target_doc=None, return_against_rejected_qty=False):
 	from frappe.model.mapper import get_mapped_doc
 
-	company = frappe.db.get_value("Delivery Note", source_name, "company")
+	company = frappe.db.get_value(doctype, source_name, "company")
 	default_warehouse_for_sales_return = frappe.get_cached_value(
 		"Company", company, "default_warehouse_for_sales_return"
 	)
+
+	if doctype == "Sales Invoice":
+		inv_is_consolidated, inv_is_pos = frappe.db.get_value(
+			"Sales Invoice", source_name, ["is_consolidated", "is_pos"]
+		)
+		if inv_is_consolidated and inv_is_pos:
+			frappe.throw(
+				_("Cannot create return for consolidated invoice {0}.").format(source_name),
+				title=_("Cannot Create Return"),
+			)
 
 	def set_missing_values(source, target):
 		doc = frappe.get_doc(target)
