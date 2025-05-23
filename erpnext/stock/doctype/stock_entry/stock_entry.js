@@ -462,6 +462,7 @@ frappe.ui.form.on("Stock Entry", {
 							docstatus: 1,
 							purpose: "Material Transfer",
 							add_to_transit: 1,
+							per_transferred: ["<", 100],
 						},
 					});
 				},
@@ -969,6 +970,15 @@ frappe.ui.form.on("Stock Entry Detail", {
 	},
 
 	batch_no(frm, cdt, cdn) {
+		let row = locals[cdt][cdn];
+
+		if (row.batch_no) {
+			frappe.model.set_value(cdt, cdn, {
+				use_serial_batch_fields: 1,
+				serial_and_batch_bundle: "",
+			});
+		}
+
 		validate_sample_quantity(frm, cdt, cdn);
 	},
 
@@ -1045,10 +1055,6 @@ erpnext.stock.StockEntry = class StockEntry extends erpnext.stock.StockControlle
 			};
 		});
 
-		if (me.frm.doc.company && erpnext.is_perpetual_inventory_enabled(me.frm.doc.company)) {
-			this.frm.add_fetch("company", "stock_adjustment_account", "expense_account");
-		}
-
 		this.frm.fields_dict.items.grid.get_field("expense_account").get_query = function () {
 			if (erpnext.is_perpetual_inventory_enabled(me.frm.doc.company)) {
 				return {
@@ -1098,6 +1104,13 @@ erpnext.stock.StockEntry = class StockEntry extends erpnext.stock.StockControlle
 
 	serial_no(doc, cdt, cdn) {
 		var item = frappe.get_doc(cdt, cdn);
+
+		if (item.serial_no) {
+			frappe.model.set_value(cdt, cdn, {
+				use_serial_batch_fields: 1,
+				serial_and_batch_bundle: "",
+			});
+		}
 
 		if (item?.serial_no) {
 			// Replace all occurences of comma with line feed
@@ -1155,7 +1168,22 @@ erpnext.stock.StockEntry = class StockEntry extends erpnext.stock.StockControlle
 		this.clean_up();
 	}
 
-	set_default_account(callback) {
+	company() {
+		if (this.frm.doc.company) {
+			var company_doc = frappe.get_doc(":Company", this.frm.doc.company);
+			if (company_doc.default_letter_head) {
+				this.frm.set_value("letter_head", company_doc.default_letter_head);
+			}
+			this.frm.trigger("toggle_display_account_head");
+
+			erpnext.accounts.dimensions.update_dimension(this.frm, this.frm.doctype);
+			this.set_default_account("cost_center", "cost_center");
+
+			this.frm.refresh_fields("items");
+		}
+	}
+
+	set_default_account(company_fieldname, fieldname) {
 		var me = this;
 
 		if (this.frm.doc.company && erpnext.is_perpetual_inventory_enabled(this.frm.doc.company)) {

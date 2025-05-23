@@ -48,6 +48,7 @@
   "column_break_37",
   "discount_percentage",
   "discount_amount",
+  "distributed_discount_amount",
   "base_rate_with_margin",
   "sec_break1",
   "rate",
@@ -914,7 +915,7 @@
   },
   {
    "collapsible": 1,
-   "collapsible_depends_on": "eval: doc.margin_type || doc.discount_amount",
+   "collapsible_depends_on": "eval: doc.margin_type || doc.discount_amount || doc.distributed_discount_amount",
    "fieldname": "discount_and_margin_section",
    "fieldtype": "Section Break",
    "label": "Discount and Margin"
@@ -1132,6 +1133,12 @@
    "print_hide": 1
   },
   {
+   "fieldname": "distributed_discount_amount",
+   "fieldtype": "Currency",
+   "label": "Distributed Discount Amount",
+   "options": "currency"
+  },
+  {
    "fieldname": "amount_difference_with_purchase_invoice",
    "fieldtype": "Currency",
    "label": "Amount Difference with Purchase Invoice",
@@ -1143,7 +1150,7 @@
  "idx": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-03-12 17:10:42.780622",
+ "modified": "2025-03-12 17:10:43.780622",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Purchase Receipt Item",

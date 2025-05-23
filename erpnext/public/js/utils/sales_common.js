@@ -111,6 +111,33 @@ erpnext.sales_common = {
 				this.toggle_editable_price_list_rate();
 			}
 
+			company() {
+				super.company();
+				this.set_default_company_address();
+			}
+
+			set_default_company_address() {
+				if (!frappe.meta.has_field(this.frm.doc.doctype, "company_address")) return;
+				var me = this;
+				if (this.frm.doc.company) {
+					frappe.call({
+						method: "erpnext.setup.doctype.company.company.get_default_company_address",
+						args: {
+							name: this.frm.doc.company,
+							existing_address: this.frm.doc.company_address || "",
+						},
+						debounce: 2000,
+						callback: function (r) {
+							if (r.message) {
+								me.frm.set_value("company_address", r.message);
+							} else {
+								me.frm.set_value("company_address", "");
+							}
+						},
+					});
+				}
+			}
+
 			customer() {
 				var me = this;
 				erpnext.utils.get_party_details(this.frm, null, null, function () {
@@ -447,22 +474,21 @@ erpnext.sales_common = {
 							args: { project: this.frm.doc.project },
 							callback: function (r, rt) {
 								if (!r.exc) {
-									$.each(me.frm.doc["items"] || [], function (i, row) {
-										if (r.message) {
+									if (r.message) {
+										$.each(me.frm.doc["items"] || [], function (i, row) {
 											frappe.model.set_value(
 												row.doctype,
 												row.name,
 												"cost_center",
 												r.message
 											);
-											frappe.msgprint(
-												__(
-													"Cost Center For Item with Item Code {0} has been Changed to {1}",
-													[row.item_name, r.message]
-												)
-											);
-										}
-									});
+										});
+										frappe.msgprint(
+											__("Cost Center for Item rows has been updated to {0}", [
+												r.message,
+											])
+										);
+									}
 								}
 							},
 						});

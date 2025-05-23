@@ -875,7 +875,7 @@ def make_material_request(source_name, target_doc=None):
 				"field_map": {
 					"name": "sales_order_item",
 					"parent": "sales_order",
-					"delivery_date": "required_by",
+					"delivery_date": "schedule_date",
 					"bom_no": "bom_no",
 				},
 				"condition": lambda item: not frappe.db.exists(
@@ -1328,6 +1328,7 @@ def make_purchase_order_for_default_supplier(source_name, selected_items=None, t
 			{
 				"Sales Order": {
 					"doctype": "Purchase Order",
+					"field_map": {"dispatch_address_name": "dispatch_address"},
 					"field_no_map": [
 						"address_display",
 						"contact_display",
@@ -1426,6 +1427,8 @@ def make_purchase_order(source_name, selected_items=None, target_doc=None):
 			target.customer = target.customer_name = target.shipping_address = None
 
 		target.run_method("set_missing_values")
+		if not target.taxes:
+			target.append_taxes_from_item_tax_template()
 		target.run_method("calculate_taxes_and_totals")
 
 	def update_item(source, target, source_parent):
@@ -1444,6 +1447,7 @@ def make_purchase_order(source_name, selected_items=None, target_doc=None):
 		{
 			"Sales Order": {
 				"doctype": "Purchase Order",
+				"field_map": {"dispatch_address_name": "dispatch_address"},
 				"field_no_map": [
 					"address_display",
 					"contact_display",
