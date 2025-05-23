@@ -14,6 +14,7 @@ from frappe.utils import add_days, nowdate, add_months, format_date, getdate, to
 from frappe.utils.jinja import validate_template
 from frappe.utils.pdf import get_pdf
 from frappe.www.printview import get_print_style
+from fxnmrnth.fxnmrnth.doctype.statement_of_account.statement_of_account import sort_res
 
 from erpnext import get_company_currency
 from erpnext.accounts.party import get_party_account_currency
@@ -182,6 +183,7 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 		})
 		
 		col, res = get_soa(filters)
+		res = sort_res(res)
 		new_res = []
 		for item in res[0:]:
 			if item.debit == item.credit and item.account != "'Total'" and item.account != "'Opening'":
@@ -269,12 +271,12 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 			if voucher['posting_date'] < doc.from_date:
 				outstandingDocs.append(voucher)
 		base_template_path = "frappe/www/printview.html"
+
 		template_path = (
 			"erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.html"
 			if doc.report == "General Ledger"
 			else "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
 		)
-
 		html = frappe.render_template(
 			template_path,
 			{
@@ -341,6 +343,7 @@ def get_statement_dict(doc, get_statement_dict=False):
 		if doc.report == "General Ledger":
 			filters.update(get_gl_filters(doc, entry, tax_id, presentation_currency))
 			col, res = get_soa(filters)
+			res = sort_res(res)
 			for x in [0, -2, -1]:
 				res[x]["account"] = res[x]["account"].replace("'", "")
 			if len(res) == 3:
