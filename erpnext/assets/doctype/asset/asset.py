@@ -120,6 +120,7 @@ class Asset(AccountsController):
 	# end: auto-generated types
 
 	def validate(self):
+		self.validate_category()
 		self.validate_precision()
 		self.set_purchase_doc_row_item()
 		self.validate_asset_values()
@@ -340,6 +341,17 @@ class Asset(AccountsController):
 					_("Row #{}: Finance Book should not be empty since you're using multiple.").format(d.idx),
 					title=_("Missing Finance Book"),
 				)
+
+	def validate_category(self):
+		non_depreciable_category = frappe.db.get_value(
+			"Asset Category", self.asset_category, "non_depreciable_category"
+		)
+		if self.calculate_depreciation and non_depreciable_category:
+			frappe.throw(
+				_(
+					"This asset category is marked as non-depreciable. Please disable depreciation calculation or choose a different category."
+				)
+			)
 
 	def validate_precision(self):
 		if self.gross_purchase_amount:
@@ -1167,7 +1179,6 @@ def get_values_from_purchase_doc(purchase_doc_name, item_code, doctype):
 		frappe.throw(_(f"Selected {doctype} does not contain the Item Code {item_code}"))
 
 	first_item = matching_items[0]
-	is_multiple_items = len(matching_items) > 1
 
 	return {
 		"company": purchase_doc.company,
@@ -1176,7 +1187,6 @@ def get_values_from_purchase_doc(purchase_doc_name, item_code, doctype):
 		"asset_quantity": first_item.qty,
 		"cost_center": first_item.cost_center or purchase_doc.get("cost_center"),
 		"asset_location": first_item.get("asset_location"),
-		"is_multiple_items": is_multiple_items,
 		"purchase_receipt_item": first_item.name if doctype == "Purchase Receipt" else None,
 		"purchase_invoice_item": first_item.name if doctype == "Purchase Invoice" else None,
 	}

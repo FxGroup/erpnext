@@ -9,6 +9,7 @@ import re
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Sum
 from frappe.utils import add_days, add_months, cint, cstr, flt, formatdate, get_first_day, getdate
 from pypika.terms import ExistsCriterion
 
@@ -428,6 +429,7 @@ def set_gl_entries_by_account(
 	root_type=None,
 	ignore_closing_entries=False,
 	ignore_opening_entries=False,
+	group_by_account=False,
 ):
 	"""Returns a dict like { "account": [gl entries], ... }"""
 	gl_entries = []
@@ -459,6 +461,7 @@ def set_gl_entries_by_account(
 				root_type,
 				ignore_closing_entries,
 				last_period_closing_voucher[0].name,
+				group_by_account=group_by_account,
 			)
 			from_date = add_days(last_period_closing_voucher[0].period_end_date, 1)
 			ignore_opening_entries = True
@@ -473,6 +476,7 @@ def set_gl_entries_by_account(
 		root_type,
 		ignore_closing_entries,
 		ignore_opening_entries=ignore_opening_entries,
+		group_by_account=group_by_account,
 	)
 
 	if filters and filters.get("presentation_currency"):
@@ -495,16 +499,21 @@ def get_accounting_entries(
 	ignore_closing_entries=None,
 	period_closing_voucher=None,
 	ignore_opening_entries=False,
+	group_by_account=False,
 ):
 	gl_entry = frappe.qb.DocType(doctype)
 	query = (
 		frappe.qb.from_(gl_entry)
 		.select(
 			gl_entry.account,
-			gl_entry.debit,
-			gl_entry.credit,
-			gl_entry.debit_in_account_currency,
-			gl_entry.credit_in_account_currency,
+			gl_entry.debit if not group_by_account else Sum(gl_entry.debit).as_("debit"),
+			gl_entry.credit if not group_by_account else Sum(gl_entry.credit).as_("credit"),
+			gl_entry.debit_in_account_currency
+			if not group_by_account
+			else Sum(gl_entry.debit_in_account_currency).as_("debit_in_account_currency"),
+			gl_entry.credit_in_account_currency
+			if not group_by_account
+			else Sum(gl_entry.credit_in_account_currency).as_("credit_in_account_currency"),
 			gl_entry.account_currency,
 		)
 		.where(gl_entry.company == filters.company)
@@ -534,6 +543,9 @@ def get_accounting_entries(
 
 	if match_conditions:
 		query += "and" + match_conditions
+
+	if group_by_account:
+		query += " GROUP BY `account`"
 
 	return frappe.db.sql(query, params, as_dict=True)
 

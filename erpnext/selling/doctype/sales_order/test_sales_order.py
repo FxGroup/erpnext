@@ -10,7 +10,7 @@ from frappe.tests.utils import FrappeTestCase, change_settings
 from frappe.utils import add_days, flt, getdate, nowdate, today
 
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
-from erpnext.controllers.accounts_controller import update_child_qty_rate
+from erpnext.controllers.accounts_controller import InvalidQtyError, update_child_qty_rate
 from erpnext.maintenance.doctype.maintenance_schedule.test_maintenance_schedule import (
 	make_maintenance_schedule,
 )
@@ -85,6 +85,29 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 			]
 		)
 		update_child_qty_rate("Sales Order", trans_item, so.name)
+
+	def test_sales_order_qty(self):
+		so = make_sales_order(qty=1, do_not_save=True)
+
+		# NonNegativeError with qty=-1
+		so.append(
+			"items",
+			{
+				"item_code": "_Test Item",
+				"qty": -1,
+				"rate": 10,
+			},
+		)
+		self.assertRaises(frappe.NonNegativeError, so.save)
+
+		# InvalidQtyError with qty=0
+		so.items[1].qty = 0
+		self.assertRaises(InvalidQtyError, so.save)
+
+		# No error with qty=1
+		so.items[1].qty = 1
+		so.save()
+		self.assertEqual(so.items[0].qty, 1)
 
 	def test_make_material_request(self):
 		so = make_sales_order(do_not_submit=True)
@@ -850,7 +873,13 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 	def test_auto_insert_price(self):
 		make_item("_Test Item for Auto Price List", {"is_stock_item": 0})
 		make_item("_Test Item for Auto Price List with Discount Percentage", {"is_stock_item": 0})
-		frappe.db.set_single_value("Stock Settings", "auto_insert_price_list_rate_if_missing", 1)
+		frappe.db.set_single_value(
+			"Stock Settings",
+			{
+				"auto_insert_price_list_rate_if_missing": 1,
+				"update_price_list_based_on": "Price List Rate",
+			},
+		)
 
 		item_price = frappe.db.get_value(
 			"Item Price", {"price_list": "_Test Price List", "item_code": "_Test Item for Auto Price List"}
@@ -862,6 +891,7 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 			item_code="_Test Item for Auto Price List", selling_price_list="_Test Price List", rate=100
 		)
 
+		# ensure price gets inserted based on rate if price list rate is not defined by user
 		self.assertEqual(
 			frappe.db.get_value(
 				"Item Price",
@@ -871,6 +901,8 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 			100,
 		)
 
+		# ensure price gets insterted based on user-defined *Price List Rate*
+		# if update_price_list_based_on is set to Price List Rate
 		make_sales_order(
 			item_code="_Test Item for Auto Price List with Discount Percentage",
 			selling_price_list="_Test Price List",
@@ -878,17 +910,42 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 			discount_percentage=20,
 		)
 
-		self.assertEqual(
-			frappe.db.get_value(
-				"Item Price",
-				{
-					"price_list": "_Test Price List",
-					"item_code": "_Test Item for Auto Price List with Discount Percentage",
-				},
-				"price_list_rate",
-			),
-			200,
+		item_price = frappe.db.get_value(
+			"Item Price",
+			{
+				"price_list": "_Test Price List",
+				"item_code": "_Test Item for Auto Price List with Discount Percentage",
+			},
+			("name", "price_list_rate"),
+			as_dict=True,
 		)
+
+		self.assertEqual(item_price.price_list_rate, 200)
+		frappe.delete_doc("Item Price", item_price.name)
+
+		frappe.db.set_single_value("Stock Settings", "update_price_list_based_on", "Rate")
+
+		# ensure price gets insterted based on user-defined *Rate*
+		# if update_price_list_based_on is set to Rate
+		make_sales_order(
+			item_code="_Test Item for Auto Price List with Discount Percentage",
+			selling_price_list="_Test Price List",
+			price_list_rate=200,
+			discount_percentage=20,
+		)
+
+		item_price = frappe.db.get_value(
+			"Item Price",
+			{
+				"price_list": "_Test Price List",
+				"item_code": "_Test Item for Auto Price List with Discount Percentage",
+			},
+			("name", "price_list_rate"),
+			as_dict=True,
+		)
+
+		self.assertEqual(item_price.price_list_rate, 160)
+		frappe.delete_doc("Item Price", item_price.name)
 
 		# do not update price list
 		frappe.db.set_single_value("Stock Settings", "auto_insert_price_list_rate_if_missing", 0)
@@ -913,6 +970,63 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 		)
 
 		frappe.db.set_single_value("Stock Settings", "auto_insert_price_list_rate_if_missing", 1)
+
+	def test_update_existing_item_price(self):
+		item_code = "_Test Item for Price List Updation"
+		price_list = "_Test Price List"
+
+		make_item(item_code, {"is_stock_item": 0})
+
+		frappe.db.set_single_value(
+			"Stock Settings",
+			{
+				"auto_insert_price_list_rate_if_missing": 1,
+				"update_existing_price_list_rate": 1,
+				"update_price_list_based_on": "Rate",
+			},
+		)
+
+		# setup: price creation
+		make_sales_order(item_code=item_code, selling_price_list=price_list, rate=100)
+
+		# test price updation based on Rate
+		make_sales_order(item_code=item_code, selling_price_list=price_list, rate=90)
+
+		self.assertEqual(
+			frappe.db.get_value(
+				"Item Price",
+				{"price_list": price_list, "item_code": item_code},
+				"price_list_rate",
+			),
+			90,
+		)
+
+		frappe.db.set_single_value(
+			"Stock Settings",
+			{
+				"update_price_list_based_on": "Price List Rate",
+			},
+		)
+
+		# test price updation based on Price List Rate
+		make_sales_order(
+			item_code=item_code,
+			selling_price_list=price_list,
+			price_list_rate=200,
+			discount_percentage=20,
+		)
+
+		self.assertEqual(
+			frappe.db.get_value(
+				"Item Price",
+				{"price_list": price_list, "item_code": item_code},
+				"price_list_rate",
+			),
+			200,
+		)
+
+		# reset `update_existing_price_list_rate` to 0
+		frappe.db.set_single_value("Stock Settings", "update_existing_price_list_rate", 0)
 
 	def test_drop_shipping(self):
 		from erpnext.buying.doctype.purchase_order.purchase_order import update_status
@@ -2160,6 +2274,38 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 
 		self.assertRaises(frappe.ValidationError, so1.update_status, "Draft")
 
+	def test_item_tax_transfer_from_sales_to_purchase(self):
+		from erpnext.selling.doctype.sales_order.sales_order import make_purchase_order
+
+		item_tax = frappe.new_doc("Item Tax Template")
+		item_tax.title = "Test Item Tax Template"
+		item_tax.company = "_Test Company"
+		item_tax.append("taxes", {"tax_type": "_Test Account Service Tax - _TC", "tax_rate": 2})
+		item_tax.save()
+
+		item_group = frappe.get_doc("Item Group", "_Test Item Group")
+		item_group.append("taxes", {"item_tax_template": "Test Item Tax Template - _TC"})
+		item_group.save()
+
+		so = make_sales_order(item_code="_Test Item", qty=1, do_not_submit=1)
+		so.append(
+			"taxes",
+			{
+				"account_head": "_Test Account Service Tax - _TC",
+				"charge_type": "On Net Total",
+				"description": "TDS",
+				"doctype": "Sales Taxes and Charges",
+				"rate": 2,
+			},
+		)
+		so.submit()
+
+		po = make_purchase_order(so.name, selected_items=so.items)
+		po.supplier = "_Test Supplier"
+		po.items[0].rate = 100
+		po.submit()
+		self.assertEqual(po.taxes[0].tax_amount, 2)
+
 
 def automatically_fetch_payment_terms(enable=1):
 	accounts_settings = frappe.get_doc("Accounts Settings")
@@ -2202,7 +2348,7 @@ def make_sales_order(**args):
 			{
 				"item_code": args.item or args.item_code or "_Test Item",
 				"warehouse": args.warehouse,
-				"qty": args.qty or 10,
+				"qty": args.qty if args.qty is not None else 10,
 				"uom": args.uom or None,
 				"price_list_rate": args.price_list_rate or None,
 				"discount_percentage": args.discount_percentage or None,

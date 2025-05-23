@@ -112,6 +112,7 @@ def get_data(filters):
 		root_rgt=None,
 		ignore_closing_entries=not flt(filters.with_period_closing_entry_for_current_period),
 		ignore_opening_entries=True,
+		group_by_account=True,
 	)
 
 	calculate_values(accounts, gl_entries_by_account, opening_balances, filters.get("show_net_values"))

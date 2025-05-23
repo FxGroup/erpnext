@@ -78,6 +78,10 @@
   "general_ledger_remarks_length",
   "column_break_lvjk",
   "receivable_payable_remarks_length",
+  "accounts_receivable_payable_tuning_section",
+  "receivable_payable_fetch_method",
+  "legacy_section",
+  "ignore_is_opening_check_for_reporting",
   "payment_request_settings",
   "create_pr_in_draft_status"
  ],
@@ -515,6 +519,49 @@
    "fieldname": "reconciliation_queue_size",
    "fieldtype": "Int",
    "label": "Reconciliation Queue Size"
+  },
+  {
+   "default": "0",
+   "description": "Ignores legacy Is Opening field in GL Entry that allows adding opening balance post the system is in use while generating reports",
+   "fieldname": "ignore_is_opening_check_for_reporting",
+   "fieldtype": "Check",
+   "label": "Ignore Is Opening check for reporting"
+  },
+  {
+   "default": "Payment",
+   "description": "Only applies for Normal Payments",
+   "fieldname": "exchange_gain_loss_posting_date",
+   "fieldtype": "Select",
+   "label": "Posting Date Inheritance for Exchange Gain / Loss",
+   "options": "Invoice\nPayment\nReconciliation Date"
+  },
+  {
+   "fieldname": "column_break_xrnd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, Sales Invoice will be generated instead of POS Invoice in POS Transactions for real-time update of G/L and Stock Ledger.",
+   "fieldname": "use_sales_invoice_in_pos",
+   "fieldtype": "Check",
+   "label": "Use Sales Invoice"
+  },
+  {
+   "default": "Buffered Cursor",
+   "fieldname": "receivable_payable_fetch_method",
+   "fieldtype": "Select",
+   "label": "Data Fetch Method",
+   "options": "Buffered Cursor\nUnBuffered Cursor"
+  },
+  {
+   "fieldname": "accounts_receivable_payable_tuning_section",
+   "fieldtype": "Section Break",
+   "label": "Accounts Receivable / Payable Tuning"
+  },
+  {
+   "fieldname": "legacy_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy Fields"
   }
  ],
  "icon": "icon-cog",
@@ -522,7 +569,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-01-13 17:38:39.661320",
+ "modified": "2025-05-05 12:29:38.302027",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Accounts Settings",

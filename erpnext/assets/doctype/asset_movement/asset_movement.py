@@ -152,6 +152,7 @@ class AssetMovement(Document):
 				""",
 				args,
 			)
+
 			if latest_movement_entry:
 				current_location = latest_movement_entry[0][0]
 				current_employee = latest_movement_entry[0][1]
