@@ -370,6 +370,9 @@ class StockBalanceReport:
 				query = query.where(item_table.name == self.filters.get(field))
 			else:
 				query = query.where(item_table[field] == self.filters.get(field))
+				
+		if self.filters.get('hide_disabled_items'):
+			query = query.where(item_table.disabled == 0)
 
 		return query
 
