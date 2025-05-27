@@ -42,6 +42,29 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 			}
 			item.base_rate_with_margin = item.rate_with_margin * flt(frm.doc.conversion_rate);
 
+			if (item.item_code && item.rate) {
+				frappe.call({
+					method: "frappe.client.get_value",
+					args: {
+						doctype: "Item Tax",
+						parent: "Item",
+						filters: {
+							parent: item.item_code,
+							minimum_net_rate: ["<=", item.rate],
+							maximum_net_rate: [">=", item.rate]
+						},
+						fieldname: "item_tax_template"
+					},
+					callback: function(r) {
+						const tax_rule = r.message;
+
+						let matched_template = tax_rule ? tax_rule.item_tax_template : null;
+
+						frappe.model.set_value(cdt, cdn, 'item_tax_template', matched_template);
+					}
+				});
+			}
+
 			cur_frm.cscript.set_gross_profit(item);
 			cur_frm.cscript.calculate_taxes_and_totals();
 			cur_frm.cscript.calculate_stock_uom_rate(frm, cdt, cdn);
@@ -330,7 +353,10 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		}
 
 		const me = this;
-		if (!this.frm.is_new() && this.frm.doc.docstatus === 0 && frappe.model.can_create("Quality Inspection") && show_qc_button) {
+		if (!this.frm.is_new()
+			&& (this.frm.doc.docstatus === 0 || this.frm.doc.__onload?.allow_to_make_qc_after_submission)
+			&& frappe.model.can_create("Quality Inspection")
+			&& show_qc_button) {
 			this.frm.add_custom_button(__("Quality Inspection(s)"), () => {
 				me.make_quality_inspection();
 			}, __("Create"));
@@ -2772,4 +2798,20 @@ erpnext.apply_putaway_rule = (frm, purpose=null) => {
 			}
 		}
 	});
+};
+
+erpnext.set_unit_price_items_note = (frm) => {
+	if (frm.doc.has_unit_price_items && !frm.is_new()) {
+		// Remove existing note
+		const $note = $(frm.layout.wrapper.find(".unit-price-items-note"));
+		if ($note.length) { $note.parent().remove(); }
+
+		frm.layout.show_message(
+			`<div class="unit-price-items-note">
+				${__("The {0} contains Unit Price Items.", [__(frm.doc.doctype)])}
+			</div>`,
+			"yellow",
+			true
+		);
+	}
 };

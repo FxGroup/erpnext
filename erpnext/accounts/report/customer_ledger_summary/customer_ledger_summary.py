@@ -8,6 +8,7 @@ from frappe.query_builder import Criterion, Tuple
 from frappe.query_builder.functions import IfNull
 from frappe.utils import getdate, nowdate
 from frappe.utils.nestedset import get_descendants_of
+from pypika.terms import LiteralValue
 
 from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 	get_accounting_dimensions,
@@ -15,7 +16,7 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 )
 
 TREE_DOCTYPES = frozenset(
-	["Customer Group", "Terrirtory", "Supplier Group", "Sales Partner", "Sales Person", "Cost Center"]
+	["Customer Group", "Territory", "Supplier Group", "Sales Partner", "Sales Person", "Cost Center"]
 )
 
 
@@ -77,13 +78,12 @@ class PartyLedgerSummaryReport:
 
 		from frappe.desk.reportview import build_match_conditions
 
-		query, params = query.walk()
 		match_conditions = build_match_conditions(party_type)
 
 		if match_conditions:
-			query += "and" + match_conditions
+			query = query.where(LiteralValue(match_conditions))
 
-		party_details = frappe.db.sql(query, params, as_dict=True)
+		party_details = query.run(as_dict=True)
 
 		for row in party_details:
 			self.parties.append(row.party)
@@ -458,9 +458,16 @@ class PartyLedgerSummaryReport:
 
 
 def get_children(doctype, value):
-	children = get_descendants_of(doctype, value)
+	if not isinstance(value, list):
+		value = [d.strip() for d in value.strip().split(",") if d]
 
-	return [value, *children]
+	all_children = []
+
+	for d in value:
+		all_children += get_descendants_of(doctype, value)
+		all_children.append(d)
+
+	return list(set(all_children))
 
 
 def execute(filters=None):
