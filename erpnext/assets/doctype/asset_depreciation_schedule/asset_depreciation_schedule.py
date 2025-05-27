@@ -255,8 +255,10 @@ class AssetDepreciationSchedule(Document):
 		value_after_depreciation,
 	):
 		asset_doc.validate_asset_finance_books(row)
-
-		if not value_after_depreciation:
+		if (
+			not value_after_depreciation
+			and not asset_doc.flags.decrease_in_asset_value_due_to_value_adjustment
+		):
 			value_after_depreciation = _get_value_after_depreciation_for_making_schedule(asset_doc, row)
 		row.value_after_depreciation = value_after_depreciation
 
@@ -1068,8 +1070,6 @@ def make_new_active_asset_depr_schedules_and_cancel_current_ones(
 			)
 
 		new_asset_depr_schedule_doc = frappe.copy_doc(current_asset_depr_schedule_doc)
-		if asset_doc.flags.decrease_in_asset_value_due_to_value_adjustment and not value_after_depreciation:
-			value_after_depreciation = row.value_after_depreciation - difference_amount
 
 		if asset_doc.flags.increase_in_asset_value_due_to_repair and row.depreciation_method in (
 			"Written Down Value",
