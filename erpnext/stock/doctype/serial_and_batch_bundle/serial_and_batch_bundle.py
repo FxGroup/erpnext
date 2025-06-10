@@ -322,6 +322,15 @@ class SerialandBatchBundle(Document):
 				else:
 					valuation_rate = valuation_details["batches"].get(row.batch_no)
 
+				if frappe.flags.through_repost_item_valuation and not valuation_rate:
+					# if different serial nos / batches are returned
+					if row.serial_no:
+						serial_nos = sorted(list(valuation_details["serial_nos"].keys()))
+						valuation_rate = valuation_details["serial_nos"].get(serial_nos[cint(row.idx) - 1])
+					else:
+						batches = sorted(list(valuation_details["batches"].keys()))
+						valuation_rate = valuation_details["batches"].get(batches[cint(row.idx) - 1])
+
 				row.incoming_rate = flt(valuation_rate)
 				row.stock_value_difference = flt(row.qty) * flt(row.incoming_rate)
 
@@ -337,6 +346,9 @@ class SerialandBatchBundle(Document):
 			self.set_incoming_rate_for_inward_transaction(row, save)
 
 	def validate_returned_serial_batch_no(self, return_against, row, original_inv_details):
+		if frappe.flags.through_repost_item_valuation:
+			return
+
 		if row.serial_no and row.serial_no not in original_inv_details["serial_nos"]:
 			self.throw_error_message(
 				_(
@@ -502,7 +514,6 @@ class SerialandBatchBundle(Document):
 				"item_code": self.item_code,
 				"warehouse": self.warehouse,
 				"serial_and_batch_bundle": self.name,
-				"actual_qty": self.total_qty,
 				"company": self.company,
 				"serial_nos": [row.serial_no for row in self.entries if row.serial_no],
 				"batch_nos": {row.batch_no: row for row in self.entries if row.batch_no},
@@ -711,19 +722,19 @@ class SerialandBatchBundle(Document):
 
 	def reset_qty(self, row, qty_field=None):
 		qty_field = self.get_qty_field(row, qty_field=qty_field)
-		qty = abs(row.get(qty_field))
+		qty = abs(flt(row.get(qty_field), self.precision("total_qty")))
 
 		idx = None
 		while qty > 0:
 			for d in self.entries:
-				row_qty = abs(d.qty)
+				row_qty = abs(flt(d.qty, d.precision("qty")))
 				if row_qty >= qty:
 					d.db_set("qty", qty if self.type_of_transaction == "Inward" else qty * -1)
 					qty = 0
 					idx = d.idx
 					break
 				else:
-					qty -= row_qty
+					qty = flt(qty - row_qty, d.precision("qty"))
 					idx = d.idx
 
 		if idx and len(self.entries) > idx:
@@ -2099,11 +2110,12 @@ def get_auto_batch_nos(kwargs):
 			picked_batches,
 		)
 
-	# if available_batches and kwargs.get("posting_date"):
+	# if not kwargs.get("do_not_check_future_batches") and available_batches and kwargs.get("posting_date"):
 	# 	filter_zero_near_batches(available_batches, kwargs)
 
 	if not kwargs.consider_negative_batches:
-		available_batches = list(filter(lambda x: x.qty > 0, available_batches))
+		precision = frappe.get_precision("Stock Ledger Entry", "actual_qty")
+		available_batches = [d for d in available_batches if flt(d.qty, precision) > 0]
 
 	if not qty:
 		return available_batches
@@ -2117,7 +2129,8 @@ def filter_zero_near_batches(available_batches, kwargs):
 	del kwargs["posting_date"]
 	del kwargs["posting_time"]
 
-	available_batches_in_future = get_available_batches(kwargs)
+	kwargs.do_not_check_future_batches = 1
+	available_batches_in_future = get_auto_batch_nos(kwargs)
 	for batch in available_batches:
 		if batch.qty <= 0:
 			continue

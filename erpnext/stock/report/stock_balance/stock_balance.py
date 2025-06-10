@@ -370,6 +370,9 @@ class StockBalanceReport:
 				query = query.where(item_table.name == self.filters.get(field))
 			else:
 				query = query.where(item_table[field] == self.filters.get(field))
+				
+		if self.filters.get('hide_disabled_items'):
+			query = query.where(item_table.disabled == 0)
 
 		return query
 
@@ -408,16 +411,17 @@ class StockBalanceReport:
 			},
 		]
 
-		for dimension in get_inventory_dimensions():
-			columns.append(
-				{
-					"label": _(dimension.doctype),
-					"fieldname": dimension.fieldname,
-					"fieldtype": "Link",
-					"options": dimension.doctype,
-					"width": 110,
-				}
-			)
+		if self.filters.get("show_dimension_wise_stock"):
+			for dimension in get_inventory_dimensions():
+				columns.append(
+					{
+						"label": _(dimension.doctype),
+						"fieldname": dimension.fieldname,
+						"fieldtype": "Link",
+						"options": dimension.doctype,
+						"width": 110,
+					}
+				)
 
 		columns.extend(
 			[

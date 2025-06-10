@@ -113,6 +113,12 @@ frappe.query_reports["Stock Balance"] = {
 			fieldtype: "Check",
 			default: 0,
 		},
+		{
+			fieldname: "hide_disabled_items",
+			label: __("Hide Disabled Items"),
+			fieldtype: "Check",
+			default: 0,
+		}
 	],
 
 	formatter: function (value, row, column, data, default_formatter) {

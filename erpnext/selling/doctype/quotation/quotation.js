@@ -35,11 +35,19 @@ frappe.ui.form.on("Quotation", {
 				},
 			};
 		});
+
+		frm.set_indicator_formatter("item_code", function (doc) {
+			return !doc.qty && frm.doc.has_unit_price_items ? "yellow" : "";
+		});
 	},
 
 	refresh: function (frm) {
 		frm.trigger("set_label");
 		frm.trigger("set_dynamic_field_label");
+
+		if (frm.doc.docstatus === 0) {
+			erpnext.set_unit_price_items_note(frm);
+		}
 
 		let sbb_field = frm.get_docfield("packed_items", "serial_and_batch_bundle");
 		if (sbb_field) {
@@ -69,6 +77,9 @@ frappe.ui.form.on("Quotation", {
 erpnext.selling.QuotationController = class QuotationController extends erpnext.selling.SellingController {
 	onload(doc, dt, dn) {
 		super.onload(doc, dt, dn);
+
+		// TODO: think of better way to do this
+		// this.frm.trigger("disable_customer_if_creating_from_opportunity");
 	}
 	party_name() {
 		var me = this;
@@ -275,7 +286,7 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 				},
 			},
 			{
-				fieldtype: "Data",
+				fieldtype: "Text Editor",
 				fieldname: "description",
 				label: __("Description"),
 				in_list_view: 1,
@@ -371,6 +382,12 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 					}
 				}
 			);
+		}
+	}
+
+	disable_customer_if_creating_from_opportunity(doc) {
+		if (doc.opportunity) {
+			this.frm.set_df_property("party_name", "read_only", 1);
 		}
 	}
 };

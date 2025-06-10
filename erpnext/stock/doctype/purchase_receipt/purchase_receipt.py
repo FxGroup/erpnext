@@ -69,6 +69,8 @@ class PurchaseReceipt(BuyingController):
 		currency: DF.Link
 		disable_rounded_total: DF.Check
 		discount_amount: DF.Currency
+		dispatch_address: DF.Link | None
+		dispatch_address_display: DF.TextEditor | None
 		grand_total: DF.Currency
 		group_same_items: DF.Check
 		ignore_pricing_rule: DF.Check
@@ -494,6 +496,12 @@ class PurchaseReceipt(BuyingController):
 				outgoing_amount = abs(get_stock_value_difference(self.name, item.name, item.from_warehouse))
 				credit_amount = outgoing_amount
 
+			if item.get("rejected_qty") and frappe.db.get_single_value(
+				"Buying Settings", "set_valuation_rate_for_rejected_materials"
+			):
+				outgoing_amount += get_stock_value_difference(self.name, item.name, item.rejected_warehouse)
+				credit_amount = outgoing_amount
+
 			if credit_amount:
 				if not account:
 					validate_account("Stock or Asset Received But Not Billed")
@@ -627,6 +635,12 @@ class PurchaseReceipt(BuyingController):
 				valuation_amount_as_per_doc - flt(stock_value_diff), item.precision("base_net_amount")
 			)
 
+			if item.get("rejected_qty") and frappe.db.get_single_value(
+				"Buying Settings", "set_valuation_rate_for_rejected_materials"
+			):
+				rejected_item_cost = get_stock_value_difference(self.name, item.name, item.rejected_warehouse)
+				divisional_loss -= rejected_item_cost
+
 			if divisional_loss:
 				loss_account = (
 					self.get_company_default("default_expense_account", ignore_validation=True)
@@ -724,12 +738,22 @@ class PurchaseReceipt(BuyingController):
 					make_sub_contracting_gl_entries(d)
 					make_divisional_loss_gl_entry(d, outgoing_amount)
 			elif (d.warehouse and d.warehouse not in warehouse_with_no_account) or (
-				d.rejected_warehouse and d.rejected_warehouse not in warehouse_with_no_account
+				not frappe.db.get_single_value("Buying Settings", "set_valuation_rate_for_rejected_materials")
+				and d.rejected_warehouse
+				and d.rejected_warehouse not in warehouse_with_no_account
 			):
 				warehouse_with_no_account.append(d.warehouse or d.rejected_warehouse)
 
 			if d.is_fixed_asset and d.landed_cost_voucher_amount:
 				self.update_assets(d, d.valuation_rate)
+
+			if d.rejected_qty and frappe.db.get_single_value(
+				"Buying Settings", "set_valuation_rate_for_rejected_materials"
+			):
+				stock_value_diff = get_stock_value_difference(self.name, d.name, d.rejected_warehouse)
+				stock_asset_account_name = warehouse_account[d.rejected_warehouse]["account"]
+
+				make_item_asset_inward_gl_entry(d, stock_value_diff, stock_asset_account_name)
 
 		if warehouse_with_no_account:
 			frappe.msgprint(
@@ -1079,6 +1103,7 @@ def get_billed_amount_against_po(po_items):
 def update_billing_percentage(pr_doc, update_modified=True, adjust_incoming_rate=False):
 	# Update Billing % based on pending accepted qty
 	buying_settings = frappe.get_single("Buying Settings")
+	over_billing_allowance = frappe.db.get_single_value("Accounts Settings", "over_billing_allowance")
 
 	total_amount, total_billed_amount = 0, 0
 	item_wise_returned_qty = get_item_wise_returned_qty(pr_doc)
@@ -1103,6 +1128,10 @@ def update_billing_percentage(pr_doc, update_modified=True, adjust_incoming_rate
 		if pr_doc.get("is_return") and not total_amount and total_billed_amount:
 			total_amount = total_billed_amount
 
+		amount = item.amount
+		if frappe.db.get_single_value("Buying Settings", "bill_for_rejected_quantity_in_purchase_invoice"):
+			amount += flt(item.rejected_qty * item.rate, item.precision("amount"))
+
 		if adjust_incoming_rate:
 			adjusted_amt = 0.0
 
@@ -1117,6 +1146,14 @@ def update_billing_percentage(pr_doc, update_modified=True, adjust_incoming_rate
 
 			adjusted_amt = flt(adjusted_amt * flt(pr_doc.conversion_rate), item.precision("amount"))
 			item.db_set("amount_difference_with_purchase_invoice", adjusted_amt, update_modified=False)
+		elif item.billed_amt > amount:
+			per_over_billed = (flt(item.billed_amt / amount, 2) * 100) - 100
+			if per_over_billed > over_billing_allowance:
+				frappe.throw(
+					_("Over Billing Allowance exceeded for Purchase Receipt Item {0} ({1}) by {2}%").format(
+						item.name, frappe.bold(item.item_code), per_over_billed - over_billing_allowance
+					)
+				)
 
 	percent_billed = round(100 * (total_billed_amount / (total_amount or 1)), 6)
 	pr_doc.db_set("per_billed", percent_billed)

@@ -790,7 +790,7 @@ class StockController(AccountsController):
 				# if row.get("batch_no"):
 				# 	update_values["batch_no"] = None
 
-				if row.serial_and_batch_bundle:
+				if row.get("serial_and_batch_bundle"):
 					update_values["serial_and_batch_bundle"] = None
 					frappe.db.set_value(
 						"Serial and Batch Bundle", row.serial_and_batch_bundle, {"is_cancelled": 1}
@@ -827,7 +827,7 @@ class StockController(AccountsController):
 					)
 
 	def make_package_for_transfer(
-		self, serial_and_batch_bundle, warehouse, type_of_transaction=None, do_not_submit=None
+		self, serial_and_batch_bundle, warehouse, type_of_transaction=None, do_not_submit=None, qty=0
 	):
 		return make_bundle_for_material_transfer(
 			is_new=self.is_new(),
@@ -838,6 +838,7 @@ class StockController(AccountsController):
 			warehouse=warehouse,
 			type_of_transaction=type_of_transaction,
 			do_not_submit=do_not_submit,
+			qty=qty,
 		)
 
 	def get_sl_entries(self, d, args):
@@ -907,7 +908,7 @@ class StockController(AccountsController):
 						or sl_dict.actual_qty < 0
 						and self.get("is_return")
 					)
-					and self.doctype in ["Purchase Invoice", "Purchase Receipt"]
+					and self.doctype in ["Purchase Invoice", "Purchase Receipt", "Stock Entry"]
 				) or (
 					(
 						sl_dict.actual_qty < 0
@@ -917,6 +918,15 @@ class StockController(AccountsController):
 					)
 					and self.doctype in ["Sales Invoice", "Delivery Note", "Stock Entry"]
 				):
+					if self.doctype == "Stock Entry":
+						if row.get("t_warehouse") == sl_dict.warehouse and sl_dict.get("actual_qty") > 0:
+							fieldname = f"to_{dimension.source_fieldname}"
+							if dimension.source_fieldname.startswith("to_"):
+								fieldname = f"{dimension.source_fieldname}"
+
+							sl_dict[dimension.target_fieldname] = row.get(fieldname)
+							return
+
 					sl_dict[dimension.target_fieldname] = row.get(dimension.source_fieldname)
 				else:
 					fieldname_start_with = "to"
@@ -1004,7 +1014,13 @@ class StockController(AccountsController):
 	def update_billing_percentage(self, update_modified=True):
 		target_ref_field = "amount"
 		if self.doctype == "Delivery Note":
-			target_ref_field = "amount - (returned_qty * rate)"
+			total_amount = total_returned = 0
+			for item in self.items:
+				total_amount += flt(item.amount)
+				total_returned += flt(item.returned_qty * item.rate)
+
+			if total_returned < total_amount:
+				target_ref_field = "(amount - (returned_qty * rate))"
 
 		self._update_percent_field(
 			{
@@ -1057,6 +1073,16 @@ class StockController(AccountsController):
 
 	def validate_qi_presence(self, row):
 		"""Check if QI is present on row level. Warn on save and stop on submit if missing."""
+		if self.doctype in [
+			"Purchase Receipt",
+			"Purchase Invoice",
+			"Sales Invoice",
+			"Delivery Note",
+		] and frappe.db.get_single_value(
+			"Stock Settings", "allow_to_make_quality_inspection_after_purchase_or_delivery"
+		):
+			return
+
 		if not row.quality_inspection:
 			msg = _("Row #{0}: Quality Inspection is required for Item {1}").format(
 				row.idx, frappe.bold(row.item_code)
@@ -1169,6 +1195,12 @@ class StockController(AccountsController):
 		if self.doctype not in ["Purchase Invoice", "Purchase Receipt"]:
 			return
 
+		self.__inter_company_reference = (
+			self.get("inter_company_reference")
+			if self.doctype == "Purchase Invoice"
+			else self.get("inter_company_invoice_reference")
+		)
+
 		item_wise_transfer_qty = self.get_item_wise_inter_transfer_qty()
 		if not item_wise_transfer_qty:
 			return
@@ -1198,15 +1230,11 @@ class StockController(AccountsController):
 						bold(key[1]),
 						bold(flt(transferred_qty, precision)),
 						bold(parent_doctype),
-						get_link_to_form(parent_doctype, self.get("inter_company_reference")),
+						get_link_to_form(parent_doctype, self.__inter_company_reference),
 					)
 				)
 
 	def get_item_wise_inter_transfer_qty(self):
-		reference_field = "inter_company_reference"
-		if self.doctype == "Purchase Invoice":
-			reference_field = "inter_company_invoice_reference"
-
 		parent_doctype = {
 			"Purchase Receipt": "Delivery Note",
 			"Purchase Invoice": "Sales Invoice",
@@ -1226,7 +1254,7 @@ class StockController(AccountsController):
 				child_tab.item_code,
 				child_tab.qty,
 			)
-			.where((parent_tab.name == self.get(reference_field)) & (parent_tab.docstatus == 1))
+			.where((parent_tab.name == self.__inter_company_reference) & (parent_tab.docstatus == 1))
 		)
 
 		data = query.run(as_dict=True)
@@ -1647,6 +1675,8 @@ def is_reposting_pending():
 
 
 def future_sle_exists(args, sl_entries=None, allow_force_reposting=True):
+	from erpnext.stock.utils import get_combine_datetime
+
 	if allow_force_reposting and frappe.db.get_single_value(
 		"Stock Reposting Settings", "do_reposting_for_each_stock_transaction"
 	):
@@ -1668,14 +1698,15 @@ def future_sle_exists(args, sl_entries=None, allow_force_reposting=True):
 
 	or_conditions = get_conditions_to_validate_future_sle(sl_entries)
 
+	args["posting_datetime"] = get_combine_datetime(args["posting_date"], args["posting_time"])
+
 	data = frappe.db.sql(
 		"""
 		select item_code, warehouse, count(name) as total_row
-		from `tabStock Ledger Entry` force index (item_warehouse)
+		from `tabStock Ledger Entry`
 		where
 			({})
-			and timestamp(posting_date, posting_time)
-				>= timestamp(%(posting_date)s, %(posting_time)s)
+			and posting_datetime >= %(posting_datetime)s
 			and voucher_no != %(voucher_no)s
 			and is_cancelled = 0
 		GROUP BY
@@ -1810,15 +1841,24 @@ def make_bundle_for_material_transfer(**kwargs):
 		kwargs.type_of_transaction = "Inward"
 
 	bundle_doc = frappe.copy_doc(bundle_doc)
+	bundle_doc.docstatus = 0
 	bundle_doc.warehouse = kwargs.warehouse
 	bundle_doc.type_of_transaction = kwargs.type_of_transaction
 	bundle_doc.voucher_type = kwargs.voucher_type
 	bundle_doc.voucher_no = "" if kwargs.is_new or kwargs.docstatus == 2 else kwargs.voucher_no
 	bundle_doc.is_cancelled = 0
 
+	qty = 0
+	if (
+		len(bundle_doc.entries) == 1
+		and flt(kwargs.qty) < flt(bundle_doc.total_qty)
+		and not bundle_doc.has_serial_no
+	):
+		qty = kwargs.qty
+
 	for row in bundle_doc.entries:
 		row.is_outward = 0
-		row.qty = abs(row.qty)
+		row.qty = abs(qty or row.qty)
 		row.stock_value_difference = abs(row.stock_value_difference)
 		if kwargs.type_of_transaction == "Outward":
 			row.qty *= -1

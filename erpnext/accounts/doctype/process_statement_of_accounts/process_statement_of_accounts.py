@@ -14,6 +14,7 @@ from frappe.utils import add_days, nowdate, add_months, format_date, getdate, to
 from frappe.utils.jinja import validate_template
 from frappe.utils.pdf import get_pdf
 from frappe.www.printview import get_print_style
+from fxnmrnth.fxnmrnth.doctype.statement_of_account.statement_of_account import sort_res
 
 from erpnext import get_company_currency
 from erpnext.accounts.party import get_party_account_currency
@@ -55,6 +56,7 @@ class ProcessStatementOfAccounts(Document):
 		ageing_based_on: DF.Literal["Due Date", "Posting Date"]
 		based_on_payment_terms: DF.Check
 		body: DF.TextEditor | None
+		categorize_by: DF.Literal["", "Categorize by Voucher", "Categorize by Voucher (Consolidated)"]
 		cc_to: DF.TableMultiSelect[ProcessStatementOfAccountsCC]
 		collection_name: DF.DynamicLink | None
 		company: DF.Link
@@ -67,7 +69,6 @@ class ProcessStatementOfAccounts(Document):
 		finance_book: DF.Link | None
 		frequency: DF.Literal["Weekly", "Monthly", "Quarterly"]
 		from_date: DF.Date | None
-		group_by: DF.Literal["", "Group by Voucher", "Group by Voucher (Consolidated)"]
 		ignore_cr_dr_notes: DF.Check
 		ignore_exchange_rate_revaluation_journals: DF.Check
 		include_ageing: DF.Check
@@ -182,6 +183,7 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 		})
 		
 		col, res = get_soa(filters)
+		res = sort_res(res)
 		new_res = []
 		for item in res[0:]:
 			if item.debit == item.credit and item.account != "'Total'" and item.account != "'Opening'":
@@ -269,12 +271,12 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 			if voucher['posting_date'] < doc.from_date:
 				outstandingDocs.append(voucher)
 		base_template_path = "frappe/www/printview.html"
+
 		template_path = (
 			"erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.html"
 			if doc.report == "General Ledger"
 			else "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
 		)
-
 		html = frappe.render_template(
 			template_path,
 			{
@@ -326,8 +328,8 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 		tax_id = frappe.get_doc("Customer", entry.customer).tax_id
 		presentation_currency = (
-			get_party_account_currency("Customer", entry.customer, doc.company)
-			or doc.currency
+			doc.currency
+			or get_party_account_currency("Customer", entry.customer, doc.company)
 			or get_company_currency(doc.company)
 		)
 
@@ -341,6 +343,7 @@ def get_statement_dict(doc, get_statement_dict=False):
 		if doc.report == "General Ledger":
 			filters.update(get_gl_filters(doc, entry, tax_id, presentation_currency))
 			col, res = get_soa(filters)
+			res = sort_res(res)
 			for x in [0, -2, -1]:
 				res[x]["account"] = res[x]["account"].replace("'", "")
 			if len(res) == 3:
@@ -401,7 +404,7 @@ def get_gl_filters(doc, entry, tax_id, presentation_currency):
 		"party": [entry.customer],
 		"party_name": [entry.customer_name] if entry.customer_name else None,
 		"presentation_currency": presentation_currency,
-		"group_by": doc.group_by,
+		"categorize_by": doc.categorize_by,
 		"currency": doc.currency,
 		"project": [p.project_name for p in doc.project],
 		"show_opening_entries": 0,
