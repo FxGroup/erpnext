@@ -7,7 +7,7 @@ import json
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_to_date, flt, get_datetime, getdate, time_diff_in_hours
+from frappe.utils import add_to_date, flt, get_datetime, getdate, time_diff_in_hours, time_diff_in_seconds
 
 from erpnext.controllers.queries import get_match_cond
 from erpnext.setup.utils import get_exchange_rate
@@ -194,7 +194,7 @@ class Timesheet(Document):
 			return
 
 		_to_time = get_datetime(add_to_date(data.from_time, hours=data.hours, as_datetime=True))
-		if data.to_time != _to_time:
+		if abs(time_diff_in_seconds(_to_time, data.to_time)) >= 1:
 			data.to_time = _to_time
 
 	def validate_overlap(self, data):
