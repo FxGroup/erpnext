@@ -115,7 +115,6 @@ def get_stock_ledger_entries_for_batch_no(filters):
 			& (sle.posting_datetime < posting_datetime)
 		)
 		.groupby(sle.voucher_no, sle.batch_no, sle.item_code, sle.warehouse)
-		.orderby(sle.item_code, sle.warehouse)
 	)
 
 	query = apply_warehouse_filter(query, sle, filters)
@@ -160,7 +159,6 @@ def get_stock_ledger_entries_for_batch_bundle(filters):
 			& (sle.posting_datetime <= to_date)
 		)
 		.groupby(sle.voucher_no, batch_package.batch_no, batch_package.warehouse)
-		.orderby(sle.item_code, sle.warehouse)
 	)
 
 	query = apply_warehouse_filter(query, sle, filters)

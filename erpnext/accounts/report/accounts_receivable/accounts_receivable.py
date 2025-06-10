@@ -98,9 +98,6 @@ class ReceivablePayableReport:
 	def get_data(self):
 		self.get_sales_invoices_or_customers_based_on_sales_person()
 
-		# Build delivery note map against all sales invoices
-		self.build_delivery_note_map()
-
 		# Get invoice details like bill_no, due_date etc for all invoices
 		self.get_invoice_details()
 
@@ -108,7 +105,8 @@ class ReceivablePayableReport:
 		self.get_future_payments()
 
 		# Get return entries
-		self.get_return_entries()
+		if not self.filters.party_type or self.filters.party_type in ["Customer", "Supplier"]:
+			self.get_return_entries()
 
 		# Get Exchange Rate Revaluations
 		self.get_exchange_rate_revaluations()
@@ -122,10 +120,14 @@ class ReceivablePayableReport:
 		elif self.ple_fetch_method == "UnBuffered Cursor":
 			self.fetch_ple_in_unbuffered_cursor()
 
+		# Build delivery note map against all sales invoices
+		self.build_delivery_note_map()
+
 		self.build_data()
 
 	def fetch_ple_in_buffered_cursor(self):
-		self.ple_entries = frappe.db.sql(self.ple_query.get_sql(), as_dict=True)
+		query, param = self.ple_query.walk()
+		self.ple_entries = frappe.db.sql(query, param, as_dict=True)
 
 		for ple in self.ple_entries:
 			self.init_voucher_balance(ple)  # invoiced, paid, credit_note, outstanding
@@ -138,8 +140,9 @@ class ReceivablePayableReport:
 
 	def fetch_ple_in_unbuffered_cursor(self):
 		self.ple_entries = []
+		query, param = self.ple_query.walk()
 		with frappe.db.unbuffered_cursor():
-			for ple in frappe.db.sql(self.ple_query.get_sql(), as_dict=True, as_iterator=True):
+			for ple in frappe.db.sql(query, param, as_dict=True, as_iterator=True):
 				self.init_voucher_balance(ple)  # invoiced, paid, credit_note, outstanding
 				self.ple_entries.append(ple)
 
