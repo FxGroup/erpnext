@@ -163,8 +163,11 @@ class StockReconciliation(StockController):
 	def set_current_serial_and_batch_bundle(self, voucher_detail_no=None, save=False) -> None:
 		"""Set Serial and Batch Bundle for each item"""
 		for item in self.items:
-			if not frappe.db.exists("Item", item.item_code):
-				frappe.throw(_("Item {0} does not exist").format(item.item_code))
+			if voucher_detail_no and voucher_detail_no != item.name:
+				continue
+
+			if not item.item_code:
+				continue
 
 			item_details = frappe.get_cached_value(
 				"Item", item.item_code, ["has_serial_no", "has_batch_no"], as_dict=1
@@ -232,9 +235,6 @@ class StockReconciliation(StockController):
 			if not save and item.use_serial_batch_fields:
 				continue
 
-			if voucher_detail_no and voucher_detail_no != item.name:
-				continue
-
 			if not item.current_serial_and_batch_bundle:
 				serial_and_batch_bundle = frappe.get_doc(
 					{
@@ -286,6 +286,7 @@ class StockReconciliation(StockController):
 							"warehouse": item.warehouse,
 							"posting_date": self.posting_date,
 							"posting_time": self.posting_time,
+							"for_stock_levels": True,
 							"ignore_voucher_nos": [self.name],
 						}
 					)
@@ -886,6 +887,10 @@ class StockReconciliation(StockController):
 			data.incoming_rate = flt(row.valuation_rate)
 
 		self.update_inventory_dimensions(row, data)
+
+		if self.docstatus == 1 and has_dimensions and (not row.batch_no or not row.serial_and_batch_bundle):
+			data.qty_after_transaction = data.actual_qty
+			data.actual_qty = 0.0
 
 		return data
 

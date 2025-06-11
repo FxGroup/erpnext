@@ -762,22 +762,34 @@ class WorkOrder(Document):
 		)
 
 	def update_ordered_qty(self):
-		if self.production_plan and self.production_plan_item and not self.production_plan_sub_assembly_item:
+		if self.production_plan and (self.production_plan_item or self.production_plan_sub_assembly_item):
 			table = frappe.qb.DocType("Work Order")
 
 			query = (
 				frappe.qb.from_(table)
 				.select(Sum(table.qty))
-				.where(
-					(table.production_plan == self.production_plan)
-					& (table.production_plan_item == self.production_plan_item)
-					& (table.docstatus == 1)
-				)
-			).run()
+				.where((table.production_plan == self.production_plan) & (table.docstatus == 1))
+			)
 
+			if self.production_plan_item:
+				query = query.where(table.production_plan_item == self.production_plan_item)
+			elif self.production_plan_sub_assembly_item:
+				query = query.where(
+					table.production_plan_sub_assembly_item == self.production_plan_sub_assembly_item
+				)
+
+			query = query.run()
 			qty = flt(query[0][0]) if query else 0
 
-			frappe.db.set_value("Production Plan Item", self.production_plan_item, "ordered_qty", qty)
+			if self.production_plan_item:
+				frappe.db.set_value("Production Plan Item", self.production_plan_item, "ordered_qty", qty)
+			elif self.production_plan_sub_assembly_item:
+				frappe.db.set_value(
+					"Production Plan Sub Assembly Item",
+					self.production_plan_sub_assembly_item,
+					"ordered_qty",
+					qty,
+				)
 
 			doc = frappe.get_doc("Production Plan", self.production_plan)
 			doc.set_status()
@@ -1503,19 +1515,19 @@ def stop_unstop(work_order, status):
 
 
 @frappe.whitelist()
-def query_sales_order(production_item):
-	out = frappe.db.sql_list(
-		"""
-		select distinct so.name from `tabSales Order` so, `tabSales Order Item` so_item
-		where so_item.parent=so.name and so_item.item_code=%s and so.docstatus=1
-	union
-		select distinct so.name from `tabSales Order` so, `tabPacked Item` pi_item
-		where pi_item.parent=so.name and pi_item.item_code=%s and so.docstatus=1
-	""",
-		(production_item, production_item),
+def query_sales_order(production_item: str) -> list[str]:
+	return frappe.get_list(
+		"Sales Order",
+		filters=[
+			["Sales Order", "docstatus", "=", 1],
+		],
+		or_filters=[
+			["Sales Order Item", "item_code", "=", production_item],
+			["Packed Item", "item_code", "=", production_item],
+		],
+		pluck="name",
+		distinct=True,
 	)
-
-	return out
 
 
 @frappe.whitelist()

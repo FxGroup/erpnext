@@ -662,13 +662,17 @@ def get_item_tax_info(company, tax_category, item_codes, item_rates=None, item_t
 	return out
 
 
-def get_item_tax_template(args, item, out):
-	"""
-	args = {
-	        "tax_category": None
-	        "item_tax_template": None
-	}
-	"""
+@frappe.whitelist()
+def get_item_tax_template(args, item=None, out=None):
+	if isinstance(args, str):
+		args = json.loads(args)
+
+	if not item:
+		if not args.get("item_code"):
+			frappe.throw(_("Item/Item Code required to get Item Tax Template."))
+		else:
+			item = frappe.get_cached_doc("Item", args.get("item_code"))
+
 	item_tax_template = None
 	if item.taxes:
 		item_tax_template = _get_item_tax_template(args, item.taxes, out)
@@ -680,8 +684,10 @@ def get_item_tax_template(args, item, out):
 			item_tax_template = _get_item_tax_template(args, item_group_doc.taxes, out)
 			item_group = item_group_doc.parent_item_group
 
-	if args.get("child_doctype") and item_tax_template:
+	if out and args.get("child_doctype") and item_tax_template:
 		out.update(get_fetch_values(args.get("child_doctype"), "item_tax_template", item_tax_template))
+
+	return item_tax_template
 
 
 def _get_item_tax_template(args, taxes, out=None, for_validate=False):
