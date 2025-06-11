@@ -189,6 +189,11 @@ class BankTransaction(Document):
 				gl_bank_account,
 			)
 
+			# Overriding to true as we dont do reconciliations on a lot of our bank
+			# accounts like our payment providers so this will always be False for
+			# Payment Group payouts which involve multiple bank accounts
+			should_clear = True
+
 			if allocable_amount < 0:
 				frappe.throw(_("Voucher {0} is over-allocated by {1}").format(allocable_amount))
 
