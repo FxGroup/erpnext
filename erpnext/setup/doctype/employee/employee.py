@@ -269,6 +269,27 @@ class Employee(NestedSet):
 			frappe.cache().hdel("employees_with_number", cell_number)
 			frappe.cache().hdel("employees_with_number", prev_number)
 
+	@frappe.whitelist()
+	def populate_work_schedule(self):
+		self.work_hours = []
+		
+		days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+		
+		for week in range(2):
+			for day in days:
+				row = self.append('work_hours', {})
+				row.day = day
+
+				if day in ['Saturday', 'Sunday']:
+					row.hours = 0
+					row.minutes = '0'
+				else:
+					row.hours = 8
+					row.minutes = '0'
+
+		self.total_work_hours = 80
+		self.total_work_minutes = 0
+
 
 def validate_employee_role(doc, method=None, ignore_emp_check=False):
 	# called via User hook

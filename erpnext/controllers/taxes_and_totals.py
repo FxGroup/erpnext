@@ -704,7 +704,7 @@ class calculate_taxes_and_totals:
 
 			if total_for_discount_amount:
 				# calculate item amount after Discount Amount
-				for item in self._items:
+				for idx, item in enumerate(self._items):
 					distributed_amount = (
 						flt(self.doc.discount_amount) * item.net_amount / total_for_discount_amount
 					)
@@ -713,15 +713,15 @@ class calculate_taxes_and_totals:
 						Custom logic to override ERPNext's default tax calculation for order-level discounts.  
 						Ensures each item's net amount is correctly updated based on the order's discount distribution.  
 						Aligns ERPNext's tax calculation with Shopify's approach:  
-						 
+						
 						Shopify:  
-						  $100 - $20 = $80 (Discount applied to Net Total)  
-						  $80 * 1.10 = $88 (Tax calculated after discount)  
-						  Order Total: $88  
-						 
+						$100 - $20 = $80 (Discount applied to Net Total)  
+						$80 * 1.10 = $88 (Tax calculated after discount)  
+						Order Total: $88  
+						
 						ERPNext Default:  
-						  $100 * 1.10 = $110 (Tax calculated before discount)  
-						  $110 - $20 = $90 (Discount applied to Grand Total)  
+						$100 * 1.10 = $110 (Tax calculated before discount)  
+						$110 - $20 = $90 (Discount applied to Grand Total)  
 						"""
 
 						item_tax_map = self._load_item_tax_rate(item.item_tax_rate)
@@ -743,7 +743,7 @@ class calculate_taxes_and_totals:
 
 							cumulated_tax_fraction += tax.tax_fraction_for_current_item
 							total_inclusive_tax_amount_per_qty += inclusive_tax_amount_per_qty * flt(item.qty)
-						
+
 						item.net_amount = flt((item.amount - distributed_amount) / (1 + cumulated_tax_fraction), item.precision("net_amount"))
 						item.net_rate = flt(item.net_amount / item.qty, item.precision("net_rate"))
 						net_total += item.net_amount
@@ -751,14 +751,19 @@ class calculate_taxes_and_totals:
 						item.net_amount = flt(item.net_amount - distributed_amount, item.precision("net_amount"))
 						net_total += item.net_amount
 
+						taxes = self.doc.get("taxes")
 						if (
 							self.doc.apply_discount_on == "Net Total"
 							or not taxes
 							or total_for_discount_amount == self.doc.net_total
-						) and i == len(self._items) - 1:
-							discount_amount_loss = flt(self.doc.net_total - net_total - self.doc.discount_amount, self.doc.precision("net_total"))
+						) and idx == len(self._items) - 1:
+							discount_amount_loss = flt(
+								self.doc.net_total - net_total - self.doc.discount_amount,
+								self.doc.precision("net_total")
+							)
 							item.net_amount = flt(
-								item.net_amount + discount_amount_loss, item.precision("net_amount")
+								item.net_amount + discount_amount_loss,
+								item.precision("net_amount")
 							)
 
 						item.net_rate = (
