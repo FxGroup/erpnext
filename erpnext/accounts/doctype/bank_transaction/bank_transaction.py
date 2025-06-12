@@ -349,7 +349,7 @@ def get_clearance_details(transaction, payment_entry, bt_allocations, gl_entries
 
 		return abs(bt.unallocated_amount), True, transaction_date
 
-	if payment_entry.doctype != "Payment Group":
+	if payment_entry.payment_document != "Payment Group":
 		if gl_bank_account not in gl_entries:
 			frappe.throw(
 				_("{} {} is not affecting bank account {}").format(
