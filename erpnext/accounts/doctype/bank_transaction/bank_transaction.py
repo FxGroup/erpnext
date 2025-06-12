@@ -357,7 +357,10 @@ def get_clearance_details(transaction, payment_entry, bt_allocations, gl_entries
 				)
 			)
 
-	allocable_amount = gl_entries.pop(gl_bank_account) or 0
+	if payment_entry.payment_document != "Payment Group":
+		allocable_amount = gl_entries.pop(gl_bank_account) or 0
+	else:
+		allocable_amount = payment_entry.allocated_amount
 	if allocable_amount <= 0.0:
 		frappe.throw(
 			_("Invalid amount in accounting entries of {} {} for Account {}: {}").format(
