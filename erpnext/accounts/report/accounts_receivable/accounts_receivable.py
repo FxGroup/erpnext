@@ -55,7 +55,8 @@ class ReceivablePayableReport:
 		#This has some challenges because we don't know if they will pay between now and the report date
 		self.age_as_on = (
 			getdate(nowdate())
-			if self.filters.calculate_ageing_with == "Today Date"
+			if "calculate_ageing_with" not in self.filters
+			or self.filters.calculate_ageing_with == "Today Date"
 			else self.filters.report_date
 		)
 
