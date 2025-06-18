@@ -189,6 +189,11 @@ class BankTransaction(Document):
 				gl_bank_account,
 			)
 
+			# Overriding to true as we dont do reconciliations on a lot of our bank
+			# accounts like our payment providers so this will always be False for
+			# Payment Group payouts which involve multiple bank accounts
+			should_clear = True
+
 			if allocable_amount < 0:
 				frappe.throw(_("Voucher {0} is over-allocated by {1}").format(allocable_amount))
 
@@ -365,10 +370,11 @@ def get_clearance_details(transaction, payment_entry, bt_allocations, gl_entries
 		allocable_amount - matching_bt_allocaion.get("total", 0), transaction.precision("unallocated_amount")
 	)
 
-	should_clear = all(
-		gl_entries[gle_account] == bt_allocations.get(gle_account, {}).get("total", 0)
-		for gle_account in gl_entries
-	)
+	if payment_entry.payment_document != "Payment Group":
+		should_clear = all(
+			gl_entries[gle_account] == bt_allocations.get(gle_account, {}).get("total", 0)
+			for gle_account in gl_entries
+		)
 
 	bt_allocation_date = matching_bt_allocaion.get("latest_date", None)
 	clearance_date = transaction_date if not bt_allocation_date else max(transaction_date, bt_allocation_date)
