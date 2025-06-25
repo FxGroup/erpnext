@@ -73,5 +73,10 @@ def get_data():
 			'label': 'FxLearn',
 			'items': ['Enrolment']
 		})
+	if company == "RN Labs":
+		dashboardData["transactions"].append({
+			'label': 'RN Education',
+			'items': ['Enrolment']
+		})
 		
 	return dashboardData
