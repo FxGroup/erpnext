@@ -1352,7 +1352,9 @@ class SalesInvoice(SellingController):
 				if item.is_fixed_asset:
 					asset = self.get_asset(item)
 
-					if self.is_return:
+					if (self.docstatus == 2 and not self.is_return) or (
+						self.docstatus == 1 and self.is_return
+					):
 						fixed_asset_gl_entries = get_gl_entries_on_asset_regain(
 							asset,
 							item.base_net_amount,
@@ -1365,8 +1367,10 @@ class SalesInvoice(SellingController):
 						add_asset_activity(asset.name, _("Asset returned"))
 
 						if asset.calculate_depreciation:
-							posting_date = frappe.db.get_value(
-								"Sales Invoice", self.return_against, "posting_date"
+							posting_date = (
+								frappe.db.get_value("Sales Invoice", self.return_against, "posting_date")
+								if self.is_return
+								else self.posting_date
 							)
 							reverse_depreciation_entry_made_after_disposal(asset, posting_date)
 							depreciate_asset(asset, self.posting_date)
@@ -1464,8 +1468,10 @@ class SalesInvoice(SellingController):
 		return self._enable_discount_accounting
 
 	def set_asset_status(self, asset):
-		if self.is_return:
+		if self.is_return and not self.docstatus == 2:
 			asset.set_status()
+		elif self.is_return and self.docstatus == 2:
+			asset.set_status("Sold")
 		else:
 			asset.set_status("Sold" if self.docstatus == 1 else None)
 
