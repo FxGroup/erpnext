@@ -1474,7 +1474,7 @@ class AccountsController(TransactionBase):
 
 			self.append("advances", advance_row)
 
-	def get_advance_entries(self, include_unallocated=True):
+	def get_advance_entries(self, include_unallocated=True, is_advance=True):
 		party_account = []
 		default_advance_account = None
 
@@ -1504,7 +1504,7 @@ class AccountsController(TransactionBase):
 		order_list = list(set(d.get(order_field) for d in self.get("items") if d.get(order_field)))
 
 		journal_entries = get_advance_journal_entries(
-			party_type, party, party_account, amount_field, order_doctype, order_list, include_unallocated
+			party_type, party, party_account, amount_field, order_doctype, order_list, include_unallocated, is_advance
 		)
 
 		payment_entries = get_advance_payment_entries_for_regional(
@@ -3178,6 +3178,7 @@ def get_advance_journal_entries(
 	order_doctype,
 	order_list,
 	include_unallocated=True,
+	is_advance=True,
 ):
 	journal_entry = frappe.qb.DocType("Journal Entry")
 	journal_acc = frappe.qb.DocType("Journal Entry Account")
@@ -3198,10 +3199,11 @@ def get_advance_journal_entries(
 			journal_acc.account.isin(party_account)
 			& (journal_acc.party_type == party_type)
 			& (journal_acc.party == party)
-			& (journal_acc.is_advance == "Yes")
 			& (journal_entry.docstatus == 1)
 		)
 	)
+	if is_advance:
+		q = q.where(journal_acc.is_advance == "Yes")
 	if party_type == "Customer":
 		q = q.where(journal_acc.credit_in_account_currency > 0)
 
