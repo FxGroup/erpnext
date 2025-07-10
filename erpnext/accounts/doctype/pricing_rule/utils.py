@@ -16,6 +16,8 @@ from erpnext.setup.doctype.item_group.item_group import get_child_item_groups
 from erpnext.stock.doctype.warehouse.warehouse import get_child_warehouses
 from erpnext.stock.get_item_details import get_conversion_factor, get_basic_details
 
+lookup_logger = frappe.logger("Pricing Rule Look Up", allow_site=True, file_count=1, max_size = 5000000)
+
 
 class MultiplePricingRuleConflict(frappe.ValidationError):
 	pass
@@ -36,6 +38,7 @@ def get_pricing_rules(args, doc=None, returnAll=False):
 	values = {}
 
 	if not frappe.db.exists("Pricing Rule", {"disable": 0, args.transaction_type: 1}):
+		lookup_logger.info(f"No active pricing rules found for transaction type: {args.transaction_type}")
 		return []
 
 	for apply_on in ["Item Code", "Item Group", "Brand", "Batch No"]:
@@ -50,11 +53,14 @@ def get_pricing_rules(args, doc=None, returnAll=False):
 	pricing_rules = filter_pricing_rule_based_on_condition(pricing_rules, doc, args)
 
 	if not pricing_rules:
+		lookup_logger.info(f"No applicable pricing rules found after filtering. Returning empty list.")
 		return []
 	
 	if doc and doc.get("coupon_code"):
+		lookup_logger.info(f"Applying coupon code: {doc.get('coupon_code')} to pricing rules")
 		args.coupon_code = doc.get("coupon_code")
 	if returnAll:
+		lookup_logger.info(f"Returning all applicable pricing rules")
 		pricing_rules = filter_pricing_rules_for_qty_amount(
 			args.qty, args.rate, pricing_rules
 		)
@@ -71,11 +77,13 @@ def get_pricing_rules(args, doc=None, returnAll=False):
 		else:
 			rules.append(pricing_rule)
 	if apply_multiple_pricing_rules(pricing_rules):
+		lookup_logger.info(f"Multiple pricing rules applicable")
 		return rules
 	else:
 		if rules:
 			return [rules[0]]
 		else:
+			lookup_logger.info(f"No applicable pricing rules found after filtering and sorting. Response: {pricing_rules}")
 			return []
 
 
@@ -88,6 +96,7 @@ def sorted_by_priority(pricing_rules, args, doc=None):
 	filtered_pricing_rules = []
 
 	for pricing_rule in pricing_rules:
+		lookup_logger.info(f"Filtering pricing rule: {pricing_rule.name} with priority {pricing_rule.priority} and shortdated: {pricing_rule.is_shortdated}")
 		pricing_rule = filter_pricing_rules(args, pricing_rule, doc)
 		if pricing_rule:
 			if not pricing_rule.get("priority"):
@@ -304,8 +313,6 @@ def filter_pricing_rules(args, pricing_rules, doc=None):
 		pricing_rules = [pricing_rules]
 
 	original_pricing_rule = copy.copy(pricing_rules)
-
-	
 	# filter for qty
 	if pricing_rules:
 		stock_qty = flt(args.get("stock_qty"))
@@ -353,11 +360,11 @@ def filter_pricing_rules(args, pricing_rules, doc=None):
 	if len(pricing_rules) >= 1:
 		pricing_rules = list(filter(lambda x: x.currency == args.get("currency") or x.currency_non_specific_pricing_rule, pricing_rules))
 	
-	
 	filtered_rules = []
 	if pricing_rules:
 		for pricing_rule in pricing_rules:
 			if pricing_rule.coupon_code_based:
+				lookup_logger.info(f"Coupon based rule: {pricing_rule.name} and a coupon code: {args.coupon_code}")
 				coupon_code_list = frappe.get_list("Coupon Code", filters={'pricing_rule': pricing_rule.name, 'coupon_code': args.coupon_code}, fields=['name'])
 				if coupon_code_list:
 					filtered_rules.append(pricing_rule)
@@ -391,7 +398,6 @@ def filter_pricing_rules(args, pricing_rules, doc=None):
 			pricing_rules = (
 				list(filter(lambda x: x.for_price_list == args.price_list, pricing_rules)) or pricing_rules
 			)
-
 	if len(pricing_rules) > 1 and not args.for_shopping_cart:
 		# frappe.throw(
 		# 	_(
