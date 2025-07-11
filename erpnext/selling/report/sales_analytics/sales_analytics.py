@@ -165,6 +165,12 @@ class Analytics:
 		self.get_teams()
 
 	def get_sales_transactions_based_on_customers_or_suppliers(self):
+		filters = {
+			"docstatus": 1,
+			"company": ["in", self.filters.company],
+			self.date_field: ("between", [self.filters.from_date, self.filters.to_date]),
+		}
+  
 		if self.filters["value_quantity"] == "Value":
 			value_field = "base_net_total as value_field"
 		else:
@@ -173,15 +179,11 @@ class Analytics:
 		if self.filters.tree_type == "Customer":
 			entity = "customer as entity"
 			entity_name = "customer_name as entity_name"
+			if self.filters.get('customer'):
+				filters['customer'] = self.filters.get('customer')
 		else:
 			entity = "supplier as entity"
 			entity_name = "supplier_name as entity_name"
-
-		filters = {
-			"docstatus": 1,
-			"company": ["in", self.filters.company],
-			self.date_field: ("between", [self.filters.from_date, self.filters.to_date]),
-		}
 
 		if self.filters.doc_type in ["Sales Invoice", "Purchase Invoice", "Payment Entry"]:
 			filters.update({"is_opening": "No"})
