@@ -258,6 +258,13 @@ class BankTransaction(Document):
 			)
 			return
 
+		if doctype == "Journal Entry":
+			#Check for PG's with this JE as a Clearance JE
+			clear_linked_payment_group(docname, clearance_date)
+		elif doctype == "Payment Group":
+			set_clearance_date_bank_rec(docname,clearance_date)
+
+
 		frappe.db.set_value(doctype, docname, "clearance_date", clearance_date)
 
 	def update_linked_bank_transaction(self, bank_transaction_name, allocated_amount=None):
