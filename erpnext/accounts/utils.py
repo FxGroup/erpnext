@@ -30,6 +30,8 @@ from pypika.terms import ExistsCriterion
 
 import erpnext
 
+from erpnext import get_default_company
+
 # imported to enable erpnext.accounts.utils.get_account_currency
 from erpnext.accounts.doctype.account.account import get_account_currency
 from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import get_dimensions
@@ -1831,7 +1833,7 @@ def create_payment_ledger_entry(
 			ple.flags.update_outstanding = update_outstanding
 			ple.submit()
 
-
+logger = frappe.logger("Invoice Status Update", allow_site=True, file_count=1, max_size = 5000000)
 def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, party):
 	ple = frappe.qb.DocType("Payment Ledger Entry")
 	vouchers = [frappe._dict({"voucher_type": voucher_type, "voucher_no": voucher_no})]
@@ -1862,6 +1864,14 @@ def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, pa
 		)
 
 		# Didn't use db_set for optimisation purpose
+		# TODO: Check this settings
+		if get_default_company() == "FxMed":
+			logger.info("")
+			logger.debug(f"Doc: {ref_doc.name}")
+			logger.debug(f"Prev Status: {ref_doc.status}")
+			logger.debug(f"Prev Outstanding Amount: {ref_doc.outstanding_amount}")
+			logger.debug(f"New Outstanding amount: {outstanding_amount}")
+   
 		ref_doc.outstanding_amount = outstanding_amount
 		frappe.db.set_value(
 			voucher_type,
@@ -1871,6 +1881,8 @@ def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, pa
 		)
 
 		ref_doc.set_status(update=True)
+		if get_default_company() == "FxMed":
+			logger.debug(f"New Stutus: {ref_doc.status}")
 		ref_doc.notify_update()
 
 
