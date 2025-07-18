@@ -870,6 +870,7 @@ class calculate_taxes_and_totals:
 		return False
 
 	def calculate_outstanding_amount(self):
+		from fxnmrnth.utils.sales_invoice import status_logger
 		# NOTE:
 		# write_off_amount is only for POS Invoice
 		# total_advance is only for non POS Invoice
@@ -884,6 +885,7 @@ class calculate_taxes_and_totals:
 			or self.is_internal_invoice()
 		):
 			# Do not calculate the outstanding amount for a return invoice if 'update_outstanding_for_self' is not enabled.
+			status_logger("info", f"[{self.doc.name}][Calculate Outstanding Amount] Current Outstanding amount: {self.doc.outstanding_amount}, not setting it to 0")
 			self.doc.outstanding_amount = 0
 			return
 
@@ -924,10 +926,12 @@ class calculate_taxes_and_totals:
 				else self.doc.base_paid_amount
 			)
 
+			status_logger("info", f"[{self.doc.name}][Calculate Outstanding Amount] Prev outstanding amount: {self.doc.outstanding_amount}")
 			self.doc.outstanding_amount = flt(
 				total_amount_to_pay - flt(paid_amount) + flt(change_amount),
 				self.doc.precision("outstanding_amount"),
 			)
+			status_logger("info", f"[{self.doc.name}][Calculate Outstanding Amount] New outstanding amount: {self.doc.outstanding_amount}")
 
 			if (
 				self.doc.doctype == "Sales Invoice"

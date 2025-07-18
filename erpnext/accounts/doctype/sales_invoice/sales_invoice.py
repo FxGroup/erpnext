@@ -1906,17 +1906,18 @@ class SalesInvoice(SellingController):
 				break
 
 	def set_status(self, update=False, status=None, update_modified=True):
+		from fxnmrnth.utils.sales_invoice import status_logger
 		if self.is_new():
 			if self.get("amended_from"):
 				self.status = "Draft"
 			return
 
 		outstanding_amount = flt(self.outstanding_amount, self.precision("outstanding_amount"))
+		status_logger("info", f"[{self.name}][Set Status] Outstanding amount {self.outstanding_amount}")
 		total = get_total_in_party_account_currency(self)
-
+		status_logger("info", f"[{self.name}][Set Status] Total {self.outstanding_amount}")
 		# Adding leeway to account for write-off amounts
 		leeway = 0.02
-
 		if not status:
 			if self.docstatus == 2:
 				status = "Cancelled"
@@ -1951,9 +1952,10 @@ class SalesInvoice(SellingController):
 			else:
 				self.status = "Draft"
 
+		status_logger("info", f"[{self.name}][Set Status] Set status to {self.status}")
 		if update:
 			self.db_set("status", self.status, update_modified=update_modified)
-
+   
 
 def get_total_in_party_account_currency(doc):
 	total_fieldname = "grand_total" if doc.disable_rounded_total else "rounded_total"
@@ -1964,7 +1966,9 @@ def get_total_in_party_account_currency(doc):
 
 
 def is_overdue(doc, total):
+	from fxnmrnth.utils.sales_invoice import status_logger
 	outstanding_amount = flt(doc.outstanding_amount, doc.precision("outstanding_amount"))
+	status_logger("info", f"[Is overdue] Outstanding Amount: {outstanding_amount}")
 	if outstanding_amount <= 0:
 		return
 

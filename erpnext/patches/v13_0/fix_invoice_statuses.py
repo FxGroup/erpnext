@@ -75,7 +75,9 @@ def execute():
 
 
 def get_correct_status(doc):
+	from fxnmrnth.utils.sales_invoice import status_logger
 	outstanding_amount = flt(doc.outstanding_amount, doc.precision("outstanding_amount"))
+	status_logger("info", f"[{doc.get('name')}][Correct Status] Outstanding Amount: {outstanding_amount}")
 	total = get_total_in_party_account_currency(doc)
 
 	status = ""
@@ -85,7 +87,7 @@ def get_correct_status(doc):
 		status = "Partly Paid"
 	elif outstanding_amount > 0 and getdate(doc.due_date) >= TODAY:
 		status = "Unpaid"
-
+	status_logger("info", f"[{doc.get('name')}][Correct Status] New Status: {status}")
 	if not status:
 		return
 
