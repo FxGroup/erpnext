@@ -312,12 +312,16 @@ def calculate_ws_commission(entries, filters):
 		current_item_dict[item["price_list"]].append(item)
 
 	for entry in entries:
-		current_price = None
 		entry_price_list = entry["price_list"]
 		entry_price_list = entry_price_list.split()[0]
 		entry_price_list += " Wholesale"
 
 		entry['wholesale_price'], entry['wholesale_amount'] = get_wholesale_price(entry)
+  
+		if not entry['wholesale_price'] and not entry['wholesale_amount']:
+			entry['wholesale_price'] = "N/A"
+			entry['wholesale_amount'] = "N/A"
+			continue
 
 		if entry['is_return']:
 			entry['wholesale_price'] = entry['wholesale_price'] * -1
@@ -340,6 +344,7 @@ def get_wholesale_price(entry):
 		"posting_date": entry.posting_date,
 		"uom": entry.stock_uom
 	}
+
 	price_list = entry.price_list.split(" ")[0] + " Wholesale"
 	get_price_list_rate_args['price_list'] = price_list
 	price_list_rate = get_price_list_rate_for(get_price_list_rate_args, entry.item_code)
