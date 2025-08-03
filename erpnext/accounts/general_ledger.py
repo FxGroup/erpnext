@@ -305,6 +305,8 @@ def get_merge_properties(dimensions=None):
 		"project",
 		"finance_book",
 		"voucher_no",
+		"advance_voucher_type",
+		"advance_voucher_no",
 	]
 	if dimensions:
 		merge_properties.extend(dimensions)
@@ -692,7 +694,18 @@ def make_reverse_gl_entries(
 				query.run()
 		else:
 			if not immutable_ledger_enabled:
-				set_as_cancel(gl_entries[0]["voucher_type"], gl_entries[0]["voucher_no"])
+				gle_names = [x.get("name") for x in gl_entries]
+
+				# if names are available, cancel only that set of entries
+				if not all(gle_names):
+					set_as_cancel(gl_entries[0]["voucher_type"], gl_entries[0]["voucher_no"])
+				else:
+					frappe.db.sql(
+						"""UPDATE `tabGL Entry` SET is_cancelled = 1,
+						modified=%s, modified_by=%s
+						where name in %s and is_cancelled = 0""",
+						(now(), frappe.session.user, tuple(gle_names)),
+					)
 
 		for entry in gl_entries:
 			new_gle = copy.deepcopy(entry)

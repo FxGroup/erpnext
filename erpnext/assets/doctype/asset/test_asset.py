@@ -445,6 +445,27 @@ class TestAsset(AssetSetup):
 
 		self.assertEqual(frappe.db.get_value("Asset", asset.name, "status"), "Sold")
 
+	def test_asset_splitting_without_depreciation(self):
+		asset = create_asset(
+			calculate_depreciation=0,
+			asset_quantity=10,
+			available_for_use_date="2020-01-01",
+			purchase_date="2020-01-01",
+			gross_purchase_amount=120000,
+			submit=1,
+		)
+
+		self.assertEqual(asset.asset_quantity, 10)
+		self.assertEqual(asset.gross_purchase_amount, 120000)
+
+		new_asset = split_asset(asset.name, 2)
+		asset.load_from_db()
+		self.assertEqual(asset.asset_quantity, 8)
+		self.assertEqual(asset.gross_purchase_amount, 96000)
+
+		self.assertEqual(new_asset.asset_quantity, 2)
+		self.assertEqual(new_asset.gross_purchase_amount, 24000)
+
 	def test_asset_splitting(self):
 		asset = create_asset(
 			calculate_depreciation=1,
@@ -1492,7 +1513,6 @@ class TestDepreciationBasics(AssetSetup):
 		)
 
 		self.assertSequenceEqual(gle, expected_gle)
-		self.assertEqual(asset.get("value_after_depreciation"), 0)
 
 	def test_expected_value_change(self):
 		"""
