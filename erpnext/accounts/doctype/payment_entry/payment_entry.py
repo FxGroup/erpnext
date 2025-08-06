@@ -1080,8 +1080,11 @@ class PaymentEntry(AccountsController):
 				total_allocated_amount += flt(d.allocated_amount)
 				base_total_allocated_amount += self.calculate_base_allocated_amount_for_reference(d)
 
-		self.total_allocated_amount = abs(total_allocated_amount)
-		self.base_total_allocated_amount = abs(base_total_allocated_amount)
+		total_allocated_amount = abs(total_allocated_amount)
+		base_total_allocated_amount = abs(base_total_allocated_amount)
+  
+		self.total_allocated_amount = flt(total_allocated_amount, self.precision("base_paid_amount"))
+		self.base_total_allocated_amount = flt(base_total_allocated_amount, self.precision('base_paid_amount'))
 
 	def set_unallocated_amount(self):
 		self.unallocated_amount = 0
