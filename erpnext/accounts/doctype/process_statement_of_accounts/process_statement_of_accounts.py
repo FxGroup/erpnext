@@ -134,7 +134,7 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 				continue
 		else:
 			#Bulk Run
-			logger.info("PID[" + str(pid) + "] Processing: " + str(i) + " of " + str(numberOfCustomers))
+			logger.info("PID[" + str(pid) + "] Processing: " + str(i) + " of " + str(numberOfCustomers) + "Customer: " + str(entry.customer)) 
 					
 		tax_id = frappe.get_doc('Customer', entry.customer).tax_id
 		customer_name = frappe.get_doc('Customer', entry.customer).customer_name
