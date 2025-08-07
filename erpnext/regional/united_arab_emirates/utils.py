@@ -99,14 +99,12 @@ def update_grand_total_for_rcm(doc, method):
 
 
 def update_totals(vat_tax, base_vat_tax, doc):
-	from fxnmrnth.utils.sales_invoice import status_logger
 	"""Update the grand total values in the form."""
 	doc.base_grand_total -= base_vat_tax
 	doc.grand_total -= vat_tax
 
 	if doc.meta.get_field("rounded_total"):
 		if doc.is_rounded_total_disabled():
-			status_logger("info", f"[{doc.get('name')}][Update Totals] Setting outstanding amount to {doc.grand_total}")
 			doc.outstanding_amount = doc.grand_total
 
 		else:
@@ -116,9 +114,7 @@ def update_totals(vat_tax, base_vat_tax, doc):
 			doc.rounding_adjustment = flt(
 				doc.rounded_total - doc.grand_total, doc.precision("rounding_adjustment")
 			)
-			status_logger("info", f"[{doc.get('name')}][Update Totals] Setting outstanding amount to {doc.grand_total} or {doc.rounded_total}")
 			doc.outstanding_amount = doc.rounded_total or doc.grand_total
-		status_logger("info", f"[{doc.get('name')}][Update Totals] New outstanding amount {doc.outstanding_amount}")
 	doc.in_words = money_in_words(doc.grand_total, doc.currency)
 	doc.base_in_words = money_in_words(doc.base_grand_total, erpnext.get_company_currency(doc.company))
 	doc.set_payment_schedule()

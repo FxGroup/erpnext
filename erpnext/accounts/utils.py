@@ -306,7 +306,6 @@ def get_balance_on(
 
 
 def get_count_on(account, fieldname, date):
-	from fxnmrnth.utils.sales_invoice import status_logger
 	cond = ["is_cancelled=0"]
 	if date:
 		cond.append("posting_date <= %s" % frappe.db.escape(cstr(date)))
@@ -384,7 +383,6 @@ def get_count_on(account, fieldname, date):
 					)[0][0]
 
 					outstanding_amount = flt(gle.get(dr_or_cr)) - flt(gle.get(cr_or_dr)) - payment_amount
-					status_logger("info", f"[Get Count] Outstanding amount: {outstanding_amount}")
 					currency_precision = get_currency_precision() or 2
 					if abs(flt(outstanding_amount)) > 0.1 / 10**currency_precision:
 						count += 1
@@ -1908,7 +1906,6 @@ def create_payment_ledger_entry(
 
 
 def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, party):
-	from fxnmrnth.utils.sales_invoice import status_logger
 	if not voucher_type or not voucher_no:
 		return
 
@@ -1944,14 +1941,6 @@ def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, pa
 		outstanding_amount = flt(
 			outstanding["outstanding_in_account_currency"], ref_doc.precision("outstanding_amount")
 		)
-
-		# Didn't use db_set for optimisation purpose
-		# TODO: Check this settings
-		status_logger("info", "")
-		status_logger("info", f"[{voucher_no}][Update Voucher] Doc: {ref_doc.name}")
-		status_logger("info", f"[{voucher_no}][Update Voucher] Prev Status: {ref_doc.status}")
-		status_logger("info", f"[{voucher_no}][Update Voucher] Prev Outstanding Amount: {ref_doc.outstanding_amount}")
-		status_logger("info", f"[{voucher_no}][Update Voucher] New Outstanding amount: {outstanding_amount}")
    
 		ref_doc.outstanding_amount = outstanding_amount
 		frappe.db.set_value(
@@ -1962,7 +1951,6 @@ def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, pa
 		)
 
 		ref_doc.set_status(update=True)
-		status_logger("info", f"[{voucher_no}][Update Voucher] New Stutus: {ref_doc.status}")
 		ref_doc.notify_update()
 
 
