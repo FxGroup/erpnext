@@ -63,3 +63,12 @@ cur_frm.fields_dict["parent_sales_person"].get_query = function (doc, cdt, cdn) 
 cur_frm.fields_dict.employee.get_query = function (doc, cdt, cdn) {
 	return { query: "erpnext.controllers.queries.employee_query" };
 };
+
+
+frappe.listview_settings['Sales Person'] = {
+	onload: function(listview) {
+		frappe.route_options = {
+			"enabled": ["=", 1]
+		};
+	}
+};
