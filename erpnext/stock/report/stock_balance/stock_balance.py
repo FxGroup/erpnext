@@ -24,8 +24,8 @@ class StockBalanceFilter(TypedDict):
 	from_date: str
 	to_date: str
 	item_group: str | None
-	item: str | None
-	warehouse: str | None
+	item: list[str] | None
+	warehouse: list[str] | None
 	warehouse_type: str | None
 	include_uom: str | None  # include extra info in converted UOM
 	show_stock_ageing_data: bool
@@ -284,8 +284,11 @@ class StockBalanceReport:
 		)
 
 		for fieldname in ["warehouse", "item_code", "item_group", "warehouse_type"]:
-			if self.filters.get(fieldname):
-				query = query.where(table[fieldname] == self.filters.get(fieldname))
+			if value := self.filters.get(fieldname):
+				if isinstance(value, list | tuple):
+					query = query.where(table[fieldname].isin(value))
+				else:
+					query = query.where(table[fieldname] == value)
 
 		return query.run(as_dict=True)
 
@@ -349,6 +352,7 @@ class StockBalanceReport:
 
 		if self.filters.get("warehouse"):
 			query = apply_warehouse_filter(query, sle, self.filters)
+
 		elif warehouse_type := self.filters.get("warehouse_type"):
 			query = (
 				query.join(warehouse_table)
@@ -363,14 +367,12 @@ class StockBalanceReport:
 			children = get_descendants_of("Item Group", item_group, ignore_permissions=True)
 			query = query.where(item_table.item_group.isin([*children, item_group]))
 
-		for field in ["item_code", "brand"]:
-			if not self.filters.get(field):
-				continue
-			elif field == "item_code":
-				query = query.where(item_table.name == self.filters.get(field))
-			else:
-				query = query.where(item_table[field] == self.filters.get(field))
-				
+		if item_codes := self.filters.get("item_code"):
+			query = query.where(item_table.name.isin(item_codes))
+
+		if brand := self.filters.get("brand"):
+			query = query.where(item_table.brand == brand)
+
 		if self.filters.get('hide_disabled_items'):
 			query = query.where(item_table.disabled == 0)
 

@@ -256,7 +256,7 @@ class SerialBatchBundle:
 			frappe.throw(_(msg))
 
 	def delink_serial_and_batch_bundle(self):
-		if self.is_pos_transaction():
+		if self.is_pos_or_asset_repair_transaction():
 			return
 
 		update_values = {
@@ -305,21 +305,29 @@ class SerialBatchBundle:
 			self.cancel_serial_and_batch_bundle()
 
 	def cancel_serial_and_batch_bundle(self):
-		if self.is_pos_transaction():
+		if self.is_pos_or_asset_repair_transaction():
 			return
 
 		doc = frappe.get_cached_doc("Serial and Batch Bundle", self.sle.serial_and_batch_bundle)
 		if doc.docstatus == 1:
 			doc.cancel()
 
-	def is_pos_transaction(self):
+	def is_pos_or_asset_repair_transaction(self):
+		voucher_type = frappe.get_cached_value(
+			"Serial and Batch Bundle", self.sle.serial_and_batch_bundle, "voucher_type"
+		)
+
 		if (
 			self.sle.voucher_type == "Sales Invoice"
 			and self.sle.serial_and_batch_bundle
-			and frappe.get_cached_value(
-				"Serial and Batch Bundle", self.sle.serial_and_batch_bundle, "voucher_type"
-			)
-			== "POS Invoice"
+			and voucher_type == "POS Invoice"
+		):
+			return True
+
+		if (
+			self.sle.voucher_type == "Stock Entry"
+			and self.sle.serial_and_batch_bundle
+			and voucher_type == "Asset Repair"
 		):
 			return True
 
@@ -350,7 +358,7 @@ class SerialBatchBundle:
 		self.update_serial_no_status_warehouse(self.sle, serial_nos)
 
 	def update_serial_no_status_warehouse(self, sle, serial_nos):
-		warehouse = self.warehouse if sle.actual_qty > 0 else None
+		warehouse = sle.warehouse if sle.actual_qty > 0 else None
 
 		if isinstance(serial_nos, str):
 			serial_nos = [serial_nos]
@@ -368,6 +376,10 @@ class SerialBatchBundle:
 				]:
 					status = "Consumed"
 
+		customer = None
+		if sle.voucher_type in ["Sales Invoice", "Delivery Note"] and sle.actual_qty < 0:
+			customer = frappe.get_cached_value(sle.voucher_type, sle.voucher_no, "customer")
+
 		sn_table = frappe.qb.DocType("Serial No")
 
 		query = (
@@ -378,10 +390,11 @@ class SerialBatchBundle:
 				"Active"
 				if warehouse
 				else status
-				if (sn_table.purchase_document_no != sle.voucher_no and sle.is_cancelled != 1)
+				if (sn_table.purchase_document_no != sle.voucher_no or sle.is_cancelled != 1)
 				else "Inactive",
 			)
 			.set(sn_table.company, sle.company)
+			.set(sn_table.customer, customer)
 			.where(sn_table.name.isin(serial_nos))
 		)
 
@@ -708,6 +721,7 @@ class BatchNoValuation(DeprecatedBatchNoValuation):
 				& (parent.is_cancelled == 0)
 				& (parent.type_of_transaction.isin(["Inward", "Outward"]))
 			)
+			.for_update()
 			.groupby(child.batch_no)
 		)
 

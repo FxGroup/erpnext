@@ -8,6 +8,7 @@
 import json
 
 import frappe
+import frappe.defaults
 from frappe import _, msgprint
 from frappe.model.mapper import get_mapped_doc
 from frappe.query_builder.functions import Sum
@@ -34,6 +35,7 @@ class MaterialRequest(BuyingController):
 		from erpnext.stock.doctype.material_request_item.material_request_item import MaterialRequestItem
 
 		amended_from: DF.Link | None
+		buying_price_list: DF.Link | None
 		company: DF.Link
 		customer: DF.Link | None
 		items: DF.Table[MaterialRequestItem]
@@ -150,6 +152,9 @@ class MaterialRequest(BuyingController):
 
 		self.reset_default_field_value("set_warehouse", "items", "warehouse")
 		self.reset_default_field_value("set_from_warehouse", "items", "from_warehouse")
+
+		if not self.buying_price_list:
+			self.buying_price_list = frappe.defaults.get_defaults().buying_price_list
 
 	def before_update_after_submit(self):
 		self.validate_schedule_date()
@@ -764,10 +769,11 @@ def raise_work_orders(material_request):
 						"material_request_item": d.name,
 						"planned_start_date": mr.transaction_date,
 						"company": mr.company,
+						"project": d.project,
 					}
 				)
 
-				wo_order.set_work_order_operations()
+				wo_order.get_items_and_operations_from_bom()
 				wo_order.flags.ignore_validate = True
 				wo_order.flags.ignore_mandatory = True
 				wo_order.save()
