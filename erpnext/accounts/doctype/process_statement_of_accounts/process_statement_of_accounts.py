@@ -169,13 +169,21 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 	numberOfCustomers = len(doc.customers)
 	for entry in doc.customers:
 		i += 1
+
+		#Try to keep SQL Alive
+		if i % 10 == 0:
+			try:
+				frappe.db.sql("select 1")  # ping the DB
+			except Exception:
+				frappe.connect()  # reconnect if needed
+
 		if customer:
 			#Single Statement
 			if entry.customer != customer:
 				continue
 		else:
 			#Bulk Run
-			logger.info("PID[" + str(pid) + "] Processing: " + str(i) + " of " + str(numberOfCustomers))
+			logger.info("PID[" + str(pid) + "] Processing: " + str(i) + " of " + str(numberOfCustomers) + "Customer: " + str(entry.customer)) 
 					
 		tax_id = frappe.get_doc('Customer', entry.customer).tax_id
 		customer_name = frappe.get_doc('Customer', entry.customer).customer_name

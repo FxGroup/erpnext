@@ -1947,6 +1947,7 @@ def update_voucher_outstanding(voucher_type, voucher_no, account, party_type, pa
 
 		# Didn't use db_set for optimisation purpose
 		# TODO: Check this settings
+		status_logger("info", "")
 		status_logger("info", f"[{voucher_no}][Update Voucher] Doc: {ref_doc.name}")
 		status_logger("info", f"[{voucher_no}][Update Voucher] Prev Status: {ref_doc.status}")
 		status_logger("info", f"[{voucher_no}][Update Voucher] Prev Outstanding Amount: {ref_doc.outstanding_amount}")
@@ -2302,6 +2303,11 @@ def create_gain_loss_journal(
 	if gain_loss_account_currency != company_currency:
 		frappe.throw(_("Currency for {0} must be {1}").format(gain_loss_account, company_currency))
 
+	if party_account_currency == company_currency:
+		in_account_currency = abs(exc_gain_loss)
+	else:
+		in_account_currency = 0
+
 	journal_account = frappe._dict(
 		{
 			"account": party_account,
@@ -2314,7 +2320,7 @@ def create_gain_loss_journal(
 			"reference_name": ref1_dn,
 			"reference_detail_no": ref1_detail_no,
 			dr_or_cr: abs(exc_gain_loss),
-			dr_or_cr + "_in_account_currency": 0,
+			dr_or_cr + "_in_account_currency": in_account_currency,
 		}
 	)
 	if dimensions:
@@ -2330,7 +2336,7 @@ def create_gain_loss_journal(
 			"reference_type": ref2_dt,
 			"reference_name": ref2_dn,
 			"reference_detail_no": ref2_detail_no,
-			reverse_dr_or_cr + "_in_account_currency": 0,
+			reverse_dr_or_cr + "_in_account_currency": abs(exc_gain_loss),
 			reverse_dr_or_cr: abs(exc_gain_loss),
 		}
 	)
