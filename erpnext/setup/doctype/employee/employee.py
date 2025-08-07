@@ -11,7 +11,7 @@ from frappe.permissions import (
 )
 from frappe.utils import cstr, getdate, today, validate_email_address
 from frappe.utils.nestedset import NestedSet
-
+from erpnext import get_default_company
 from erpnext.utilities.transaction_base import delete_events
 
 
@@ -90,9 +90,40 @@ class Employee(NestedSet):
 		if not has_permission("User Permission", ptype="write", raise_exception=False):
 			return
 
-		employee_user_permission_exists = frappe.db.exists(
-			"User Permission", {"allow": "Employee", "for_value": self.name, "user": self.user_id}
-		)
+		if self.create_user_permission:
+			approved_doctypes = frappe.db.sql(f"""
+									SELECT 
+										ref_doctype FROM `tabDoctype List`
+									WHERE 
+										parent = "{self.company}"
+									GROUP BY ref_doctype
+									""", as_dict=1)
+		
+			formatted_doctypes = [x.get('ref_doctype') for x in approved_doctypes]
+			doctypes_tuple = "(" + ", ".join([f'"{doctype}"' for doctype in formatted_doctypes]) + ")"
+			lock_doctypes = frappe.db.sql(f"""
+								SELECT
+									parent as doctype
+								FROM
+									`tabDocField`
+								WHERE
+									fieldtype = "Link"
+									AND OPTIONS = "Employee"
+									AND parent not in {doctypes_tuple}
+								GROUP BY
+									parent
+									""", as_dict=1)
+
+			for item in lock_doctypes:
+				dt = item.get('doctype')
+				employee_user_permission_exists = frappe.db.exists(
+					"User Permission", {"allow": "Employee", "for_value": self.name, "user": self.user_id, 'applicable_for': dt}
+				)
+				
+				if employee_user_permission_exists:
+					continue
+			
+				add_user_permission("Employee", self.name, self.user_id, applicable_for=dt)
 		
 		# Setting user permissions for additional leave approvers and adding new approver to existing docs.
 		if self.approvers:
@@ -112,30 +143,6 @@ class Employee(NestedSet):
 							leave_doc.append("additional_leave_approvers", {"leave_approver": approver.leave_approver, "notification_level": approver.notification_level})
 							leave_doc.save(ignore_permissions=True)
 							frappe.db.commit()
-
-		# remove additional leave approvers from user permission on deletetion
-		exisiting_user_permission = frappe.get_all(
-			"User Permission",
-			filters={
-				"allow": "Employee",
-				"for_value": self.name,
-				"applicable_for": "Leave Application",
-			},
-			fields=["name", "user"],
-		)
-
-		leave_approvers = [d.leave_approver for d in self.approvers if d.leave_approver]
-		for permission in exisiting_user_permission:
-			if permission.user not in leave_approvers:
-				frappe.delete_doc("User Permission", permission.name)
-				frappe.db.commit()
-
-		if employee_user_permission_exists and not self.create_user_permission:
-			remove_user_permission("Employee", self.name, self.user_id)
-			remove_user_permission("Company", self.company, self.user_id)
-		elif not employee_user_permission_exists and self.create_user_permission:
-			add_user_permission("Employee", self.name, self.user_id)
-			add_user_permission("Company", self.company, self.user_id)
 
 	def update_user(self):
 		# add employee role if missing
@@ -495,3 +502,60 @@ def has_upload_permission(doc, ptype="read", user=None):
 	if get_doc_permissions(doc, user=user, ptype=ptype).get(ptype):
 		return True
 	return doc.user_id == user
+
+
+# from erpnext.setup.doctype.employee.employee import load_perm
+def load_perm():
+	employees = frappe.get_all('Employee', 
+		filters={
+			'user_id': ['!=', ''],
+			'create_user_permission': 1
+		},
+		fields=['name', 'user_id'])
+	
+	approved_doctypes = frappe.db.sql(f"""
+							SELECT 
+								ref_doctype FROM `tabDoctype List`
+							WHERE 
+								parent = "{get_default_company()}"
+							GROUP BY ref_doctype
+							""", as_dict=1)
+
+	formatted_doctypes = [x.get('ref_doctype') for x in approved_doctypes]
+	doctypes_tuple = "(" + ", ".join([f'"{doctype}"' for doctype in formatted_doctypes]) + ")"
+	lock_doctypes = frappe.db.sql(f"""
+						SELECT
+							parent as doctype
+						FROM
+							`tabDocField`
+						WHERE
+							fieldtype = "Link"
+							AND OPTIONS = "Employee"
+							AND parent not in {doctypes_tuple}
+						GROUP BY
+							parent
+							""", as_dict=1)
+	for employee in employees:
+		for item in lock_doctypes:
+			dt = item.get('doctype')
+			employee_user_permission_exists = frappe.db.exists(
+				"User Permission", {"allow": "Employee", "for_value": employee.name, "user": employee.user_id, 'applicable_for': dt}
+			)
+   
+			if employee_user_permission_exists:
+				continue
+
+			frappe.get_doc(
+				dict(
+					doctype="User Permission",
+					user=employee.user_id,
+					allow="Employee",
+					for_value=employee.name,
+					is_default=0,
+					applicable_for=dt,
+					apply_to_all_doctypes=0,
+					hide_descendants=0,
+				)
+			).insert(ignore_permissions=0)
+			print(f"Loaded Perms for {employee.user_id} for dt: {dt}")
+		frappe.db.commit()
