@@ -96,7 +96,7 @@ status_map = {
 		["Return Issued", "eval:self.per_returned == 100 and self.docstatus == 1"],
 		[
 			"Completed",
-			"eval:(self.per_billed == 100 and self.docstatus == 1) or (self.docstatus == 1 and self.grand_total == 0 and self.per_returned != 100 and self.is_return == 0)",
+			"eval:(self.per_billed >= 100 and self.docstatus == 1) or (self.docstatus == 1 and self.grand_total == 0 and self.per_returned != 100 and self.is_return == 0)",
 		],
 		["Cancelled", "eval:self.docstatus==2"],
 		["Closed", "eval:self.status=='Closed' and self.docstatus != 2"],
@@ -155,6 +155,17 @@ status_map = {
 	"Transaction Deletion Record": [
 		["Draft", None],
 		["Completed", "eval:self.docstatus == 1"],
+	],
+	"Pick List": [
+		["Draft", None],
+		["Open", "eval:self.docstatus == 1"],
+		["Completed", "stock_entry_exists"],
+		[
+			"Partly Delivered",
+			"eval:self.purpose == 'Delivery' and self.delivery_status == 'Partly Delivered'",
+		],
+		["Completed", "eval:self.purpose == 'Delivery' and self.delivery_status == 'Fully Delivered'"],
+		["Cancelled", "eval:self.docstatus == 2"],
 	],
 }
 

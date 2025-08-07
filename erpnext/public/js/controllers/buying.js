@@ -176,6 +176,7 @@ erpnext.buying = {
 						this.frm.set_value("shipping_address", r.message.shipping_address || "");
 					},
 				});
+				erpnext.utils.set_letter_head(this.frm)
 			}
 
 			supplier_address() {
@@ -584,7 +585,7 @@ erpnext.buying.get_items_from_product_bundle = function(frm) {
 						transaction_date: frm.doc.transaction_date || frm.doc.posting_date,
 						ignore_pricing_rule: frm.doc.ignore_pricing_rule,
 						doctype: frm.doc.doctype
-					}
+					},
 				},
 				freeze: true,
 				callback: function(r) {
