@@ -128,6 +128,14 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 	numberOfCustomers = len(doc.customers)
 	for entry in doc.customers:
 		i += 1
+
+		#Try to keep SQL Alive
+		if i % 10 == 0:
+			try:
+				frappe.db.sql("select 1")  # ping the DB
+			except Exception:
+				frappe.connect()  # reconnect if needed
+
 		if customer:
 			#Single Statement
 			if entry.customer != customer:

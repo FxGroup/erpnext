@@ -170,7 +170,7 @@ def validate_accounting_period(gl_map):
 		)
 
 
-def process_gl_map(gl_map, merge_entries=True, precision=None):
+def process_gl_map(gl_map, merge_entries=True, precision=None, from_repost=False):
 	if not gl_map:
 		return []
 
