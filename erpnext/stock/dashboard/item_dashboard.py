@@ -31,6 +31,7 @@ def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=
 			where exists(select name from `tabItem Group`
 				where name=i.item_group and lft >=%s and rgt<=%s)
 		""", (lft, rgt))
+		items = [f"""'{i}'""" for i in items]
 		item_group_filter = "and bin.item_code in ({})".format(",".join(items))
 	try:
 		# check if user has any restrictions based on user permissions on warehouse
