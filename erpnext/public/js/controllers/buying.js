@@ -387,7 +387,6 @@ erpnext.buying = {
 
 				frappe.db.get_value("Item", item.item_code, fields)
 					.then((r) => {
-						debugger
 						if (r.message && (r.message.has_batch_no || r.message.has_serial_no)) {
 							fields.forEach((field) => {
 								item[field] = r.message[field];

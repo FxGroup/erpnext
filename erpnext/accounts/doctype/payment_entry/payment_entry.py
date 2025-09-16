@@ -1097,21 +1097,21 @@ class PaymentEntry(AccountsController):
 		if self.payment_type == "Receive" and self.base_total_allocated_amount < (
 			self.base_paid_amount + deductions_to_consider
 		):
-			self.unallocated_amount = (
+			self.unallocated_amount = flt((
 				self.base_paid_amount
 				+ deductions_to_consider
 				- self.base_total_allocated_amount
 				- included_taxes
-			) / self.source_exchange_rate
+			) / self.source_exchange_rate, self.precision('base_paid_amount'))
 		elif self.payment_type == "Pay" and self.base_total_allocated_amount < (
 			self.base_received_amount - deductions_to_consider
 		):
-			self.unallocated_amount = (
+			self.unallocated_amount = flt((
 				self.base_received_amount
 				- deductions_to_consider
 				- self.base_total_allocated_amount
 				- included_taxes
-			) / self.target_exchange_rate
+			) / self.target_exchange_rate, self.precision('base_paid_amount'))
 
 	def set_exchange_gain_loss(self):
 		exchange_gain_loss = flt(
