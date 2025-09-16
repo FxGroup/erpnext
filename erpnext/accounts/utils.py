@@ -1197,7 +1197,9 @@ def get_outstanding_invoices(
 
 	for d in invoice_list:
 		payment_amount = d.invoice_amount_in_account_currency - d.outstanding_in_account_currency
-		outstanding_amount = d.outstanding_in_account_currency
+		outstanding_amount = flt(
+			d.outstanding_in_account_currency, precision
+		)
 		if outstanding_amount > 0.5 / (10**precision):
 			if (
 				min_outstanding
