@@ -761,7 +761,6 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 		)
 
 		company_currency = erpnext.get_company_currency(company)
-
 		jv = frappe.get_doc(
 			{
 				"doctype": "Journal Entry",
@@ -778,7 +777,7 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 						"reference_type": inv.against_voucher_type,
 						"reference_name": inv.against_voucher,
 						"cost_center": inv.cost_center or erpnext.get_default_cost_center(company),
-						"exchange_rate": inv.exchange_rate,
+						"exchange_rate": inv.get('exchange_rate', 1) if inv.get('exchange_rate', 1) != 0 else 1,
 						"user_remark": f"{fmt_money(flt(inv.allocated_amount), currency=company_currency)} against {inv.against_voucher}",
 					},
 					{
@@ -793,7 +792,7 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 						"reference_type": inv.voucher_type,
 						"reference_name": inv.voucher_no,
 						"cost_center": inv.cost_center or erpnext.get_default_cost_center(company),
-						"exchange_rate": inv.exchange_rate,
+						"exchange_rate": inv.get('exchange_rate', 1) if inv.get('exchange_rate', 1) != 0 else 1,
 						"user_remark": f"{fmt_money(flt(inv.allocated_amount), currency=company_currency)} from {inv.voucher_no}",
 					},
 				],
