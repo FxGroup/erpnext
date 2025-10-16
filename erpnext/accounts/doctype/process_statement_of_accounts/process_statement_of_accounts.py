@@ -816,6 +816,9 @@ def send_emails(document_name, from_scheduler=False):
 	elif company == "RN Labs":
 		sender = "ar@rnlabs.com.au"
 		enqueue_args["sender"] = sender
+	elif company == "NaturalMeds":
+		sender = "ar@naturalmeds.co.nz"
+		enqueue_args["sender"] = sender
 	else:
 		company = None
 		sender = None
