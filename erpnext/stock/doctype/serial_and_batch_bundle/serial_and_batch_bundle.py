@@ -504,9 +504,30 @@ class SerialandBatchBundle(Document):
 	def validate_negative_batch(self, batch_no, available_qty):
 		if available_qty < 0 and not self.is_stock_reco_for_valuation_adjustment(available_qty):
 			msg = f"""Batch No {bold(batch_no)} of an Item {bold(self.item_code)}
-				has negative stock
-				of quantity {bold(available_qty)} in the
-				warehouse {self.warehouse}"""
+			has negative stock
+			of quantity {bold(available_qty)} in the
+			warehouse {self.warehouse}"""
+
+			if self.posting_date >= getdate(today()):
+				future_invoices = frappe.db.sql("""
+								SELECT
+									s.name AS invoice,
+									s.posting_date,
+									i.item_code,
+									i.batch_no
+								FROM
+									`tabSales Invoice Item` i
+									INNER JOIN `tabSales Invoice` s ON s.name = i.parent
+								WHERE
+									s.posting_date > CURDATE()
+									AND i.item_code = %s
+									AND i.docstatus = 1
+									""", batch_no, as_dict=1)
+				if future_invoices:
+					msg = (
+						f"Sales Invoice {future_invoices[0].get('invoice')} has a future posting date {future_invoices[0].get('posting_date')}."
+						f"<br><br>Please cancel this invoice and set the posting date to today to release the reserved stock and prevent quantity conflicts with other invoices."
+					)			
 
 			frappe.throw(_(msg), BatchNegativeStockError)
 
