@@ -115,6 +115,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			"credit_note": 0.0,
 			"outstanding": 0.0,
 			"total_due": 0.0,
+			"not_yet_due": 0.0,
 			"future_amount": 0.0,
 			"sales_person": [],
 			"party_type": row.party_type,
