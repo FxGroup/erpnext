@@ -14,7 +14,6 @@ from frappe.utils import add_days, nowdate, add_months, format_date, getdate, to
 from frappe.utils.jinja import validate_template
 from frappe.utils.pdf import get_pdf
 from frappe.www.printview import get_print_style
-from fxnmrnth.fxnmrnth.doctype.statement_of_account.statement_of_account import sort_res
 
 from erpnext import get_company_currency
 from erpnext.accounts.party import get_party_account_currency
@@ -28,7 +27,6 @@ from erpnext.accounts.report.accounts_receivable.accounts_receivable import (
 )
 from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
 
-from fxnmrnth.fxnmrnth.doctype.statement_of_account.statement_of_account import create_statement
 import pdb
 from erpnext import get_default_company
 
@@ -157,197 +155,13 @@ class ProcessStatementOfAccounts(Document):
 
 			frappe.throw(_(msg))
 
-
-def get_report_pdf(doc, consolidated=True, customer=None):
-	statement_dict = {}
-	ageing = ""
-
-	#Get Process ID
-	pid = os.getpid()
-
-	i=0
-	numberOfCustomers = len(doc.customers)
-	for entry in doc.customers:
-		i += 1
-
-		#Try to keep SQL Alive
-		if i % 10 == 0:
-			try:
-				frappe.db.sql("select 1")  # ping the DB
-			except Exception:
-				frappe.connect()  # reconnect if needed
-
-		if customer:
-			#Single Statement
-			if entry.customer != customer:
-				continue
-		else:
-			#Bulk Run
-			logger.info("PID[" + str(pid) + "] Processing: " + str(i) + " of " + str(numberOfCustomers) + "Customer: " + str(entry.customer)) 
-					
-		tax_id = frappe.get_doc('Customer', entry.customer).tax_id
-		customer_name = frappe.get_doc('Customer', entry.customer).customer_name
-		presentation_currency = get_party_account_currency('Customer', entry.customer, doc.company) \
-				or doc.currency or get_company_currency(doc.company)
-
-		filters = get_common_filters(doc)
-
-		if doc.ignore_exchange_rate_revaluation_journals:
-			filters.update({"ignore_err": True})
-
-		if doc.letter_head:
-			from frappe.www.printview import get_letter_head
-
-			letter_head = get_letter_head(doc, 0)
-
-			if letter_head.content:
-				letter_head.content = frappe.utils.jinja.render_template(
-					letter_head.content, {"doc": doc.as_dict()}
-				)
-
-			if letter_head.footer:
-				letter_head.footer = frappe.utils.jinja.render_template(
-					letter_head.footer, {"doc": doc.as_dict()}
-				)
-
-		filters= frappe._dict({
-			'from_date': doc.from_date,
-			'to_date': doc.to_date,
-			'company': doc.company,
-			'finance_book': doc.finance_book if doc.finance_book else None,
-			'account': [doc.account] if doc.account else None,
-			'party_type': 'Customer',
-			'party': [entry.customer],
-			'party_name': [customer_name],
-			'presentation_currency': presentation_currency,
-			'group_by': doc.group_by,
-			'currency': doc.currency,
-			'cost_center': [cc.cost_center_name for cc in doc.cost_center],
-			'project': [p.project_name for p in doc.project],
-			'show_opening_entries': 1,
-			'show_due_date': 1,
-			'include_default_book_entries': 0,
-			'tax_id': tax_id if tax_id else None,
-			'show_statement_remarks': 1 
-		})
-		
-		col, res = get_soa(filters)
-		res = sort_res(res)
-		new_res = []
-		for item in res[0:]:
-			if item.debit == item.credit and item.account != "'Total'" and item.account != "'Opening'":
-				continue
-			else:
-				new_res.append(item)
-		res = new_res
-		for x in [0, -2, -1]:
-			res[x]["account"] = res[x]["account"].replace("'", "")
-		
-		if len(res) == 3:
-			#No Transactions this month
-			if res[2]["debit"] == 0 or (res[2]["balance"] > -0.01 and res[2]["balance"] < 0.01):
-				#No outstanding balance
-				if not doc.produce_0_statements:
-					continue
-				else:
-					res.insert(2,{
-						"account":"No transactions during the period",
-						"debit":"",
-						"credit":"",
-						"debit_in_account_currency":"",
-						"credit_in_account_currency":"",
-						"balance":0,
-						"account_currency": res[1]["account_currency"]
-					})
-			else:
-				res.insert(2,{
-					"account":"No transactions during the period",
-					"debit":"",
-					"credit":"",
-					"debit_in_account_currency":"",
-					"credit_in_account_currency":"",
-					"balance":0,
-					"account_currency": res[1]["account_currency"]
-				})
-
-		if res[-1]["balance"] == 0:
-			#No outstanding balance
-			if not doc.produce_0_statements:
-				continue
-		
-		if doc.exclude_balances_below:
-			if res[-1]["balance"] < float(doc.exclude_balances_below):
-				continue
-		
-		if doc.include_ageing:
-			ageing_filters = frappe._dict({
-				'company': doc.company,
-				'report_date': doc.to_date,
-				'ageing_based_on': doc.ageing_based_on,
-				'range1': 30,
-				'range2': 60,
-				'range3': 90,
-				'range4': 120,
-				'party_type': "Customer",
-				'party': [entry.customer],
-				'show_not_yet_due': 1,
-				'in_party_currency': 1
-			})
-			col1, ageing = get_ageing(ageing_filters)
-			if ageing:
-				ageing[0]["ageing_based_on"] = doc.ageing_based_on
-	
-		outstanding_filters = frappe._dict({
-			'company': doc.company,
-			'report_date': doc.to_date,
-			'ageing_based_on': doc.ageing_based_on,
-			'range1': 30,
-			'range2': 60,
-			'range3': 90,
-			'range4': 120,
-			'party_type': "Customer",
-			'party': [entry.customer],
-			'in_party_currency': 1
-		})
-		outstanding = get_outstanding(outstanding_filters)[1]
-
-		outstandingDocs = []
-		
-		for voucher in outstanding:
-			if not 'due_date' in voucher:
-				voucher['due_date'] = voucher['posting_date']
-			
-			if voucher['posting_date'] < doc.from_date:
-				outstandingDocs.append(voucher)
-		base_template_path = "frappe/www/printview.html"
-
-		template_path = (
-			"erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.html"
-			if doc.report == "General Ledger"
-			else "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
-		)
-		html = frappe.render_template(
-			template_path,
-			{
-				"filters": filters,
-				"data": res,
-				"outstandingDocs": outstandingDocs,
-				"ageing": ageing[0] if (doc.include_ageing and ageing) else None,
-				"letter_head": letter_head if doc.letter_head else None,
-				"terms_and_conditions": frappe.db.get_value(
-					"Terms and Conditions", doc.terms_and_conditions, "terms"
-				)
-				if doc.terms_and_conditions
-				else None,
-			},
-		)
-		
-		html = frappe.render_template(
-			base_template_path,
-			{"body": html, "css": get_print_style(), "title": "Statement For " + entry.customer},
-		)
-		statement_dict[entry.customer] = html
-
+def get_report_pdf(doc, consolidated=True, customer=None, base64=False):
+	#Allow user to download report for just 1 customer
+	if customer:
+		doc.customers = [
+			cust for cust in doc.customers if cust.customer == customer
+		]
+	statement_dict = get_statement_dict(doc)
 	if not bool(statement_dict):
 		return False
 	elif consolidated:
@@ -355,17 +169,9 @@ def get_report_pdf(doc, consolidated=True, customer=None):
 		result = delimiter.join(list(statement_dict.values()))
 		return get_pdf(result, {"orientation": doc.orientation})
 	else:
-		i=0
-		pid = os.getpid()
-		numberOfCustomers = len(statement_dict.items())
 		for customer, statement_html in statement_dict.items():
-			i += 1
-			#Keep DB Alive
-			customerDoc = frappe.get_doc("Customer", customer)
-			logger.info("PID[" + str(pid) + "] Generating PDF for Customer " + str(i) + " of " + str(numberOfCustomers) + ". Customer: " + customer)
-			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation})
+			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation}, meta={"base64":base64})
 		return statement_dict
-
 
 def get_statement_dict(doc, get_statement_dict=False):
 	statement_dict = {}
@@ -377,8 +183,7 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 		tax_id = frappe.get_doc("Customer", entry.customer).tax_id
 		presentation_currency = (
-			doc.currency
-			or get_party_account_currency("Customer", entry.customer, doc.company)
+			get_party_account_currency("Customer", entry.customer, doc.company)
 			or get_company_currency(doc.company)
 		)
 
@@ -392,11 +197,54 @@ def get_statement_dict(doc, get_statement_dict=False):
 		if doc.report == "General Ledger":
 			filters.update(get_gl_filters(doc, entry, tax_id, presentation_currency))
 			col, res = get_soa(filters)
-			res = sort_res(res)
 			for x in [0, -2, -1]:
 				res[x]["account"] = res[x]["account"].replace("'", "")
 			if len(res) == 3:
-				continue
+				#No Transactions this month
+				if res[2]["debit"] == 0 or (res[2]["balance"] > -0.01 and res[2]["balance"] < 0.01):
+					#No outstanding balance
+					if not doc.produce_0_statements:
+						continue
+					else:
+						res.insert(2,{
+							"account":"No transactions during the period",
+							"debit":"",
+							"credit":"",
+							"debit_in_account_currency":"",
+							"credit_in_account_currency":"",
+							"balance":0,
+							"account_currency": res[1]["account_currency"]
+						})
+				else:
+					res.insert(2,{
+						"account":"No transactions during the period",
+						"debit":"",
+						"credit":"",
+						"debit_in_account_currency":"",
+						"credit_in_account_currency":"",
+						"balance":0,
+						"account_currency": res[1]["account_currency"]
+					})
+
+
+			if res[-1]["balance"] == 0:
+				#No outstanding balance
+				if not doc.produce_0_statements:
+					continue
+			
+			if doc.exclude_balances_below:
+				if res[-1]["balance"] < float(doc.exclude_balances_below):
+					continue
+
+			new_res = []
+			for item in res[0:]:
+				if item.get("debit") == item.get("credit") and item.get("account") not in ["'Total'", "'Opening'"]:
+					continue
+				else:
+					new_res.append(item)
+			
+			res = new_res
+
 		else:
 			filters.update(get_ar_filters(doc, entry))
 			ar_res = get_ar_soa(filters)
@@ -410,6 +258,245 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 	return statement_dict
 
+# def get_report_pdf(doc, consolidated=True, customer=None):
+# 	statement_dict = {}
+# 	ageing = ""
+
+# 	#Get Process ID
+# 	pid = os.getpid()
+
+# 	i=0
+
+# 	numberOfCustomers = len(doc.customers)
+# 	for entry in doc.customers:
+
+# 		i += 1
+
+# 		#Try to keep SQL Alive
+# 		if i % 10 == 0:
+# 			try:
+# 				frappe.db.sql("select 1")  # ping the DB
+# 			except Exception:
+# 				frappe.connect()  # reconnect if needed
+
+# 		if customer:
+# 			#Single Statement
+# 			if entry.customer != customer:
+# 				continue
+# 		else:
+# 			#Bulk Run
+# 			logger.info("PID[" + str(pid) + "] Processing: " + str(i) + " of " + str(numberOfCustomers) + "Customer: " + str(entry.customer)) 
+					
+# 		tax_id = frappe.get_doc('Customer', entry.customer).tax_id
+# 		customer_name = frappe.get_doc('Customer', entry.customer).customer_name
+# 		presentation_currency = get_party_account_currency('Customer', entry.customer, doc.company) \
+# 				or doc.currency or get_company_currency(doc.company)
+
+# 		filters = get_common_filters(doc)
+
+# 		if doc.ignore_exchange_rate_revaluation_journals:
+# 			filters.update({"ignore_err": True})
+
+# 		if doc.letter_head:
+# 			from frappe.www.printview import get_letter_head
+
+# 			letter_head = get_letter_head(doc, 0)
+
+# 			if letter_head.content:
+# 				letter_head.content = frappe.utils.jinja.render_template(
+# 					letter_head.content, {"doc": doc.as_dict()}
+# 				)
+
+# 			if letter_head.footer:
+# 				letter_head.footer = frappe.utils.jinja.render_template(
+# 					letter_head.footer, {"doc": doc.as_dict()}
+# 				)
+
+# 		filters= frappe._dict({
+# 			'from_date': doc.from_date,
+# 			'to_date': doc.to_date,
+# 			'company': doc.company,
+# 			'finance_book': doc.finance_book if doc.finance_book else None,
+# 			'account': [doc.account] if doc.account else None,
+# 			'party_type': 'Customer',
+# 			'party': [entry.customer],
+# 			'party_name': [customer_name],
+# 			'presentation_currency': presentation_currency,
+# 			'group_by': doc.group_by,
+# 			'currency': doc.currency,
+# 			'cost_center': [cc.cost_center_name for cc in doc.cost_center],
+# 			'project': [p.project_name for p in doc.project],
+# 			'show_opening_entries': 1,
+# 			'show_due_date': 1,
+# 			'include_default_book_entries': 0,
+# 			'tax_id': tax_id if tax_id else None,
+# 			'show_statement_remarks': 1 
+# 		})
+		
+# 		col, res = get_soa(filters)
+# 		res = sort_res(res)
+# 		new_res = []
+# 		for item in res[0:]:
+# 			if item.get("debit") == item.get("credit") and item.get("account") not in ["'Total'", "'Opening'"]:
+# 				continue
+# 			else:
+# 				new_res.append(item)
+# 		res = new_res
+# 		for x in [0, -2, -1]:
+# 			res[x]["account"] = res[x]["account"].replace("'", "")
+		
+# 		if len(res) == 3:
+# 			#No Transactions this month
+# 			if res[2]["debit"] == 0 or (res[2]["balance"] > -0.01 and res[2]["balance"] < 0.01):
+# 				#No outstanding balance
+# 				if not doc.produce_0_statements:
+# 					continue
+# 				else:
+# 					res.insert(2,{
+# 						"account":"No transactions during the period",
+# 						"debit":"",
+# 						"credit":"",
+# 						"debit_in_account_currency":"",
+# 						"credit_in_account_currency":"",
+# 						"balance":0,
+# 						"account_currency": res[1]["account_currency"]
+# 					})
+# 			else:
+# 				res.insert(2,{
+# 					"account":"No transactions during the period",
+# 					"debit":"",
+# 					"credit":"",
+# 					"debit_in_account_currency":"",
+# 					"credit_in_account_currency":"",
+# 					"balance":0,
+# 					"account_currency": res[1]["account_currency"]
+# 				})
+
+# 		if res[-1]["balance"] == 0:
+# 			#No outstanding balance
+# 			if not doc.produce_0_statements:
+# 				continue
+		
+# 		if doc.exclude_balances_below:
+# 			if res[-1]["balance"] < float(doc.exclude_balances_below):
+# 				continue
+		
+# 		if doc.include_ageing:
+# 			ageing = set_ageing(doc, entry)
+	
+# 		outstanding_filters = frappe._dict({
+# 			'company': doc.company,
+# 			'report_date': doc.to_date,
+# 			'ageing_based_on': doc.ageing_based_on,
+# 			'range1': 30,
+# 			'range2': 60,
+# 			'range3': 90,
+# 			'range4': 120,
+# 			'party_type': "Customer",
+# 			'party': [entry.customer],
+# 			'in_party_currency': 1,
+# 			'ignore_err': 1
+# 		})
+# 		outstanding = get_outstanding(outstanding_filters)[1]
+
+# 		outstandingDocs = []
+		
+# 		for voucher in outstanding:
+# 			if not 'due_date' in voucher:
+# 				voucher['due_date'] = voucher['posting_date']
+			
+# 			if voucher['posting_date'] < doc.from_date:
+# 				outstandingDocs.append(voucher)
+# 		base_template_path = "frappe/www/printview.html"
+
+# 		template_path = (
+# 			"erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.html"
+# 			if doc.report == "General Ledger"
+# 			else "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
+# 		)
+# 		html = frappe.render_template(
+# 			template_path,
+# 			{
+# 				"filters": filters,
+# 				"data": res,
+# 				"outstandingDocs": outstandingDocs,
+# 				"ageing": ageing[0] if (doc.include_ageing and ageing) else None,
+# 				"letter_head": letter_head if doc.letter_head else None,
+# 				"terms_and_conditions": frappe.db.get_value(
+# 					"Terms and Conditions", doc.terms_and_conditions, "terms"
+# 				)
+# 				if doc.terms_and_conditions
+# 				else None,
+# 			},
+# 		)
+		
+# 		html = frappe.render_template(
+# 			base_template_path,
+# 			{"body": html, "css": get_print_style(), "title": "Statement For " + entry.customer},
+# 		)
+# 		statement_dict[entry.customer] = html
+
+# 	if not bool(statement_dict):
+# 		return False
+# 	elif consolidated:
+# 		delimiter = '<div style="page-break-before: always;"></div>' if doc.include_break else ""
+# 		result = delimiter.join(list(statement_dict.values()))
+# 		return get_pdf(result, {"orientation": doc.orientation})
+# 	else:
+# 		i=0
+# 		pid = os.getpid()
+# 		numberOfCustomers = len(statement_dict.items())
+# 		for customer, statement_html in statement_dict.items():
+# 			i += 1
+# 			#Keep DB Alive
+# 			customerDoc = frappe.get_doc("Customer", customer)
+# 			logger.info("PID[" + str(pid) + "] Generating PDF for Customer " + str(i) + " of " + str(numberOfCustomers) + ". Customer: " + customer)
+# 			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation})
+# 		return statement_dict
+
+
+# def get_statement_dict(doc, get_statement_dict=False):
+# 	statement_dict = {}
+# 	ageing = ""
+
+# 	for entry in doc.customers:
+# 		if doc.include_ageing:
+# 			ageing = set_ageing(doc, entry)
+
+# 		tax_id = frappe.get_doc("Customer", entry.customer).tax_id
+# 		presentation_currency = (
+# 			doc.currency
+# 			or get_party_account_currency("Customer", entry.customer, doc.company)
+# 			or get_company_currency(doc.company)
+# 		)
+
+# 		filters = get_common_filters(doc)
+# 		if doc.ignore_exchange_rate_revaluation_journals:
+# 			filters.update({"ignore_err": True})
+
+# 		if doc.ignore_cr_dr_notes:
+# 			filters.update({"ignore_cr_dr_notes": True})
+
+# 		if doc.report == "General Ledger":
+# 			filters.update(get_gl_filters(doc, entry, tax_id, presentation_currency))
+# 			col, res = get_soa(filters)
+# 			res = sort_res(res)
+# 			for x in [0, -2, -1]:
+# 				res[x]["account"] = res[x]["account"].replace("'", "")
+# 			if len(res) == 3:
+# 				continue
+# 		else:
+# 			filters.update(get_ar_filters(doc, entry))
+# 			ar_res = get_ar_soa(filters)
+# 			col, res = ar_res[0], ar_res[1]
+# 			if not res:
+# 				continue
+
+# 		statement_dict[entry.customer] = (
+# 			[res, ageing] if get_statement_dict else get_html(doc, filters, entry, col, res, ageing)
+# 		)
+
+# 	return statement_dict
 
 def set_ageing(doc, entry):
 	ageing_filters = frappe._dict(
@@ -417,21 +504,24 @@ def set_ageing(doc, entry):
 			"company": doc.company,
 			"report_date": doc.posting_date,
 			"ageing_based_on": doc.ageing_based_on,
+			"calculate_ageing_with": "Report Date",
 			"range1": 30,
 			"range2": 60,
 			"range3": 90,
 			"range4": 120,
 			"party_type": "Customer",
 			"party": [entry.customer],
+			"in_party_currency": True,
+			"show_not_yet_due": True
 		}
 	)
+
 	col1, ageing = get_ageing(ageing_filters)
 
 	if ageing:
 		ageing[0]["ageing_based_on"] = doc.ageing_based_on
 
 	return ageing
-
 
 def get_common_filters(doc):
 	return frappe._dict(
@@ -441,14 +531,15 @@ def get_common_filters(doc):
 			"account": [doc.account] if doc.account else None,
 			"cost_center": [cc.cost_center_name for cc in doc.cost_center],
 			"show_remarks": doc.show_remarks,
+			"in_party_currency": True
 		}
 	)
-
 
 def get_gl_filters(doc, entry, tax_id, presentation_currency):
 	return {
 		"from_date": doc.from_date,
 		"to_date": doc.to_date,
+		"report_date": doc.to_date,  # Use to_date for historical statements
 		"party_type": "Customer",
 		"party": [entry.customer],
 		"party_name": [entry.customer_name] if entry.customer_name else None,
@@ -456,24 +547,25 @@ def get_gl_filters(doc, entry, tax_id, presentation_currency):
 		"categorize_by": doc.categorize_by,
 		"currency": doc.currency,
 		"project": [p.project_name for p in doc.project],
-		"show_opening_entries": 0,
+		"show_opening_entries": 1,
 		"include_default_book_entries": 0,
 		"tax_id": tax_id if tax_id else None,
-		"show_net_values_in_party_account": doc.show_net_values_in_party_account,
+		"show_net_values_in_party_account": True,
 	}
-
 
 def get_ar_filters(doc, entry):
 	return {
 		"report_date": doc.posting_date if doc.posting_date else None,
 		"party_type": "Customer",
 		"party": [entry.customer],
+		"in_party_currency": True,
 		"customer_name": entry.customer_name if entry.customer_name else None,
 		"payment_terms_template": doc.payment_terms_template if doc.payment_terms_template else None,
 		"sales_partner": doc.sales_partner if doc.sales_partner else None,
 		"sales_person": doc.sales_person if doc.sales_person else None,
 		"territory": doc.territory if doc.territory else None,
 		"based_on_payment_terms": doc.based_on_payment_terms,
+		"show_future_payments": doc.show_future_payments,
 		"report_name": "Accounts Receivable",
 		"ageing_based_on": doc.ageing_based_on,
 		"range1": 30,
@@ -481,7 +573,6 @@ def get_ar_filters(doc, entry):
 		"range3": 90,
 		"range4": 120,
 	}
-
 
 def get_html(doc, filters, entry, col, res, ageing):
 	base_template_path = "frappe/www/printview.html"
@@ -495,6 +586,10 @@ def get_html(doc, filters, entry, col, res, ageing):
 	# fetching custom print format for Process Statement of Accounts
 	if process_soa_html and process_soa_html.get(doc.report):
 		template_path = process_soa_html[doc.report][-1]
+
+	if doc.print_format:
+		custom_html, custom_css = frappe.db.get_value("Print Format", doc.print_format, ["html", "css"])
+		template_path = f"<style>{custom_css}</style> {custom_html}"
 
 	if doc.letter_head:
 		from frappe.www.printview import get_letter_head
@@ -653,11 +748,6 @@ def get_context(customer, doc):
 	del template_doc.customers
 	template_doc.from_date = format_date(template_doc.from_date)
 	template_doc.to_date = format_date(template_doc.to_date)
-	logger.info("Getting context for " + customer)
-	try:
-		customerDoc = frappe.get_doc("Customer", customer)
-	except Exception as e:
-		logger.error("ERROR Getting context for " + customer + ". Error: " + str(e))	
 	return {
 		"doc": template_doc,
 		"customer": frappe.get_doc("Customer", customer),
@@ -970,3 +1060,49 @@ def send_auto_email():
 
 		send_emails(entry.name, from_scheduler=True)
 	return True
+
+def sort_res(res):
+	return res
+	items = [i for i in res if i.get("creation")]
+	for item in items:
+		print(type(item["creation"]), type(item["posting_date"]))
+	items = sorted(items, key=lambda item: (item.get("posting_date", item["creation"].date()), item.get("transaction_date", item["creation"].date()), item.get("account"), item.get("creation")), reverse=True)
+	results = []
+	for i in res:
+		if i.get("creation"):
+			results.append(items.pop())
+		else:
+			results.append(i)
+	return results
+
+def create_statement(doc, customer, recipient):
+	statementList = frappe.get_list("Statement of Account",
+    filters={
+        'customer': customer,
+        'from_date':doc.from_date,
+        'to_date':doc.to_date
+    },as_list=True)
+
+	if len(statementList) > 0:
+		return statementList[0]
+
+	statementDoc = frappe.new_doc("Statement of Account")
+	statementDoc.naming_series = "CUS-STMT-.YYYY.-"
+	statementDoc.original_date_processed = frappe.utils.get_datetime(frappe.utils.now())
+	statementDoc.latest_date_processed = frappe.utils.get_datetime(frappe.utils.now())
+	statementDoc.emails_sent = 1
+	statementDoc.company = doc.company
+	statementDoc.currency = doc.currency
+	statementDoc.customer = customer
+	statementDoc.email = recipient
+	statementDoc.group_by = doc.group_by
+	statementDoc.from_date = doc.from_date
+	statementDoc.to_date = doc.to_date
+	statementDoc.orientation = doc.orientation
+	statementDoc.ageing_based_on = doc.ageing_based_on
+	statementDoc.letter_head = doc.letter_head
+	statementDoc.include_ageing = doc.include_ageing
+	statementDoc.subject = doc.subject
+	statementDoc.body = doc.body
+	statementDoc.save()
+	return statementDoc

@@ -431,16 +431,17 @@ class ReceivablePayableReport:
 
 			row.invoice_grand_total = row.invoiced
 
+			#We flipped this because the ERR Journals were showing when 'for_revaluation_journals' was not checked
 			must_consider = False
 			if self.filters.get("for_revaluation_journals"):
 				if (abs(row.outstanding) >= 1.0 / 10**self.currency_precision) or (
 					abs(row.outstanding_in_account_currency) >= 1.0 / 10**self.currency_precision
-				):
+				) or (row.voucher_no in self.err_journals):
 					must_consider = True
 			else:
 				if (abs(row.outstanding) >= 1.0 / 10**self.currency_precision) and (
 					(abs(row.outstanding_in_account_currency) >= 1.0 / 10**self.currency_precision)
-					or (row.voucher_no in self.err_journals)
+					# or (row.voucher_no in self.err_journals)
 				):
 					must_consider = True
 
@@ -912,7 +913,11 @@ class ReceivablePayableReport:
 
 		if index is None:
 			index = 4
-		row["range" + str(index + 1)] = row.outstanding
+		
+		if index == 10:
+			row.not_yet_due = row.outstanding
+		else:
+			row["range" + str(index + 1)] = row.outstanding
 
 	def prepare_ple_query(self):
 		# get all the GL entries filtered by the given filters
