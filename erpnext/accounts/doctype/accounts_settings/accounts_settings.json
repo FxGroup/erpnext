@@ -75,6 +75,7 @@
   "period_closing_settings_section",
   "acc_frozen_upto",
   "ignore_account_closing_balance",
+  "use_legacy_controller_for_pcv",
   "column_break_25",
   "frozen_accounts_modifier",
   "tab_break_dpet",
@@ -629,6 +630,12 @@
    "fieldname": "fetch_valuation_rate_for_internal_transaction",
    "fieldtype": "Check",
    "label": "Fetch Valuation Rate for Internal Transaction"
+  },
+  {
+   "default": "1",
+   "fieldname": "use_legacy_controller_for_pcv",
+   "fieldtype": "Check",
+   "label": "Use Legacy Controller For Period Closing Voucher"
   }
  ],
  "icon": "icon-cog",
@@ -636,7 +643,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-07-18 13:56:47.192437",
+ "modified": "2025-10-20 14:06:08.870427",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Accounts Settings",

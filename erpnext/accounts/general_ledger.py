@@ -18,7 +18,7 @@ from erpnext.accounts.doctype.accounting_dimension_filter.accounting_dimension_f
 )
 from erpnext.accounts.doctype.accounting_period.accounting_period import ClosedAccountingPeriod
 from erpnext.accounts.doctype.budget.budget import validate_expense_against_budget
-from erpnext.accounts.utils import create_payment_ledger_entry
+from erpnext.accounts.utils import create_payment_ledger_entry, is_immutable_ledger_enabled
 from erpnext.exceptions import InvalidAccountDimensionError, MandatoryAccountDimensionError
 
 
@@ -648,6 +648,7 @@ def make_reverse_gl_entries(
 	adv_adj=False,
 	update_outstanding="Yes",
 	partial_cancel=False,
+	posting_date=None,
 ):
 	"""
 	Get original gl entries of the voucher
@@ -745,6 +746,8 @@ def make_reverse_gl_entries(
 			if immutable_ledger_enabled:
 				new_gle["is_cancelled"] = 0
 				new_gle["posting_date"] = frappe.form_dict.get("posting_date") or getdate()
+			elif posting_date:
+				new_gle["posting_date"] = posting_date
 
 			if new_gle["debit"] or new_gle["credit"]:
 				make_entry(new_gle, adv_adj, "Yes")
@@ -838,7 +841,3 @@ def validate_allowed_dimensions(gl_entry, dimension_filter_map):
 						),
 						InvalidAccountDimensionError,
 					)
-
-
-def is_immutable_ledger_enabled():
-	return frappe.db.get_single_value("Accounts Settings", "enable_immutable_ledger")

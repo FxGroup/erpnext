@@ -724,7 +724,10 @@ class Item(Document):
 
 		item_defaults = frappe.db.get_values(
 			"Item Default",
-			{"parent": self.item_group},
+			{
+				"parent": self.item_group,
+				"parenttype": "Item Group",
+			},
 			[
 				"company",
 				"default_warehouse",
@@ -1281,7 +1284,7 @@ def get_item_defaults(item_code, company):
 
 	for d in item.item_defaults:
 		if d.company == company:
-			row = copy.deepcopy(d.as_dict())
+			row = d.as_dict(no_private_properties=True)
 			row.pop("name")
 			out.update(row)
 	return out
