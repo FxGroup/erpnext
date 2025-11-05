@@ -115,6 +115,7 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 
 		function handle_stock(element, action) {
 			let item = unescape(element.attr('data-item'));
+			let product_id = unescape(element.attr('data-product_id'));
 			let current_site_qty = Number(unescape(element.attr('data-current_site_qty')));
 			let target_site = unescape(element.attr('data-target_site'));
 			let current_site = unescape(element.attr('data-current_site'));
@@ -123,13 +124,14 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 			let price_data = [];
 			let tar_batch_data = [];
 			let cur_batch_data = [];
-			
+
 			frappe.call({
 				method: 'fxnmrnth.utils.stock_receiver.fetch_item_price',
 				args: {
 					params: {
 						method: 'item_price',
 						action: action,
+						product_id: product_id,
 						item_code: item,
 						target_site: target_site,
 						current_site: current_site,
