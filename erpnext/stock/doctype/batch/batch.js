@@ -114,6 +114,7 @@ frappe.ui.form.on("Batch", {
 										to_warehouse: data.to_warehouse,
 										source_document: frm.doc.reference_name,
 										reference_doctype: frm.doc.reference_doctype,
+										use_serial_batch_fields: true,
 									},
 									callback: (r) => {
 										frappe.show_alert(
