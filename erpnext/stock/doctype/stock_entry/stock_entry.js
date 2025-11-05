@@ -551,7 +551,7 @@ frappe.ui.form.on("Stock Entry", {
 		const item = locals[cdt][cdn];
 		item.transfer_qty = flt(item.qty) * flt(item.conversion_factor);
 
-		const args = {
+		let args = {
 			item_code: item.item_code,
 			posting_date: frm.doc.posting_date,
 			posting_time: frm.doc.posting_time,
@@ -564,6 +564,10 @@ frappe.ui.form.on("Stock Entry", {
 			voucher_no: item.name,
 			allow_zero_valuation: 1,
 		};
+
+		if (item.batch_no && frm.doc.purpose == "Material Receipt") {
+			args.qty = Math.abs(args.qty) * -1;
+		}
 
 		if (item.item_code || item.serial_no) {
 			frappe.call({
@@ -835,9 +839,28 @@ frappe.ui.form.on("Stock Entry", {
 			refresh_field("process_loss_qty");
 		}
 	},
+
+	set_fg_completed_qty(frm) {
+		let fg_completed_qty = 0;
+
+		frm.doc.items.forEach((item) => {
+			if (item.is_finished_item) {
+				fg_completed_qty += flt(item.qty);
+			}
+		});
+
+		frm.doc.fg_completed_qty = fg_completed_qty;
+		frm.refresh_field("fg_completed_qty");
+	},
 });
 
 frappe.ui.form.on("Stock Entry Detail", {
+	items_add(frm, cdt, cdn) {
+		let item = frappe.get_doc(cdt, cdn);
+		if (item.is_finished_item) {
+			frm.events.set_fg_completed_qty(frm);
+		}
+	},
 	set_basic_rate_manually(frm, cdt, cdn) {
 		let row = locals[cdt][cdn];
 		frm.fields_dict.items.grid.update_docfield_property(
@@ -854,6 +877,10 @@ frappe.ui.form.on("Stock Entry Detail", {
 		if (d.qty > 0 && d.item_code){
 			frm.script_manager.trigger("item_code", cdt, cdn);
 		}
+		let item = frappe.get_doc(cdt, cdn);
+		if (item.is_finished_item) {
+			frm.events.set_fg_completed_qty(frm);
+		}
 	},
 
 	qty_after_batch_select(frm, cdt, cdn){
@@ -862,7 +889,7 @@ frappe.ui.form.on("Stock Entry Detail", {
 		frm.events.set_basic_rate(frm, cdt, cdn);
 		if (d.qty > 0 && d.item_code){
 			frm.script_manager.trigger("item_code", cdt, cdn);
-		}
+		
 	},
 
 	conversion_factor(frm, cdt, cdn) {
@@ -981,6 +1008,7 @@ frappe.ui.form.on("Stock Entry Detail", {
 			});
 		}
 
+		frm.events.set_basic_rate(frm, cdt, cdn);
 		validate_sample_quantity(frm, cdt, cdn);
 	},
 
@@ -1021,6 +1049,13 @@ frappe.ui.form.on("Landed Cost Taxes and Charges", {
 erpnext.stock.StockEntry = class StockEntry extends erpnext.stock.StockController {
 	setup() {
 		var me = this;
+
+		this.barcode_scanner = new erpnext.utils.BarcodeScanner({
+			frm: this.frm,
+			warehouse_field: (doc) => {
+				return doc.purpose === "Material Receipt" ? "t_warehouse" : "s_warehouse";
+			},
+		});
 
 		this.setup_posting_date_time_check();
 
@@ -1151,8 +1186,7 @@ erpnext.stock.StockEntry = class StockEntry extends erpnext.stock.StockControlle
 
 	scan_barcode() {
 		frappe.flags.dialog_set = false;
-		const barcode_scanner = new erpnext.utils.BarcodeScanner({ frm: this.frm });
-		barcode_scanner.process_scan();
+		this.barcode_scanner.process_scan();
 	}
 
 	on_submit() {

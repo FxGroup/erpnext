@@ -69,6 +69,7 @@ class Asset(AccountsController):
 		default_finance_book: DF.Link | None
 		department: DF.Link | None
 		depr_entry_posting_status: DF.Literal["", "Successful", "Failed"]
+		depreciation_completed: DF.Check
 		depreciation_method: DF.Literal["", "Straight Line", "Double Declining Balance", "Manual"]
 		disposal_date: DF.Date | None
 		finance_books: DF.Table[AssetFinanceBook]
@@ -122,6 +123,7 @@ class Asset(AccountsController):
 	def validate(self):
 		self.validate_category()
 		self.validate_precision()
+		self.validate_linked_purchase_docs()
 		self.set_purchase_doc_row_item()
 		self.validate_asset_values()
 		self.validate_asset_and_reference()
@@ -151,7 +153,9 @@ class Asset(AccountsController):
 						)
 		self.validate_expected_value_after_useful_life()
 		self.set_total_booked_depreciations()
-		self.total_asset_cost = self.gross_purchase_amount
+
+	def before_save(self):
+		self.total_asset_cost = self.gross_purchase_amount + self.additional_asset_cost
 		self.status = self.get_status()
 
 	def on_submit(self):
@@ -321,6 +325,9 @@ class Asset(AccountsController):
 			finance_books = get_item_details(self.item_code, self.asset_category, self.gross_purchase_amount)
 			self.set("finance_books", finance_books)
 
+		if self.asset_owner == "Company" and not self.asset_owner_company:
+			self.asset_owner_company = self.company
+
 	def validate_finance_books(self):
 		if not self.calculate_depreciation or len(self.finance_books) == 1:
 			return
@@ -408,6 +415,21 @@ class Asset(AccountsController):
 
 		if self.available_for_use_date and getdate(self.available_for_use_date) < getdate(self.purchase_date):
 			frappe.throw(_("Available-for-use Date should be after purchase date"))
+
+	def validate_linked_purchase_docs(self):
+		for doctype_field, doctype_name in [
+			("purchase_receipt", "Purchase Receipt"),
+			("purchase_invoice", "Purchase Invoice"),
+		]:
+			linked_doc = getattr(self, doctype_field, None)
+			if linked_doc:
+				docstatus = frappe.db.get_value(doctype_name, linked_doc, "docstatus")
+				if docstatus == 0:
+					frappe.throw(
+						_("{0} is still in Draft. Please submit it before saving the Asset.").format(
+							get_link_to_form(doctype_name, linked_doc)
+						)
+					)
 
 	def validate_gross_and_purchase_amount(self):
 		if self.is_existing_asset:
@@ -917,7 +939,7 @@ def make_post_gl_entry():
 			assets = frappe.db.sql_list(
 				""" select name from `tabAsset`
 				where asset_category = %s and ifnull(booked_fixed_asset, 0) = 0
-				and available_for_use_date = %s""",
+				and available_for_use_date = %s and docstatus = 1""",
 				(asset_category.name, nowdate()),
 			)
 
@@ -1083,7 +1105,7 @@ def get_asset_account(account_name, asset=None, asset_category=None, company=Non
 def make_journal_entry(asset_name):
 	asset = frappe.get_doc("Asset", asset_name)
 	(
-		_,
+		fixed_asset_account,
 		accumulated_depreciation_account,
 		depreciation_expense_account,
 	) = get_depreciation_accounts(asset.asset_category, asset.company)

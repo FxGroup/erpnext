@@ -109,6 +109,7 @@ erpnext.sales_common = {
 				);
 
 				this.toggle_editable_price_list_rate();
+				this.change_warehouse_labels_for_return();
 			}
 
 			company() {
@@ -582,6 +583,33 @@ erpnext.sales_common = {
 		
 
 				erpnext.show_serial_batch_selector(me.frm, this_frm, "", undefined, true);
+			}
+			
+			is_return() {
+				let reset = !this.frm.doc.is_return;
+				this.change_warehouse_labels_for_return(reset);
+			}
+
+			change_warehouse_labels_for_return(reset) {
+				// swap source and target warehouse labels for return
+				let source_warehouse_label = __("Source Warehouse");
+				let target_warehouse_label = __("Set Target Warehouse");
+
+				if (this.frm.doc.doctype == "Delivery Note") {
+					source_warehouse_label = __("Set Source Warehouse");
+				}
+
+				if (reset) {
+					// reset to original labels
+					this.frm.set_df_property("set_warehouse", "label", source_warehouse_label);
+					this.frm.set_df_property("set_target_warehouse", "label", target_warehouse_label);
+					return;
+				}
+
+				if (this.frm.doc.is_return) {
+					this.frm.set_df_property("set_warehouse", "label", target_warehouse_label);
+					this.frm.set_df_property("set_target_warehouse", "label", source_warehouse_label);
+				}
 			}
 		};
 	},
