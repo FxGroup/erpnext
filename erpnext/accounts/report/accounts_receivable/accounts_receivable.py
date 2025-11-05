@@ -93,7 +93,7 @@ class ReceivablePayableReport:
 		self.company_currency = frappe.get_cached_value(
 			"Company", self.filters.get("company"), "default_currency"
 		)
-		self.currency_precision = get_currency_precision() or 2
+		
 		self.dr_or_cr = "debit" if self.filters.account_type == "Receivable" else "credit"
 		self.account_type = self.filters.account_type
 		self.party_type = get_party_types_from_account_type(self.account_type)
@@ -101,6 +101,11 @@ class ReceivablePayableReport:
 		self.invoices = set()
 		self.skip_total_row = 0
 		self.advance_payment_doctypes = get_advance_payment_doctypes()
+
+		if self.filters.get("currency_precision"):
+			self.currency_precision = self.filters.get("currency_precision")
+		else:
+			self.currency_precision = get_currency_precision() or 2
 
 		if self.filters.get("group_by_party"):
 			self.previous_party = ""
@@ -270,6 +275,11 @@ class ReceivablePayableReport:
 
 		row = self.voucher_balance.get(key)
 
+		# If the against_voucher row exists but will be filtered out (posting_date > report_date),
+		# don't use it. Instead, treat this as an unallocated payment.
+		if row and getdate(row.posting_date) > self.filters.report_date:
+			row = None
+
 		# Build and use a separate row for Employee Advances.
 		# This allows Payments or Journals made against Emp Advance to be processed.
 		if (
@@ -284,20 +294,42 @@ class ReceivablePayableReport:
 
 		if not row:
 			# no invoice, this is an invoice / stand-alone payment / credit note
+			# This can happen when:
+			# 1. It's a standalone payment/JE
+			# 2. The against_voucher is after the report_date (e.g., payment before invoice)
 			if self.filters.get("ignore_accounts"):
 				row = self.voucher_balance.get((ple.voucher_type, ple.voucher_no, ple.party))
 			else:
 				row = self.voucher_balance.get((ple.account, ple.voucher_type, ple.voucher_no, ple.party))
 
-		row.party_type = ple.party_type
+		if row:
+			row.party_type = ple.party_type
 		return row
 
 	def update_voucher_balance(self, ple):
 		# get the row where this balance needs to be updated
 		# if its a payment, it will return the linked invoice or will be considered as advance
 		row = self.get_voucher_balance(ple)
+
 		if not row:
-			return
+			# Handle edge case: Payment made before invoice (invoice is after report_date)
+			# Create a row for the payment itself to show it as unallocated/advance
+			if ple.voucher_type in ("Journal Entry", "Payment Entry") and ple.voucher_no != ple.against_voucher_no:
+				if self.filters.get("ignore_accounts"):
+					key = (ple.voucher_type, ple.voucher_no, ple.party)
+				else:
+					key = (ple.account, ple.voucher_type, ple.voucher_no, ple.party)
+
+				# Create the row if it doesn't exist
+				if key not in self.voucher_balance:
+					row = self.build_voucher_dict(ple)
+					row.party_type = ple.party_type
+					self.voucher_balance[key] = row
+				else:
+					row = self.voucher_balance[key]
+
+			if not row:
+				return
 
 		if self.filters.get("in_party_currency") or self.filters.get("party_account"):
 			amount = ple.amount_in_account_currency
@@ -421,6 +453,10 @@ class ReceivablePayableReport:
 		# set outstanding for all the accumulated balances
 		# as we can use this to filter out invoices without outstanding
 		for _key, row in self.voucher_balance.items():
+			#If row.posting_date > report date, skip
+			if getdate(row.posting_date) > self.filters.report_date:
+				continue
+
 			row.outstanding = flt(row.invoiced - row.paid - row.credit_note, self.currency_precision)
 			row.outstanding_in_account_currency = flt(
 				row.invoiced_in_account_currency
@@ -876,22 +912,29 @@ class ReceivablePayableReport:
 			entry_date = row.posting_date
 
 		self.get_ageing_data(entry_date, row)
+		
 
 		# ageing buckets should not have amounts if due date is not reached
 		if getdate(entry_date) > getdate(self.age_as_on):
 			[setattr(row, f"range{i}", 0.0) for i in self.range_numbers]
 
 		row.total_due = sum(row[f"range{i}"] for i in self.range_numbers)
+		row.total_due_in_account_currency = sum(row[f"range{i}_in_account_currency"] for i in self.range_numbers)
 
 	def get_ageing_data(self, entry_date, row):
 		# [0-30, 30-60, 60-90, 90-120, 120-above]
 
 		row.not_yet_due = row.range1 = row.range2 = row.range3 = row.range4 = row.range5 = 0.0
+		row.not_yet_due_in_account_currency = row.range1_in_account_currency = row.range2_in_account_currency = row.range3_in_account_currency = row.range4_in_account_currency = row.range5_in_account_currency = 0.0
 
 		if not (self.age_as_on and entry_date):
 			return
 
 		row.age = (getdate(self.age_as_on) - getdate(entry_date)).days or 0
+
+		#Dont show ageing data for things posted after report date
+		if getdate(row.posting_date) > getdate(self.age_as_on):
+			return		
 
 		if not (self.filters.range1 and self.filters.range2 and self.filters.range3 and self.filters.range4):
 			self.filters.range1, self.filters.range2, self.filters.range3, self.filters.range4 = (
@@ -905,7 +948,7 @@ class ReceivablePayableReport:
 			[self.filters.range1, self.filters.range2, self.filters.range3, self.filters.range4]
 		):
 			if cint(row.age) <= cint(days):
-				if self.filters.show_not_yet_due and cint(row.age) < 0:
+				if cint(row.age) < 0:
 					index = 10
 				else:
 					index = i
@@ -913,11 +956,13 @@ class ReceivablePayableReport:
 
 		if index is None:
 			index = 4
-		
+
 		if index == 10:
 			row.not_yet_due = row.outstanding
+			row.not_yet_due_in_account_currency = row.outstanding_in_account_currency
 		else:
 			row["range" + str(index + 1)] = row.outstanding
+			row["range" + str(index + 1) + "_in_account_currency"] = row.outstanding_in_account_currency
 
 	def prepare_ple_query(self):
 		# get all the GL entries filtered by the given filters
