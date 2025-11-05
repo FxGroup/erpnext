@@ -1198,11 +1198,11 @@ class JournalEntry(AccountsController):
 
 				blank_row.exchange_rate = 1
 				if diff > 0:
-					blank_row.credit_in_account_currency = diff
-					blank_row.credit = diff
+					blank_row.credit_in_account_currency = flt(diff, blank_row.precision("credit_in_account_currency"))
+					blank_row.credit = flt(diff, blank_row.precision("credit"))
 				elif diff < 0:
-					blank_row.debit_in_account_currency = abs(diff)
-					blank_row.debit = abs(diff)
+					blank_row.debit_in_account_currency = flt(abs(diff), blank_row.precision("debit_in_account_currency"))
+					blank_row.debit = flt(abs(diff), blank_row.precision("debit"))
 
 			self.set_total_debit_credit()
 			self.validate_total_debit_and_credit()
@@ -1232,9 +1232,9 @@ class JournalEntry(AccountsController):
 
 		jd2 = self.append("accounts", {})
 		if self.write_off_based_on == "Accounts Receivable":
-			jd2.debit_in_account_currency = total
+			jd2.debit_in_account_currency = flt(total, self.precision("debit", "accounts"))
 		elif self.write_off_based_on == "Accounts Payable":
-			jd2.credit_in_account_currency = total
+			jd2.credit_in_account_currency = flt(total, self.precision("credit", "accounts"))
 
 		self.validate_total_debit_and_credit()
 
