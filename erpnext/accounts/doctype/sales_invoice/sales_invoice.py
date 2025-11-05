@@ -696,6 +696,7 @@ class SalesInvoice(SellingController):
 				"allow_edit_discount": pos.get("allow_user_to_edit_discount"),
 				"campaign": pos.get("campaign"),
 				"allow_print_before_pay": pos.get("allow_print_before_pay"),
+				"skip_default_payment": pos.get("disable_grand_total_to_default_mop"),
 			}
 
 	def update_time_sheet(self, sales_invoice):
@@ -1202,7 +1203,6 @@ class SalesInvoice(SellingController):
 
 				self.make_exchange_gain_loss_journal()
 			elif self.docstatus == 2:
-				cancel_exchange_gain_loss_journal(frappe._dict(doctype=self.doctype, name=self.name))
 				make_reverse_gl_entries(voucher_type=self.doctype, voucher_no=self.name)
 
 			if update_outstanding == "No":
@@ -2416,6 +2416,9 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
 		):
 			target.purchase_order = source.purchase_order
 			target.po_detail = source.purchase_order_item
+
+		if (source.get("serial_no") or source.get("batch_no")) and not source.get("serial_and_batch_bundle"):
+			target.use_serial_batch_fields = 1
 
 	item_field_map = {
 		"doctype": target_doctype + " Item",

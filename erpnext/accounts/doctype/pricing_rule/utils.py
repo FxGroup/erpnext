@@ -667,11 +667,8 @@ def apply_pricing_rule_on_transaction(doc):
 					pr_field = "discount_percentage" if field == "additional_discount_percentage" else field
 					if not d.get(pr_field):
 						continue
-					if (
-						d.validate_applied_rule
-						and doc.get(field) is not None
-						and doc.get(field) < d.get(pr_field)
-					):
+
+					if d.validate_applied_rule and (doc.get(field) or 0) < d.get(pr_field):
 						frappe.msgprint(_("User has not applied rule on the invoice {0}").format(doc.name))
 					else:
 						if not d.coupon_code_based:

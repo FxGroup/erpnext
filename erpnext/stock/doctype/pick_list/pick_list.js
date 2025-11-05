@@ -79,6 +79,7 @@ frappe.ui.form.on("Pick List", {
 			};
 		});
 	},
+
 	set_item_locations: (frm, save) => {
 		if (!(frm.doc.locations && frm.doc.locations.length)) {
 			frappe.msgprint(__("Add items in the Item Locations table"));
@@ -99,11 +100,34 @@ frappe.ui.form.on("Pick List", {
 	},
 
 	pick_manually: function (frm) {
+		// Update warehouse field read-only property
 		frm.fields_dict.locations.grid.update_docfield_property(
 			"warehouse",
 			"read_only",
 			!frm.doc.pick_manually
 		);
+
+		// Clear auto-assigned serial numbers and related fields when switching to manual picking
+		if (frm.doc.pick_manually && frm.doc.locations) {
+			let has_changes = false;
+			frm.doc.locations.forEach((row) => {
+				if (row.serial_no || row.batch_no || row.serial_and_batch_bundle) {
+					row.serial_no = "";
+					row.batch_no = "";
+					row.serial_and_batch_bundle = "";
+					row.picked_qty = 0;
+					has_changes = true;
+				}
+			});
+
+			if (has_changes) {
+				frappe.show_alert(
+					__("Cleared auto-assigned serial numbers and batch numbers for manual picking"),
+					3
+				);
+				frm.refresh_field("locations");
+			}
+		}
 	},
 
 	get_item_locations: (frm) => {
@@ -114,7 +138,6 @@ frappe.ui.form.on("Pick List", {
 		frm.trigger("add_get_items_button");
 		if (frm.doc.docstatus === 1) {
 			const status_completed = frm.doc.status === "Completed";
-			frm.set_df_property("locations", "allow_on_submit", status_completed ? 0 : 1);
 
 			if (!status_completed) {
 				frm.add_custom_button(__("Update Current Stock"), () =>
@@ -271,7 +294,7 @@ frappe.ui.form.on("Pick List", {
 			max_qty_field: "qty",
 			dont_allow_new_row: true,
 			prompt_qty: frm.doc.prompt_qty,
-			serial_no_field: "not_supported", // doesn't make sense for picklist without a separate field.
+			serial_no_field: "serial_no",
 		};
 		const barcode_scanner = new erpnext.utils.BarcodeScanner(opts);
 		barcode_scanner.process_scan();
@@ -328,10 +351,12 @@ frappe.ui.form.on("Pick List Item", {
 	item_code: (frm, cdt, cdn) => {
 		let row = frappe.get_doc(cdt, cdn);
 		if (row.item_code) {
-			get_item_details(row.item_code).then((data) => {
+			get_item_details(row.item_code, row.uom, row.warehouse, frm.doc.company).then((data) => {
 				frappe.model.set_value(cdt, cdn, "uom", data.stock_uom);
 				frappe.model.set_value(cdt, cdn, "stock_uom", data.stock_uom);
 				frappe.model.set_value(cdt, cdn, "conversion_factor", 1);
+				frappe.model.set_value(cdt, cdn, "actual_qty", data.actual_qty);
+				frappe.model.set_value(cdt, cdn, "company_total_stock", data.company_total_stock);
 			});
 		}
 	},
@@ -343,6 +368,15 @@ frappe.ui.form.on("Pick List Item", {
 				frappe.model.set_value(cdt, cdn, "conversion_factor", data.conversion_factor);
 			});
 		}
+	},
+
+	warehouse: (frm, cdt, cdn) => {
+		const row = frappe.get_doc(cdt, cdn);
+		if (!row.item_code || !row.warehouse) return;
+		get_item_details(row.item_code, row.uom, row.warehouse, frm.doc.company).then((data) => {
+			frappe.model.set_value(cdt, cdn, "actual_qty", data.actual_qty);
+			frappe.model.set_value(cdt, cdn, "company_total_stock", data.company_total_stock);
+		});
 	},
 
 	qty: (frm, cdt, cdn) => {
@@ -386,11 +420,13 @@ frappe.ui.form.on("Pick List Item", {
 	},
 });
 
-function get_item_details(item_code, uom = null) {
+function get_item_details(item_code, uom = null, warehouse = null, company = null) {
 	if (item_code) {
 		return frappe.xcall("erpnext.stock.doctype.pick_list.pick_list.get_item_details", {
 			item_code,
 			uom,
+			warehouse,
+			company,
 		});
 	}
 }

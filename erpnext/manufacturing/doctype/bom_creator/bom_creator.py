@@ -253,6 +253,13 @@ class BOMCreator(Document):
 			if not row.fg_reference_id and production_item_wise_rm.get((row.fg_item, row.fg_reference_id)):
 				frappe.throw(_("Please set Parent Row No for item {0}").format(row.fg_item))
 
+			key = (row.fg_item, row.fg_reference_id)
+			if key not in production_item_wise_rm:
+				production_item_wise_rm.setdefault(
+					key,
+					frappe._dict({"items": [], "bom_no": "", "fg_item_data": row}),
+				)
+
 			production_item_wise_rm[(row.fg_item, row.fg_reference_id)]["items"].append(row)
 
 		reverse_tree = OrderedDict(reversed(list(production_item_wise_rm.items())))
@@ -365,13 +372,6 @@ def get_children(doctype=None, parent=None, **kwargs):
 
 	return frappe.get_all("BOM Creator Item", fields=fields, filters=query_filters, order_by="idx")
 
-
-def get_parent_row_no(doc, name):
-	for row in doc.items:
-		if row.name == name:
-			return row.idx
-
-
 @frappe.whitelist()
 def add_item(**kwargs):
 	if isinstance(kwargs, str):
@@ -471,6 +471,19 @@ def get_item_details(item_code):
 	return frappe.get_cached_value(
 		"Item", item_code, ["item_name", "description", "image", "stock_uom", "default_bom"], as_dict=1
 	)
+
+
+def get_parent_row_no(doc, name):
+	for row in doc.items:
+		if row.name == name:
+			return row.idx
+
+	if name == doc.name:
+		return None
+
+	frappe.msgprint(_("Parent Row No not found for {0}").format(name), alert=True)
+
+	return None
 
 
 @frappe.whitelist()
