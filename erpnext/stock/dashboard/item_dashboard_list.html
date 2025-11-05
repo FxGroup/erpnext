@@ -61,6 +61,7 @@
                                     data-disable_quick_entry="{{ d.disable_quick_entry }}"
                                     data-warehouse="{{ d.warehouse }}" 
                                     data-actual_qty="{{ d.actual_qty }}"
+                                    data-product_id="{{ d.product_id }}"
                                     data-item="{{ escape(d.item_code) }}">
                                 {{ __("Move") }}
                             </button>
@@ -70,6 +71,7 @@
                                 data-warehouse="{{ d.warehouse }}"
                                 data-actual_qty="{{ d.actual_qty }}" 
                                 data-item="{{ escape(d.item_code) }}"
+                                data-product_id="{{ d.product_id }}"
                                 data-rate="{{ d.valuation_rate }}">
                             {{ __("Add") }}
                         </button>
@@ -85,6 +87,7 @@
                                         data-current_site="{{ d.current_site }}"
                                         data-target_site="{{ d.target_site }}" 
                                         data-item="{{ escape(d.item_code) }}" 
+                                        data-product_id="{{ d.product_id }}"
                                         data-current_site_qty="{{ d.current_site_qty }}">
                                     {{ __("Transfer From") }}
                                 </button>
@@ -95,6 +98,7 @@
                                         data-current_site="{{ d.current_site }}"
                                         data-target_site="{{ d.target_site }}" 
                                         data-item="{{ escape(d.item_code) }}" 
+                                        data-product_id="{{ d.product_id }}"
                                         data-current_site_qty="{{ d.current_site_qty }}">
                                     {{ __("Transfer To") }}
                                 </button>
