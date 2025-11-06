@@ -3203,7 +3203,7 @@ def get_advance_payment_entries(
 
 		q = q.inner_join(payment_ref).on(payment_entry.name == payment_ref.parent)
 		q = q.select(
-			(payment_ref.allocated_amount).as_("amount"),
+			(payment_ref.allocated_amount).as_("outstanding_amount"),
 			(payment_ref.name).as_("reference_row"),
 			(payment_ref.reference_name).as_("against_order"),
 		)
@@ -3223,7 +3223,7 @@ def get_advance_payment_entries(
 			limit,
 			condition,
 		)
-		q = q.select((payment_entry.unallocated_amount).as_("amount"))
+		q = q.select((payment_entry.unallocated_amount).as_("outstanding_amount"))
 		q = q.where(payment_entry.unallocated_amount > 0)
 
 		unallocated = list(q.run(as_dict=True))
@@ -3274,10 +3274,13 @@ def get_common_query(
 	else:
 		q = q.where(account_condition)
 
+	# Add the full payment amount based on payment type
 	if payment_type == "Receive":
 		q = q.select((payment_entry.source_exchange_rate).as_("exchange_rate"))
+		q = q.select((payment_entry.paid_amount).as_("amount"))
 	else:
 		q = q.select((payment_entry.target_exchange_rate).as_("exchange_rate"))
+		q = q.select((payment_entry.received_amount).as_("amount"))
 
 	if condition:
 		# conditions should be built as an array and passed as Criterion
