@@ -827,6 +827,7 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 				item["rate"] = price_list_rate
 
 			pricing_rule = get_pricing_rule_for_item(frappe._dict(data), frappe._dict(doc))
+			
 			if pricing_rule.get('price_or_product_discount') == 'Product':
 				found = False
 				pricing_rules = pricing_rule['pricing_rules']
