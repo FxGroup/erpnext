@@ -9,7 +9,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.naming import make_autoname, revert_series_if_last
 from frappe.query_builder.functions import CurDate, Sum
-from frappe.utils import cint, flt, get_link_to_form
+from frappe.utils import cint, flt, get_link_to_form, today
 from frappe.utils.data import add_days
 from frappe.utils.jinja import render_template
 import json
@@ -796,9 +796,10 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 		free_items = [i for i in doc['items'].copy() if i['item_code'] == item_code and i['is_free_item']]
 		# doc['items'] = [i for i in doc['items'] if i['item_code'] != item_code ]
 		free_item_results = {}
-
+		uom = doc.get('uom', 'Unit')
+		transaction_date = doc.get('transaction_date', today())
 		price_list = doc.get('selling_price_list')
-		price_list_rate = get_price_list_rate_for({"price_list":price_list, 'item_code':item_code, "customer":doc['customer']},item_code)
+		price_list_rate = get_price_list_rate_for({'test': 1, "ignore_party": 1, "price_list":price_list, 'item_code':item_code, "customer":doc['customer'], 'transaction_date': transaction_date, 'uom': uom},item_code)
 		for item in results:
 			data = {}
 			data.update(item)
