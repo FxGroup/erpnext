@@ -144,7 +144,12 @@ def get_result(filters, account_details):
 
 	gl_entries = get_gl_entries(filters, accounting_dimensions)
 
-	data = get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries)
+	# Get all parties with balances if filter is enabled
+	all_party_balances = None
+	if filters.get("include_all_parties"):
+		all_party_balances = get_all_parties_with_balances(filters, accounting_dimensions)
+
+	data = get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances)
 
 	result = get_result_as_list(data, filters)
 
@@ -206,7 +211,7 @@ def get_gl_entries(filters, accounting_dimensions):
 		{order_by_statement}
 	""",
 		filters,
-		as_dict=1,
+		as_dict=1
 	)
 
 	party_name_map = get_party_name_map()
@@ -221,8 +226,110 @@ def get_gl_entries(filters, accounting_dimensions):
 		return gl_entries
 
 
+def get_all_parties_with_balances(filters, accounting_dimensions):
+	"""Get all parties with their opening and closing balances, even if no transactions in period"""
+	if not filters.get("include_all_parties") or not filters.get("party_type") or not filters.get("party"):
+		return None
+
+	# Get all parties of the specified type
+	party_type = filters.get("party_type")
+	all_parties = filters.get("party")
+
+	party_balances = {}
+	currency_map = get_currency(filters)
+
+	# Build account filter if specified
+	account_condition = ""
+	if filters.get("account"):
+		accounts = filters.get("account")
+		if not isinstance(accounts, list):
+			accounts = [accounts]
+		account_condition = "AND account IN %(accounts)s"
+
+	for party in all_parties:
+		# Prepare parameters for SQL query
+		query_params = {
+			"company": filters.get("company"),
+			"party_type": party_type,
+			"party": party,
+			"from_date": filters.get("from_date"),
+			"to_date": filters.get("to_date")
+		}
+		if filters.get("account"):
+			query_params["accounts"] = accounts if isinstance(accounts, list) else [accounts]
+
+		# Get opening balance (before from_date)
+		opening_entries = frappe.db.sql(
+			f"""
+			SELECT
+				SUM(debit) as debit,
+				SUM(credit) as credit,
+				SUM(debit_in_account_currency) as debit_in_account_currency,
+				SUM(credit_in_account_currency) as credit_in_account_currency,
+				account_currency
+			FROM `tabGL Entry`
+			WHERE company = %(company)s
+				AND party_type = %(party_type)s
+				AND party = %(party)s
+				AND posting_date < %(from_date)s
+				AND is_cancelled = 0
+				{account_condition}
+			""",
+			query_params,
+			as_dict=1
+		)
+
+		# Get closing balance (up to to_date)
+		closing_entries = frappe.db.sql(
+			f"""
+			SELECT
+				SUM(debit) as debit,
+				SUM(credit) as credit,
+				SUM(debit_in_account_currency) as debit_in_account_currency,
+				SUM(credit_in_account_currency) as credit_in_account_currency,
+				account_currency
+			FROM `tabGL Entry`
+			WHERE company = %(company)s
+				AND party_type = %(party_type)s
+				AND party = %(party)s
+				AND posting_date <= %(to_date)s
+				AND is_cancelled = 0
+				{account_condition}
+			""",
+			query_params,
+			as_dict=1
+		)
+
+		opening_data = opening_entries[0] if opening_entries and opening_entries[0].get("debit") is not None else {
+			"debit": 0,
+			"credit": 0,
+			"debit_in_account_currency": 0,
+			"credit_in_account_currency": 0,
+			"account_currency": filters.get("account_currency")
+		}
+
+		closing_data = closing_entries[0] if closing_entries and closing_entries[0].get("debit") is not None else {
+			"debit": 0,
+			"credit": 0,
+			"debit_in_account_currency": 0,
+			"credit_in_account_currency": 0,
+			"account_currency": filters.get("account_currency")
+		}
+
+		party_balances[party] = {
+			"opening": opening_data,
+			"closing": closing_data
+		}
+
+	return party_balances
+
+
 def get_conditions(filters):
 	conditions = []
+
+	ignore_is_opening = frappe.db.get_single_value(
+		"Accounts Settings", "ignore_is_opening_check_for_reporting"
+	)
 
 	if filters.get("account"):
 		filters.account = get_accounts_with_children(filters.account)
@@ -286,9 +393,15 @@ def get_conditions(filters):
 		or filters.get("party")
 		or filters.get("categorize_by") in ["Categorize by Account", "Categorize by Party"]
 	):
-		conditions.append("(posting_date >=%(from_date)s or is_opening = 'Yes')")
+		if not ignore_is_opening:
+			conditions.append("(posting_date >=%(from_date)s or is_opening = 'Yes')")
+		else:
+			conditions.append("posting_date >=%(from_date)s")
 
-	conditions.append("(posting_date <=%(to_date)s or is_opening = 'Yes')")
+	if not ignore_is_opening:
+		conditions.append("(posting_date <=%(to_date)s or is_opening = 'Yes')")
+	else:
+		conditions.append("posting_date <=%(to_date)s")
 
 	if filters.get("project"):
 		conditions.append("project in %(project)s")
@@ -377,11 +490,34 @@ def get_accounts_with_children(accounts):
 
 def set_bill_no(gl_entries, filters):
 	inv_details = get_supplier_invoice_details(filters)
+	si_details = get_sales_invoice_details(filters)
+	if filters.get("company") == "RN Labs":
+		si_patient_details = get_sales_invoice_patient_details(filters)
+	
 	for gl in gl_entries:
-		gl["bill_no"] = inv_details.get(gl.get("against_voucher"), "")
+		gl["bill_no"] = ""
+		gl["outstanding_amount"] = 0
+		gl["due_date"] = ""
+		gl["transaction_date"] = ""
+		gl["patient_name"] = ""
+		if gl.get("against_voucher") is None:
+			continue
+		
+		if gl.get("voucher_type") == "Purchase Invoice":
+			gl["bill_no"] = inv_details.get(gl.get("against_voucher"), {}).get("bill_no", "")
+			gl["outstanding_amount"] = inv_details.get(gl.get("against_voucher"), {}).get("outstanding_amount", 0)
+			gl["due_date"] = inv_details.get(gl.get("against_voucher"), {}).get("due_date", "")
+			gl["transaction_date"] = inv_details.get(gl.get("against_voucher"), {}).get("transaction_date", "")
+		elif gl.get("voucher_type") == "Sales Invoice":
+			gl["bill_no"] = si_details.get(gl.get("against_voucher"), {}).get("bill_no", "")
+			gl["outstanding_amount"] = si_details.get(gl.get("against_voucher"), {}).get("outstanding_amount", 0)
+			gl["due_date"] = si_details.get(gl.get("against_voucher"), {}).get("due_date", "")
+			gl["transaction_date"] = si_details.get(gl.get("against_voucher"), {}).get("transaction_date", "")
+			if filters.get("company") == "RN Labs":
+				gl["patient_name"] = si_patient_details.get(gl.get("against_voucher"), "").get("patient_name", "")
 
 
-def get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries):
+def get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances=None):
 	data = []
 	totals_dict = get_totals_dict()
 
@@ -391,13 +527,64 @@ def get_data_with_opening_closing(filters, account_details, accounting_dimension
 
 	totals, entries = get_accountwise_gle(filters, accounting_dimensions, gl_entries, gle_map, totals_dict)
 
+	# If include_all_parties is enabled, add missing parties AFTER filtering by date
+	if all_party_balances and filters.get("categorize_by") == "Categorize by Party":
+		# Get parties that have actual entries (not just existing in gle_map)
+		parties_with_entries = set([party for party, acc_dict in gle_map.items() if acc_dict.entries])
+		party_name_map = get_party_name_map()
+
+		for party, balances in all_party_balances.items():
+			if party not in parties_with_entries:
+				# This party has no transactions in the selected period
+				opening_bal = balances["opening"]
+				closing_bal = balances["closing"]
+
+				# Skip parties with no balances at all (never had any transactions)
+				if (opening_bal.get("debit", 0) == 0 and opening_bal.get("credit", 0) == 0 and
+				    closing_bal.get("debit", 0) == 0 and closing_bal.get("credit", 0) == 0):
+					continue
+
+				# Initialize or update entry in gle_map for this party
+				if party not in gle_map:
+					gle_map[party] = _dict(totals=copy.deepcopy(totals_dict), entries=[])
+
+				# Set opening balance
+				gle_map[party].totals.opening.debit = opening_bal.get("debit", 0)
+				gle_map[party].totals.opening.credit = opening_bal.get("credit", 0)
+				gle_map[party].totals.opening.debit_in_account_currency = opening_bal.get("debit_in_account_currency", 0)
+				gle_map[party].totals.opening.credit_in_account_currency = opening_bal.get("credit_in_account_currency", 0)
+
+				# Total remains 0 (no transactions in period) - already set by totals_dict
+
+				# Set closing balance (same as opening if no transactions in period)
+				gle_map[party].totals.closing.debit = closing_bal.get("debit", 0)
+				gle_map[party].totals.closing.credit = closing_bal.get("credit", 0)
+				gle_map[party].totals.closing.debit_in_account_currency = closing_bal.get("debit_in_account_currency", 0)
+				gle_map[party].totals.closing.credit_in_account_currency = closing_bal.get("credit_in_account_currency", 0)
+
+				# Set the account name to show party info
+				party_display = f"{party}"
+				if party_name_map.get(filters.get("party_type"), {}).get(party):
+					party_display = f"{party} - {party_name_map.get(filters.get('party_type'), {}).get(party)}"
+
+				# Use quotes to match the standard format from get_totals_dict()
+				gle_map[party].totals.opening.account = "'Opening'"
+				gle_map[party].totals.total.account = "'Total'"
+				gle_map[party].totals.closing.account = "'Closing (Opening + Total)'"
+				
+
 	# Opening for filtered account
 	data.append(totals.opening)
 
 	if filters.get("categorize_by") != "Categorize by Voucher (Consolidated)":
 		for _acc, acc_dict in gle_map.items():
 			# acc
-			if acc_dict.entries:
+			# Include entries with transactions OR parties with balances when include_all_parties is enabled
+			has_balances = (acc_dict.totals.opening.debit != 0 or acc_dict.totals.opening.credit != 0 or
+			                acc_dict.totals.closing.debit != 0 or acc_dict.totals.closing.credit != 0)
+			include_party = filters.get("include_all_parties") and filters.get("categorize_by") == "Categorize by Party" and has_balances
+
+			if acc_dict.entries or include_party:
 				# opening
 				data.append({"debit_in_transaction_currency": None, "credit_in_transaction_currency": None})
 				if (not filters.get("categorize_by") and not filters.get("voucher_no")) or (
@@ -577,16 +764,8 @@ def get_account_type_map(company):
 
 	return account_type_map
 
-
 def get_result_as_list(data, filters):
 	balance = 0
-	inv_details = get_supplier_invoice_details(filters)
-	si_details = get_sales_invoice_details(filters)
-	if filters.get("company") == "RN Labs":
-		si_patient_details = get_sales_invoice_patient_details()
-
-	data = add_transaction_date_to_si(data)
-
 	
 	for d in data:
 		if not d.get("posting_date"):
@@ -597,25 +776,6 @@ def get_result_as_list(data, filters):
 		d["balance"] = balance
 
 		d["account_currency"] = filters.account_currency
-		d["bill_no"] = ""
-		d["outstanding_amount"] = ""
-		if inv_details.get(d.get("against_voucher")):
-			d["bill_no"] = inv_details.get(d.get("against_voucher"), "")['bill_no']
-			d["outstanding_amount"] = inv_details.get(d.get("against_voucher"), "")['outstanding_amount']
-			d["due_date"] = inv_details.get(d.get("against_voucher"), "")['due_date']
-				
-		d["po_no"] = ""
-
-		if si_details.get(d.get("against_voucher")):
-			d["po_no"] = si_details.get(d.get("against_voucher"), "")["po_no"]
-			d["outstanding_amount"] = si_details.get(d.get("against_voucher"), "")['outstanding_amount']
-			d["due_date"] = si_details.get(d.get("against_voucher"), "")['due_date']
-		
-		if d["outstanding_amount"] == 0:
-			d["outstanding_amount"] = ""
-
-		if filters.get("company") == "RN Labs":
-			d["patient_name"] = si_patient_details.get(d.get("against_voucher"), "")
 
 		d["presentation_currency"] = filters.presentation_currency
 
@@ -623,77 +783,113 @@ def get_result_as_list(data, filters):
 
 
 def get_supplier_invoice_details(filters):
-	inv_details = {}
-	inv_filters = ""
-	if 'from_date' in filters and filters['from_date']:
-		inv_filters += " AND posting_date >= '" + str(filters['from_date']) + "'"
-	if 'to_date' in filters and filters['to_date']:
-		inv_filters += " AND posting_date <= '" + str(filters['to_date']) + "'"
-	if 'party' in filters and filters['party']:
-		inv_filters += " AND supplier IN ('" + "','".join(filters['party']) + "')"
+	conditions = ["bill_no is not null", "bill_no != ''"]
 
+	if filters.get("party_type") == "Supplier" and filters.get("party"):
+		conditions.append("supplier in %(party)s")
+
+	if filters.get("voucher_no"):
+		conditions.append("name = %(voucher_no)s")
+
+	if filters.get("from_date"):
+		conditions.append("posting_date >= %(from_date)s")
+
+	if filters.get("to_date"):
+		conditions.append("posting_date <= %(to_date)s")
+
+	if filters.get("show_cancelled_entries") == False:
+		conditions.append("docstatus = 1")
+
+	condition_string = " and ".join(conditions)
+
+	inv_details = {}
 	for d in frappe.db.sql(
-		""" 
-		select 
-			name, 
-			bill_no,
-			outstanding_amount,
-			due_date
-		from 
-			`tabPurchase Invoice`
-		where 
-			docstatus = 1 {inv_filters}""".format(
-			inv_filters=inv_filters),
-		as_dict=1,
+		f"""select name, bill_no, outstanding_amount, due_date, bill_date
+		from `tabPurchase Invoice`
+		where {condition_string}""",
+		filters,
+		as_dict=1
 	):
-		inv_details[d.name] = {"bill_no":d.bill_no,"outstanding_amount":d.outstanding_amount,"due_date":d.due_date}
+		inv_details[d.name] = {
+			"bill_no": d.bill_no,
+			"outstanding_amount": d.outstanding_amount,
+			"due_date": d.due_date,
+			"transaction_date": d.bill_date
+		}
 
 	return inv_details
 
 def get_sales_invoice_details(filters):
-	inv_details = {}
-	inv_filters = ""
-	if 'from_date' in filters and filters['from_date']:
-		inv_filters += " AND posting_date >= '" + str(filters['from_date']) + "'"
-	if 'to_date' in filters and filters['to_date']:
-		inv_filters += " AND posting_date <= '" + str(filters['to_date']) + "'"
-	if 'party' in filters and filters['party']:
-		inv_filters += " AND customer IN ('" + "','".join(filters['party']) + "')"
+	conditions = ["po_no is not null", "po_no != ''"]
 
+	if filters.get("party_type") == "Customer" and filters.get("party"):
+		conditions.append("customer in %(party)s")
+
+	if filters.get("voucher_no"):
+		conditions.append("name = %(voucher_no)s")
+
+	if filters.get("from_date"):
+		conditions.append("posting_date >= %(from_date)s")
+
+	if filters.get("to_date"):
+		conditions.append("posting_date <= %(to_date)s")
+
+	if filters.get("show_cancelled_entries") == False:
+		conditions.append("docstatus = 1")
+
+	condition_string = " and ".join(conditions)
+
+	inv_details = {}
 	for d in frappe.db.sql(
-		"""SELECT 
-			name,
-			po_no,
-			outstanding_amount,
-			due_date
-		FROM 
-			`tabSales Invoice`
-		WHERE 
-			docstatus = 1 {inv_filters}""".format(
-			inv_filters=inv_filters),
+		f"""select name, po_no, outstanding_amount, due_date, transaction_date
+		from `tabSales Invoice`
+		where {condition_string}""",
+		filters,
 		as_dict=1
 	):
-		inv_details[d.name] = {"po_no":d.po_no,"outstanding_amount":d.outstanding_amount,"due_date":d.due_date}
+		inv_details[d.name] = {
+			"bill_no": d.po_no,
+			"outstanding_amount": d.outstanding_amount,
+			"due_date": d.due_date,
+			"transaction_date": d.transaction_date
+		}
 
 	return inv_details
 
-# def add_transaction_date_to_si(data):
-# 	invoices = []
-# 	for item in data:
-# 		if item.get("voucher_type") == "Sales Invoice":
-# 			invoices.append(item["voucher_no"])
+def get_sales_invoice_patient_details(filters):
+	conditions = [
+		"temporary_delivery_address_line_1 is not null",
+		"temporary_delivery_address_line_1 != ''"
+	]
 
-# 	invoice_dates = frappe.get_all("Sales Invoice", filters = [["name", "IN", invoices]], fields = ["name", "transaction_date"])
-# 	invoice_dict = {}
+	if filters.get("party_type") == "Customer" and filters.get("party"):
+		conditions.append("customer in %(party)s")
 
-# 	for item in invoice_dates:
-# 		invoice_dict[item["name"]] = item["transaction_date"]
+	if filters.get("voucher_no"):
+		conditions.append("name = %(voucher_no)s")
 
-# 	for item in data:
-# 		if item.get("voucher_type") == "Sales Invoice":
-# 			item["transaction_date"] = invoice_dict[item["voucher_no"]]
+	if filters.get("from_date"):
+		conditions.append("posting_date >= %(from_date)s")
 
-# 	return data
+	if filters.get("to_date"):
+		conditions.append("posting_date <= %(to_date)s")
+
+	if filters.get("show_cancelled_entries") == False:
+		conditions.append("docstatus = 1")
+
+	condition_string = " and ".join(conditions)
+
+	inv_details = {}
+	for d in frappe.db.sql(
+		f"""select name, temporary_delivery_address_line_1 as patient_name
+		from `tabSales Invoice`
+		where {condition_string}""",
+		filters,
+		as_dict=1
+	):
+		inv_details[d.name] = {"patient_name": d.patient_name}
+
+	return inv_details
 
 def add_transaction_date_to_si(data):
 	invoices = []
@@ -727,25 +923,6 @@ def add_transaction_date_to_si(data):
 		counter += 1
 
 	return results
-
-def get_sales_invoice_patient_details():
-	inv_details = {}
-	for d in frappe.db.sql(
-		"""SELECT 
-			name, 
-			temporary_delivery_address_line_1
-		FROM 
-			`tabSales Invoice`
-		WHERE 
-			docstatus = 1 and 
-			temporary_delivery_address_line_1 is not null and 
-			temporary_delivery_address_line_1 != '' """,
-		as_dict=1,
-	):
-		inv_details[d.name] = d.temporary_delivery_address_line_1
-
-	return inv_details
-
 
 def get_balance(row, balance, debit_field, credit_field):
 	balance += row.get(debit_field, 0) - row.get(credit_field, 0)
@@ -917,9 +1094,8 @@ def get_columns(filters):
 				"options": "against_voucher_type",
 				"width": 100,
 			},
-			{"label": _("Supplier Invoice No"), "fieldname": "bill_no", "fieldtype": "Data", "width": 100},
-			{"label": _("Remarks"), "fieldname": "remarks", "width": 400},
-			{"label": _("Purchase Order No"), "fieldname": "po_no", "fieldtype": "Data", "width": 200},
+			{"label": _("Invoice No"), "fieldname": "bill_no", "fieldtype": "Data", "width": 100},
+			{"label": _("Remarks"), "fieldname": "remarks", "width": 400}
 		]
 	)
 
