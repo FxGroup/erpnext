@@ -178,6 +178,7 @@ frappe.query_reports["General Ledger"] = {
 			fieldname: "include_dimensions",
 			label: __("Consider Accounting Dimensions"),
 			fieldtype: "Check",
+			hidden: 1,
 			default: 1,
 		},
 		{
@@ -189,6 +190,7 @@ frappe.query_reports["General Ledger"] = {
 			fieldname: "include_default_book_entries",
 			label: __("Include Default FB Entries"),
 			fieldtype: "Check",
+			hidden: 1,
 			default: 1,
 		},
 		{
@@ -217,7 +219,8 @@ frappe.query_reports["General Ledger"] = {
 			"fieldname": "show_due_date",
 			"label": __("Show Due Date"),
 			"fieldtype": "Check",
-			"default": 0
+			"hidden": 1,
+			"default": 1
 		},
 		{
 			fieldname: "show_amount_in_company_currency",

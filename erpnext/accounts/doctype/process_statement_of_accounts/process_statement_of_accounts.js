@@ -124,20 +124,14 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 		}
 	},
 	fetch_customers: function(frm){
-		if (frm.doc.customer_collection == "Custom Logic"){
-            var customLogic = frm.doc.logic
-        } else {
-            var customLogic = null
-        }
-
 		if(frm.doc.collection_name || (frm.doc.customer_collection == "Custom Logic" && frm.doc.logic)){
 			frappe.call({
 				method: "erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of_accounts.fetch_customers",
 				args: {
-					'customer_collection': frm.doc.customer_collection,
+					'collection': frm.doc.customer_collection,
 					'collection_name': frm.doc.collection_name,
-					'primary_mandatory': frm.doc.primary_mandatory,
-                    'custom_logic': customLogic
+					'currency': frm.doc.currency,
+					'logic': frm.doc.logic
 				},
 				callback: function (r) {
 					if (!r.exc) {
@@ -164,28 +158,29 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 	},
 });
 
-frappe.ui.form.on("Process Statement Of Accounts Customer", {
-	customer: function (frm, cdt, cdn) {
-		var row = locals[cdt][cdn];
-		if (!row.customer) {
-			return;
-		}
-		frappe.call({
-			method: "erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of_accounts.get_customer_emails",
-			args: {
-				customer_name: row.customer,
-				primary_mandatory: frm.doc.primary_mandatory,
-			},
-			callback: function (r) {
-				if (!r.exe) {
-					if (r.message.length) {
-						frappe.model.set_value(cdt, cdn, "primary_email", r.message[0]);
-						frappe.model.set_value(cdt, cdn, "billing_email", r.message[1]);
-					} else {
-						return;
-					}
-				}
-			},
-		});
-	},
-});
+// frappe.ui.form.on("Process Statement Of Accounts Customer", {
+// 	customer: function (frm, cdt, cdn) {
+// 		var row = locals[cdt][cdn];
+// 		if (!row.customer) {
+// 			return;
+// 		}
+// 		frappe.call({
+// 			method: "erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of_accounts.get_customer_email",
+// 			args: {
+// 				customer_name: row.customer,
+// 				company: frm.doc.company,
+// 			},
+// 			callback: function (r) {
+// 				if (!r.exc) {
+// 					if (r.message.length) {
+// 						frappe.model.set_value(cdt, cdn, "primary_email", r.message.email_address);
+// 						frappe.model.set_value(cdt, cdn, "billing_email", r.message.email_address);
+// 						frappe.model.set_value(cdt, cdn, "default_currency", r.message.currency);
+// 					} else {
+// 						return;
+// 					}
+// 				}
+// 			},
+// 		});
+// 	},
+// });
