@@ -5,8 +5,10 @@
 import frappe
 from frappe import _, msgprint, qb
 from frappe.model.document import Document
+from frappe.model.meta import get_field_precision
 from frappe.query_builder import Criterion
 from frappe.query_builder.custom import ConstantColumn
+from frappe.query_builder.functions import Sum
 from frappe.utils import flt, fmt_money, get_link_to_form, getdate, nowdate, today
 
 import erpnext
@@ -143,13 +145,6 @@ class PaymentReconciliation(Document):
 
 		non_reconciled_payments = payment_entries + journal_entries + dr_or_cr_notes
 
-		for payment in non_reconciled_payments:
-			#Temp set outstadning to 'Amount' for dr_or_cr_notes until V14 introduces the Payment Ledger
-			if payment.get('outstanding_amount'):
-				payment['outstanding_amount'] = abs(payment.get('outstanding_amount'))
-			else:
-				payment['outstanding_amount'] = abs(payment.get('amount'))
-				
 		if self.payment_limit:
 			non_reconciled_payments = non_reconciled_payments[: self.payment_limit]
 
@@ -205,6 +200,7 @@ class PaymentReconciliation(Document):
 	def get_jv_entries(self):
 		je = qb.DocType("Journal Entry")
 		jea = qb.DocType("Journal Entry Account")
+		jea_total = qb.DocType("Journal Entry Account")
 		conditions = self.get_journal_filter_conditions()
 
 		# Dimension filters
@@ -231,6 +227,14 @@ class PaymentReconciliation(Document):
 		if self.bank_cash_account:
 			conditions.append(jea.against_account.like(f"%%{self.bank_cash_account}%%"))
 
+		# Subquery to calculate the total JE amount from ALL Journal Entry Accounts
+		# This gets the sum of all debit entries in the JE (which equals total credit)
+		total_amount_subquery = (
+			qb.from_(jea_total)
+			.select(Sum(jea_total.debit_in_account_currency))
+			.where(jea_total.parent == je.name)
+		)
+
 		journal_query = (
 			qb.from_(je)
 			.inner_join(jea)
@@ -241,7 +245,8 @@ class PaymentReconciliation(Document):
 				je.posting_date,
 				je.remark.as_("remarks"),
 				jea.name.as_("reference_row"),
-				dr_or_cr.as_("amount"),
+				dr_or_cr.as_("outstanding_amount"),
+				total_amount_subquery.as_("amount"),
 				jea.is_advance,
 				jea.exchange_rate,
 				jea.account_currency.as_("currency"),
@@ -255,7 +260,6 @@ class PaymentReconciliation(Document):
 				& (
 					(jea.reference_type == "")
 					| (jea.reference_type.isnull())
-					| (jea.reference_type.isin(("Sales Order", "Purchase Order")))
 				)
 			)
 			.where(Criterion.all(conditions))
@@ -401,6 +405,12 @@ class PaymentReconciliation(Document):
 			inv.outstanding_amount = flt(entry.get("outstanding_amount"))
 
 	def get_difference_amount(self, payment_entry, invoice, allocated_amount):
+		allocated_amount_precision = get_field_precision(
+			frappe.get_meta("Payment Reconciliation Allocation").get_field("allocated_amount")
+		)
+		difference_amount_precision = get_field_precision(
+			frappe.get_meta("Payment Reconciliation Allocation").get_field("difference_amount")
+		)
 		difference_amount = 0
 		if frappe.get_cached_value(
 			"Account", self.receivable_payable_account, "account_currency"
@@ -408,8 +418,14 @@ class PaymentReconciliation(Document):
 			if invoice.get("exchange_rate") and payment_entry.get("exchange_rate", 1) != invoice.get(
 				"exchange_rate", 1
 			):
-				allocated_amount_in_ref_rate = payment_entry.get("exchange_rate", 1) * allocated_amount
-				allocated_amount_in_inv_rate = invoice.get("exchange_rate", 1) * allocated_amount
+				allocated_amount_in_ref_rate = flt(
+					payment_entry.get("exchange_rate", 1) * flt(allocated_amount, allocated_amount_precision),
+					difference_amount_precision,
+				)
+				allocated_amount_in_inv_rate = flt(
+					invoice.get("exchange_rate", 1) * flt(allocated_amount, allocated_amount_precision),
+					difference_amount_precision,
+				)
 				difference_amount = allocated_amount_in_ref_rate - allocated_amount_in_inv_rate
 
 		return difference_amount
@@ -441,16 +457,16 @@ class PaymentReconciliation(Document):
 
 		entries = []
 		for pay in args.get("payments"):
-			pay.update({"unreconciled_amount": pay.get("amount")})
+			pay.update({"unreconciled_amount": pay.get("outstanding_amount")})
 			for inv in args.get("invoices"):
 				if pay.get("amount") >= inv.get("outstanding_amount"):
 					res = self.get_allocated_entry(pay, inv, inv["outstanding_amount"])
-					pay["amount"] = flt(pay.get("amount")) - flt(inv.get("outstanding_amount"))
+					pay["outstanding_amount"] = flt(pay.get("outstanding_amount")) - flt(inv.get("outstanding_amount"))
 					inv["outstanding_amount"] = 0
 				else:
-					res = self.get_allocated_entry(pay, inv, pay["amount"])
-					inv["outstanding_amount"] = flt(inv.get("outstanding_amount")) - flt(pay.get("amount"))
-					pay["amount"] = 0
+					res = self.get_allocated_entry(pay, inv, pay["outstanding_amount"])
+					inv["outstanding_amount"] = flt(inv.get("outstanding_amount")) - flt(pay.get("outstanding_amount"))
+					pay["outstanding_amount"] = 0
 
 				inv["exchange_rate"] = invoice_exchange_map.get(inv.get("invoice_number"))
 				if pay.get("reference_type") in ["Sales Invoice", "Purchase Invoice"]:
@@ -461,7 +477,7 @@ class PaymentReconciliation(Document):
 				res.exchange_rate = inv.get("exchange_rate")
 				res.update({"gain_loss_posting_date": pay.get("posting_date")})
 
-				if pay.get("amount") == 0:
+				if pay.get("outstanding_amount") == 0:
 					entries.append(res)
 					break
 				elif inv.get("outstanding_amount") == 0:
@@ -577,6 +593,7 @@ class PaymentReconciliation(Document):
 				"difference_amount": flt(row.get("difference_amount")),
 				"difference_account": row.get("difference_account"),
 				"difference_posting_date": row.get("gain_loss_posting_date"),
+				"debit_or_credit_note_posting_date": row.get("debit_or_credit_note_posting_date"),
 				"cost_center": row.get("cost_center"),
 			}
 		)
@@ -765,7 +782,7 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 			{
 				"doctype": "Journal Entry",
 				"voucher_type": voucher_type,
-				"posting_date": today(),
+				"posting_date": inv.get("debit_or_credit_note_posting_date") or today(),
 				"company": company,
 				"multi_currency": 1 if inv.currency != company_currency else 0,
 				"accounts": [

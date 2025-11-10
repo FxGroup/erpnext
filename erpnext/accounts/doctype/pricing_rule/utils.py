@@ -6,15 +6,14 @@
 
 import copy
 import json
-import math
-
 import frappe
+
 from frappe import _, bold
 from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate, today
-
 from erpnext.setup.doctype.item_group.item_group import get_child_item_groups
 from erpnext.stock.doctype.warehouse.warehouse import get_child_warehouses
 from erpnext.stock.get_item_details import get_conversion_factor, get_basic_details
+
 
 lookup_logger = frappe.logger("Pricing Rule Look Up", allow_site=True, file_count=1, max_size = 5000000)
 
@@ -543,9 +542,9 @@ def get_qty_and_rate_for_mixed_conditions(doc, pr_doc, args):
 				if pr_doc.mixed_conditions:
 					amt = args.get("qty") * args.get("price_list_rate", 0)
 					if args.get("item_code") != row.get("item_code"):
-						amt = flt(row.get("qty")) * flt(row.get("price_list_rate", 0) or row.get("rate", 0))
+						amt = flt(row.get("qty"), 0) * flt(row.get("price_list_rate", 0) or row.get("rate", 0))
 
-					sum_qty += flt(row.get("stock_qty")) or flt(row.get("stock_qty")) or flt(row.get("qty"))
+					sum_qty += flt(row.get("stock_qty") or row.get("qty"), 0)
 					sum_amt += amt
 
 			if pr_doc.is_cumulative:
@@ -554,6 +553,7 @@ def get_qty_and_rate_for_mixed_conditions(doc, pr_doc, args):
 				if data and data[0]:
 					sum_qty += data[0]
 					sum_amt += data[1]
+     
 	return sum_qty, sum_amt, items
 
 
@@ -667,11 +667,8 @@ def apply_pricing_rule_on_transaction(doc):
 					pr_field = "discount_percentage" if field == "additional_discount_percentage" else field
 					if not d.get(pr_field):
 						continue
-					if (
-						d.validate_applied_rule
-						and doc.get(field) is not None
-						and doc.get(field) < d.get(pr_field)
-					):
+
+					if d.validate_applied_rule and (doc.get(field) or 0) < d.get(pr_field):
 						frappe.msgprint(_("User has not applied rule on the invoice {0}").format(doc.name))
 					else:
 						if not d.coupon_code_based:

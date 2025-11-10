@@ -171,6 +171,7 @@ def get_report_pdf(doc, consolidated=True, customer=None, base64=False):
 		return get_pdf(result, {"orientation": doc.orientation})
 	else:
 		for customer, statement_html in statement_dict.items():
+			logger.info("Generating statement for customer: {}".format(customer))
 			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation}, meta={"base64":base64})
 		return statement_dict
 
@@ -179,6 +180,9 @@ def get_statement_dict(doc, get_statement_dict=False):
 	ageing = ""
 
 	for entry in doc.customers:
+
+		logger.info("Processing customer: {}".format(entry.customer))
+		
 		if doc.include_ageing:
 			ageing = set_ageing(doc, entry)
 

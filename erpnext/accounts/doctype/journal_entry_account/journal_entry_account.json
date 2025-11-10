@@ -106,7 +106,6 @@
    "fieldname": "account_currency",
    "fieldtype": "Link",
    "label": "Account Currency",
-   "no_copy": 1,
    "options": "Currency",
    "print_hide": 1,
    "read_only": 1
@@ -135,6 +134,7 @@
    "in_list_view": 1,
    "label": "Debit",
    "options": "account_currency",
+   "precision": "2",
    "print_hide_if_no_value": 1
   },
   {
@@ -146,6 +146,7 @@
    "oldfieldname": "debit",
    "oldfieldtype": "Currency",
    "options": "Company:company:default_currency",
+   "precision": "2",
    "print_hide": 1,
    "read_only": 1
   },
@@ -161,6 +162,7 @@
    "in_list_view": 1,
    "label": "Credit",
    "options": "account_currency",
+   "precision": "2",
    "print_hide_if_no_value": 1
   },
   {
@@ -172,6 +174,7 @@
    "oldfieldname": "credit",
    "oldfieldtype": "Currency",
    "options": "Company:company:default_currency",
+   "precision": "2",
    "print_hide": 1,
    "read_only": 1
   },
@@ -272,7 +275,8 @@
    "label": "Advance Voucher Type",
    "no_copy": 1,
    "options": "DocType",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "advance_voucher_no",
@@ -280,19 +284,21 @@
    "label": "Advance Voucher No",
    "no_copy": 1,
    "options": "advance_voucher_type",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "idx": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-07-25 04:45:28.117715",
+ "modified": "2025-11-04 07:48:52.104317",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Journal Entry Account",
  "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

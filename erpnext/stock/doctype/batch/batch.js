@@ -22,6 +22,17 @@ frappe.ui.form.on("Batch", {
 				frappe.set_route("query-report", "Stock Ledger");
 			});
 			frm.trigger("make_dashboard");
+
+			frm.add_custom_button(__("Recalculate Batch Qty"), () => {
+				frm.call({
+					method: "recalculate_batch_qty",
+					doc: frm.doc,
+					freeze: true,
+					callback: () => {
+						frm.reload_doc();
+					},
+				});
+			});
 		}
 	},
 	item: (frm) => {
@@ -114,6 +125,7 @@ frappe.ui.form.on("Batch", {
 										to_warehouse: data.to_warehouse,
 										source_document: frm.doc.reference_name,
 										reference_doctype: frm.doc.reference_doctype,
+										use_serial_batch_fields: true,
 									},
 									callback: (r) => {
 										frappe.show_alert(

@@ -76,9 +76,10 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 
 		// Update paid amount on return/debit note creation
 		if (
-			this.frm.doc.doctype === "Purchase Invoice"
-			&& this.frm.doc.is_return
-			&& (this.frm.doc.grand_total > this.frm.doc.paid_amount)
+			this.frm.doc.doctype === "Purchase Invoice" &&
+			this.frm.doc.is_return &&
+			this.frm.doc.grand_total < 0 &&
+			this.frm.doc.grand_total > this.frm.doc.paid_amount
 		) {
 			this.frm.doc.paid_amount = flt(this.frm.doc.grand_total, precision("grand_total"));
 		}
@@ -933,8 +934,11 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 	set_default_payment(total_amount_to_pay, update_paid_amount) {
 		var me = this;
 		var payment_status = true;
-		if(this.frm.doc.is_pos && (update_paid_amount===undefined || update_paid_amount)) {
-
+		if (
+			this.frm.doc.is_pos
+			&& !cint(this.frm.skip_default_payment)
+			&& (update_paid_amount===undefined || update_paid_amount)
+		) {
 			$.each(this.frm.doc['payments'] || [], function(index, data) {
 				if(data.default && payment_status && total_amount_to_pay > 0) {
 					let base_amount, amount;

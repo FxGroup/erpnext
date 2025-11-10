@@ -9,7 +9,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.naming import make_autoname, revert_series_if_last
 from frappe.query_builder.functions import CurDate, Sum
-from frappe.utils import cint, flt, get_link_to_form
+from frappe.utils import cint, flt, get_link_to_form, today
 from frappe.utils.data import add_days
 from frappe.utils.jinja import render_template
 import json
@@ -156,6 +156,19 @@ class Batch(Document):
 		if frappe.db.get_value("Item", self.item, "has_batch_no") == 0:
 			frappe.throw(_("The selected item cannot have Batch"))
 
+	@frappe.whitelist()
+	def recalculate_batch_qty(self):
+		batches = get_batch_qty(
+			batch_no=self.name, item_code=self.item, for_stock_levels=True, consider_negative_batches=True
+		)
+		batch_qty = 0.0
+		if batches:
+			for row in batches:
+				batch_qty += row.get("qty")
+
+		self.db_set("batch_qty", batch_qty)
+		frappe.msgprint(_("Batch Qty updated to {0}").format(batch_qty), alert=True)
+
 	def set_batchwise_valuation(self):
 		from erpnext.stock.utils import get_valuation_method
 
@@ -218,6 +231,7 @@ def get_batch_qty(
 	batch_no=None,
 	warehouse=None,
 	item_code=None,
+	creation=None,
 	posting_date=None,
 	posting_time=None,
 	ignore_voucher_nos=None,
@@ -244,9 +258,11 @@ def get_batch_qty(
 		{
 			"item_code": item_code,
 			"warehouse": warehouse,
+			"creation": creation,
 			"posting_date": posting_date,
 			"posting_time": posting_time,
 			"batch_no": batch_no,
+			"based_on": frappe.get_single_value("Stock Settings", "pick_serial_and_batch_based_on"),
 			"ignore_voucher_nos": ignore_voucher_nos,
 			"for_stock_levels": for_stock_levels,
 			"consider_negative_batches": consider_negative_batches,
@@ -780,9 +796,10 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 		free_items = [i for i in doc['items'].copy() if i['item_code'] == item_code and i['is_free_item']]
 		# doc['items'] = [i for i in doc['items'] if i['item_code'] != item_code ]
 		free_item_results = {}
-
+		uom = doc.get('uom', 'Unit')
+		transaction_date = doc.get('transaction_date', today())
 		price_list = doc.get('selling_price_list')
-		price_list_rate = get_price_list_rate_for({"price_list":price_list, 'item_code':item_code, "customer":doc['customer']},item_code)
+		price_list_rate = get_price_list_rate_for({'test': 1, "ignore_party": 1, "price_list":price_list, 'item_code':item_code, "customer":doc['customer'], 'transaction_date': transaction_date, 'uom': uom},item_code)
 		for item in results:
 			data = {}
 			data.update(item)
@@ -810,6 +827,7 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 				item["rate"] = price_list_rate
 
 			pricing_rule = get_pricing_rule_for_item(frappe._dict(data), frappe._dict(doc))
+			
 			if pricing_rule.get('price_or_product_discount') == 'Product':
 				found = False
 				pricing_rules = pricing_rule['pricing_rules']
