@@ -871,7 +871,7 @@ frappe.ui.form.on("Stock Entry Detail", {
 	},
 
 	qty(frm, cdt, cdn) {
-		frappe.flags.dialog_set = false
+		frappe.flags.dialog_set = false;
 		var d = locals[cdt][cdn];
 		frm.events.set_basic_rate(frm, cdt, cdn);
 		if (d.qty > 0 && d.item_code){
@@ -884,12 +884,12 @@ frappe.ui.form.on("Stock Entry Detail", {
 	},
 
 	qty_after_batch_select(frm, cdt, cdn){
-		frappe.flags.dialog_set = true
+		frappe.flags.dialog_set = true;
 		var d = locals[cdt][cdn];
 		frm.events.set_basic_rate(frm, cdt, cdn);
 		if (d.qty > 0 && d.item_code){
 			frm.script_manager.trigger("item_code", cdt, cdn);
-		
+		}
 	},
 
 	conversion_factor(frm, cdt, cdn) {
