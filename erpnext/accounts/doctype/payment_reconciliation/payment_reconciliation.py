@@ -333,7 +333,8 @@ class PaymentReconciliation(Document):
 							{
 								"reference_type": inv.voucher_type,
 								"reference_name": inv.voucher_no,
-								"amount": -(inv.outstanding_in_account_currency),
+								"outstanding_amount": -(inv.outstanding_in_account_currency),
+								"amount": -(inv.invoice_amount_in_account_currency),
 								"posting_date": inv.posting_date,
 								"currency": inv.currency,
 								"cost_center": inv.cost_center,
@@ -459,7 +460,7 @@ class PaymentReconciliation(Document):
 		for pay in args.get("payments"):
 			pay.update({"unreconciled_amount": pay.get("outstanding_amount")})
 			for inv in args.get("invoices"):
-				if pay.get("amount") >= inv.get("outstanding_amount"):
+				if pay.get("outstanding_amount") >= inv.get("outstanding_amount"):
 					res = self.get_allocated_entry(pay, inv, inv["outstanding_amount"])
 					pay["outstanding_amount"] = flt(pay.get("outstanding_amount")) - flt(inv.get("outstanding_amount"))
 					inv["outstanding_amount"] = 0
