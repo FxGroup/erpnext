@@ -228,11 +228,14 @@ class PaymentReconciliation(Document):
 			conditions.append(jea.against_account.like(f"%%{self.bank_cash_account}%%"))
 
 		# Subquery to calculate the total JE amount from ALL Journal Entry Accounts
-		# This gets the sum of all debit entries in the JE (which equals total credit)
+		# This gets the sum of all credit entries in the JE which match the receivable/payable account
 		total_amount_subquery = (
 			qb.from_(jea_total)
-			.select(Sum(jea_total.debit_in_account_currency))
-			.where(jea_total.parent == je.name)
+			.select(Sum(jea_total.credit_in_account_currency))
+			.where(
+				(jea_total.parent == je.name) &
+				(jea_total.account == self.receivable_payable_account)
+			)
 		)
 
 		journal_query = (
@@ -269,7 +272,7 @@ class PaymentReconciliation(Document):
 		if self.payment_limit:
 			journal_query = journal_query.limit(self.payment_limit)
 
-		journal_entries = journal_query.run(as_dict=True)
+		journal_entries = journal_query.run(as_dict=True, debug=True)
 
 		return list(journal_entries)
 
