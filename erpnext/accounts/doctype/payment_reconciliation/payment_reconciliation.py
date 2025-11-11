@@ -513,7 +513,7 @@ class PaymentReconciliation(Document):
 				"invoice_type": inv.get("invoice_type"),
 				"invoice_number": inv.get("invoice_number"),
 				"unreconciled_amount": pay.get("unreconciled_amount"),
-				"amount": pay.get("amount"),
+				"amount": pay.get("outstanding_amount"),
 				"allocated_amount": allocated_amount,
 				"difference_amount": pay.get("difference_amount"),
 				"currency": inv.get("currency"),
