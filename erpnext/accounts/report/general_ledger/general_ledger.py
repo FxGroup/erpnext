@@ -514,7 +514,7 @@ def set_bill_no(gl_entries, filters):
 			gl["due_date"] = si_details.get(gl.get("against_voucher"), {}).get("due_date", "")
 			gl["transaction_date"] = si_details.get(gl.get("against_voucher"), {}).get("transaction_date", "")
 			if filters.get("company") == "RN Labs":
-				gl["patient_name"] = si_patient_details.get(gl.get("against_voucher"), "").get("patient_name", "")
+				gl["patient_name"] = si_patient_details.get(gl.get("against_voucher"), {}).get("patient_name", "")
 
 
 def get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances=None):
