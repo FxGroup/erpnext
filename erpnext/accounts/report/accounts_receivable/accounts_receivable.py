@@ -65,9 +65,6 @@ class ReceivablePayableReport:
 			else self.filters.report_date
 		)
 
-		if self.filters.report_date > getdate(nowdate()):
-			frappe.msgprint(msg="You are using a report date in the future. The values shown are accurate insofar as nothing changes between now and the report date",title="Warning",indicator="red")
-
 		if not self.filters.range:
 			self.filters.range = "30, 60, 90, 120"
 		self.ranges = [num.strip() for num in self.filters.range.split(",") if num.strip().isdigit()]
