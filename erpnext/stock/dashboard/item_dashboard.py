@@ -13,8 +13,10 @@ from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry impor
 def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=0, sort_by='actual_qty', sort_order='desc', limit_page_length=20):
 	'''Self Modification of Return data to render the item dashboard'''
 	item_code_filter = ""
+	product_id = None
 	if item_code:
 		item_code_filter = 'and bin.item_code = "{}"'.format(item_code)
+		product_id = frappe.db.get_value("Item", item_code, 'product_id')
 	warehouse_filter = ""
 	if warehouse:
 		warehouse_filter = 'and bin.warehouse = "{}"'.format(warehouse)
@@ -113,7 +115,7 @@ def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=
 		
 	params = {
 		"item_code": item_code,
-		"cur_product_id": item.get("product_id"),
+		"cur_product_id": product_id,
 		"current_site": get_default_company(),
 		"method": "item_exists", 
 		"has_batch_no": has_batch_no
