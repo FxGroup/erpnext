@@ -379,7 +379,7 @@ def get_gl_filters(doc):
 		"report_date": doc.to_date,  # Use to_date for historical statements
 		"party_type": "Customer",
 		"party": [c.customer for c in doc.customers],
-		"party_name": "Customer",
+		"party_name": [c.customer_name for c in doc.customers],
 		"presentation_currency": doc.currency,
 		"categorize_by": "Categorize by Party",
 		"currency": doc.currency,
