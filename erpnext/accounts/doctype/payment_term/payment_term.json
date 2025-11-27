@@ -53,7 +53,7 @@
    "fieldname": "due_date_based_on",
    "fieldtype": "Select",
    "label": "Due Date Based On",
-   "options": "Day(s) after invoice date\nDay(s) after the end of the invoice month\nMonth(s) after the end of the invoice month"
+   "options": "Day(s) after invoice date\nDay(s) after the end of the invoice month\nDay(s) after the end of the invoice following month\nMonth(s) after the end of the invoice month"
   },
   {
    "bold": 1,
