@@ -820,7 +820,7 @@ def get_supplier_invoice_details(filters):
 	return inv_details
 
 def get_sales_invoice_details(filters):
-	conditions = ["po_no is not null", "po_no != ''"]
+	conditions = []
 
 	if filters.get("party_type") == "Customer" and filters.get("party"):
 		conditions.append("customer in %(party)s")
@@ -829,15 +829,15 @@ def get_sales_invoice_details(filters):
 		conditions.append("name = %(voucher_no)s")
 
 	if filters.get("from_date"):
-		conditions.append("posting_date >= %(from_date)s")
+		conditions.append("transaction_date >= %(from_date)s")
 
 	if filters.get("to_date"):
-		conditions.append("posting_date <= %(to_date)s")
+		conditions.append("transaction_date <= %(to_date)s")
 
 	if filters.get("show_cancelled_entries") == False:
 		conditions.append("docstatus = 1")
 
-	condition_string = " and ".join(conditions)
+	condition_string = " and ".join(conditions) if conditions else "1=1"
 
 	inv_details = {}
 	for d in frappe.db.sql(
