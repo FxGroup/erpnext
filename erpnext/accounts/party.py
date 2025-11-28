@@ -625,7 +625,9 @@ def validate_party_accounts(doc):
 
 @frappe.whitelist()
 def get_due_date(posting_date, party_type, party, company=None, bill_date=None, template_name=None):
-	"""Get due date from `Payment Terms Template`"""
+	"""
+	Posting date will be transaction_date for sales invoices, all other docs it will remain posting_date
+	"""
 	due_date = None
 	if (bill_date or posting_date) and party:
 		due_date = bill_date or posting_date
@@ -642,9 +644,11 @@ def get_due_date(posting_date, party_type, party, company=None, bill_date=None, 
 					due_date = get_due_date_from_template(template_name, posting_date, bill_date).strftime(
 						"%Y-%m-%d"
 					)
+
 	# If due date is calculated from bill_date, check this condition
 	if getdate(due_date) < getdate(posting_date):
 		due_date = posting_date
+
 	return due_date
 
 
@@ -656,7 +660,6 @@ def get_due_date_from_template(template_name, posting_date, bill_date):
 	:return: String representing the calculated due date
 	"""
 	due_date = getdate(bill_date or posting_date)
-
 	template = frappe.get_doc("Payment Terms Template", template_name)
 
 	for term in template.terms:
@@ -664,8 +667,11 @@ def get_due_date_from_template(template_name, posting_date, bill_date):
 			due_date = max(due_date, add_days(due_date, term.credit_days))
 		elif term.due_date_based_on == "Day(s) after the end of the invoice month":
 			due_date = max(due_date, add_days(get_last_day(due_date), term.credit_days))
+		elif term.due_date_based_on == "Day(s) after the end of the invoice following month":
+			due_date = max(due_date, add_days(get_last_day(add_months(due_date, 1)), term.credit_days))
 		else:
 			due_date = max(due_date, get_last_day(add_months(due_date, term.credit_months)))
+
 	return due_date
 
 

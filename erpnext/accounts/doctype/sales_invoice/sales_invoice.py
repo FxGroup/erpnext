@@ -674,9 +674,10 @@ class SalesInvoice(SellingController):
 			self.party_account_currency = frappe.db.get_value(
 				"Account", self.debit_to, "account_currency", cache=True
 			)
+   
 		if not self.due_date and self.customer:
 			self.due_date = get_due_date(
-				self.posting_date,
+				self.transaction_date,
 				"Customer",
 				self.customer,
 				self.company,

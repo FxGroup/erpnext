@@ -162,7 +162,7 @@ def get_report_pdf(doc, consolidated=True, customer=None, base64=False):
 			cust for cust in doc.customers if cust.customer == customer
 		]
 	statement_dict = get_statement_dict(doc)
-	
+
 	if not bool(statement_dict):
 		return False
 	elif consolidated:

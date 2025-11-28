@@ -915,10 +915,17 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 
 			if ((this.frm.doc.doctype == "Sales Invoice" && this.frm.doc.customer) ||
 				(this.frm.doc.doctype == "Purchase Invoice" && this.frm.doc.supplier)) {
+					
+				// For Sales Invoice, use transaction_date if available, otherwise posting_date
+				var date_for_due = me.frm.doc.doctype == "Sales Invoice" && me.frm.doc.transaction_date
+					? me.frm.doc.transaction_date
+					: me.frm.doc.posting_date;
+
+				console.log(`Setting the posting date value to: ${date_for_due}`)
 				return frappe.call({
 					method: "erpnext.accounts.party.get_due_date",
 					args: {
-						"posting_date": me.frm.doc.posting_date,
+						"posting_date": date_for_due,
 						"party_type": me.frm.doc.doctype == "Sales Invoice" ? "Customer" : "Supplier",
 						"bill_date": me.frm.doc.bill_date,
 						"party": me.frm.doc.doctype == "Sales Invoice" ? me.frm.doc.customer : me.frm.doc.supplier,
@@ -2967,7 +2974,14 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		var me = this;
 		const doc = this.frm.doc;
 		if(doc.payment_terms_template && doc.doctype !== 'Delivery Note' && !doc.is_return) {
-			var posting_date = doc.posting_date || doc.transaction_date;
+			let posting_date;
+
+			if (doc.doctype == "Sales Invoice") {
+				posting_date = doc.transaction_date;
+			} else {
+				posting_date = doc.posting_date || doc.transaction_date;
+			}
+
 			frappe.call({
 				method: "erpnext.controllers.accounts_controller.get_payment_terms",
 				args: {
@@ -3003,12 +3017,20 @@ erpnext.TransactionController = class TransactionController extends erpnext.taxe
 		});
 
 		if(row.payment_term) {
+			let posting_date;
+
+			if (this.frm.doc.doctype == "Sales Invoice") {
+				posting_date = this.frm.doc.transaction_date;
+			} else {
+				posting_date = this.frm.doc.posting_date || this.frm.doc.transaction_date;
+			}
+
 			frappe.call({
 				method: "erpnext.controllers.accounts_controller.get_payment_term_details",
 				args: {
 					term: row.payment_term,
 					bill_date: this.frm.doc.bill_date,
-					posting_date: this.frm.doc.posting_date || this.frm.doc.transaction_date,
+					posting_date: posting_date,
 					grand_total: this.frm.doc.rounded_total || this.frm.doc.grand_total,
 					base_grand_total: this.frm.doc.base_rounded_total || this.frm.doc.base_grand_total
 				},

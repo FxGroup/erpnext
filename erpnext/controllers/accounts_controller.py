@@ -859,7 +859,7 @@ class AccountsController(TransactionBase):
 		from erpnext.accounts.party import validate_due_date
 
 		posting_date = (
-			self.posting_date if self.doctype == "Sales Invoice" else (self.bill_date or self.posting_date)
+			self.transaction_date if self.doctype == "Sales Invoice" else (self.bill_date or self.posting_date)
 		)
 
 		# skip due date validation for records via Data Import
@@ -2454,7 +2454,11 @@ class AccountsController(TransactionBase):
 			if party_type and party:
 				party_account_currency = get_party_account_currency(party_type, party, self.company)
 
-		posting_date = self.get("bill_date") or self.get("posting_date") or self.get("transaction_date")
+		if self.doctype == "Sales Invoice":
+			posting_date = self.get('transaction_date')
+		else:
+			posting_date = self.get("bill_date") or self.get("posting_date")
+
 		date = self.get("due_date")
 		due_date = date or posting_date
 
@@ -2583,7 +2587,11 @@ class AccountsController(TransactionBase):
 
 		self.payment_schedule = []
 		self.payment_terms_template = po_or_so.payment_terms_template
-		posting_date = self.get("bill_date") or self.get("posting_date") or self.get("transaction_date")
+  
+		if self.doctype == "Sales Invoice":
+			posting_date = self.get('transaction_date')
+		else:
+			posting_date = self.get("bill_date") or self.get("posting_date")
 
 		for schedule in po_or_so.payment_schedule:
 			payment_schedule = {
@@ -3445,8 +3453,11 @@ def get_due_date(term, posting_date=None, bill_date=None):
 		due_date = add_days(date, cint(term.credit_days))
 	elif term.due_date_based_on == "Day(s) after the end of the invoice month":
 		due_date = add_days(get_last_day(date), cint(term.credit_days))
+	elif term.due_date_based_on == "Day(s) after the end of the invoice following month":
+		due_date = add_days(get_last_day(add_months(date, 1)), cint(term.credit_days))
 	elif term.due_date_based_on == "Month(s) after the end of the invoice month":
 		due_date = get_last_day(add_months(date, cint(term.credit_months)))
+
 	return due_date
 
 

@@ -341,7 +341,7 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 			this.frm,
 			"erpnext.accounts.party.get_party_details",
 			{
-				posting_date: this.frm.doc.posting_date,
+				posting_date: this.frm.doc.transaction_date,
 				party: this.frm.doc.customer,
 				party_type: "Customer",
 				account: this.frm.doc.debit_to,
@@ -374,7 +374,7 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 	country_code () {
 		erpnext.utils.get_party_details(this.frm,
 			"erpnext.accounts.party.get_party_details", {
-				posting_date: this.frm.doc.posting_date,
+				posting_date: this.frm.doc.transaction_date,
 				party: this.frm.doc.customer,
 				party_type: "Customer",
 				account: this.frm.doc.debit_to,
