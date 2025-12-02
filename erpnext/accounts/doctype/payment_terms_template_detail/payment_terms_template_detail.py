@@ -20,16 +20,8 @@ class PaymentTermsTemplateDetail(Document):
 		discount: DF.Float
 		discount_type: DF.Literal["Percentage", "Amount"]
 		discount_validity: DF.Int
-		discount_validity_based_on: DF.Literal[
-			"Day(s) after invoice date",
-			"Day(s) after the end of the invoice month",
-			"Month(s) after the end of the invoice month",
-		]
-		due_date_based_on: DF.Literal[
-			"Day(s) after invoice date",
-			"Day(s) after the end of the invoice month",
-			"Month(s) after the end of the invoice month",
-		]
+		discount_validity_based_on: DF.Literal["Day(s) after invoice date", "Day(s) after the end of the invoice month", "Month(s) after the end of the invoice month"]
+		due_date_based_on: DF.Literal["Day(s) after invoice date", "Day(s) after the end of the invoice month", "Day(s) after the end of the invoice following month", "Month(s) after the end of the invoice month"]
 		invoice_portion: DF.Float
 		mode_of_payment: DF.Link | None
 		parent: DF.Data

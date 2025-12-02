@@ -162,7 +162,7 @@ def get_report_pdf(doc, consolidated=True, customer=None, base64=False):
 			cust for cust in doc.customers if cust.customer == customer
 		]
 	statement_dict = get_statement_dict(doc)
-	
+
 	if not bool(statement_dict):
 		return False
 	elif consolidated:
@@ -726,8 +726,6 @@ def send_emails(document_name, from_scheduler=False):
 			context = get_context(customer, doc)
 			subject = frappe.render_template(doc.subject, context)
 			message = frappe.render_template(doc.body, context)
-
-			recipients = ["IT@fxmed.co.nz"]  # For testing only
 
 			enqueue_args = {
 				"queue":"short",

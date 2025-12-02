@@ -517,7 +517,6 @@ erpnext.sales_common = {
 				let me = this
 				let args = {
 					'item_code': doc.item_code, 
-					'item_name': doc.item_name, 
 					'warehouse': cur_frm.doc.set_warehouse, 
 					'qty': flt(doc.qty) * flt(doc.conversion_factor), 
 					"cur_batch_no": doc.batch_no, "accepts_backorders": cur_frm.doc.accepts_backorders, 
@@ -540,7 +539,6 @@ erpnext.sales_common = {
 							frappe.model.set_value(doc.doctype, doc.name, 'shortdated_batch', 0);
 						}
 						frappe.model.set_value(doc.doctype, doc.name, 'batch_no', r.message);
-						// debugger
 						if (r.content) {
 							console.log(r.content)
 							me.batch_selection(doc, r.content, r.lock_dialog, r.dialog_type);
