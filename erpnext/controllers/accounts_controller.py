@@ -3453,8 +3453,6 @@ def get_due_date(term, posting_date=None, bill_date=None):
 		due_date = add_days(date, cint(term.credit_days))
 	elif term.due_date_based_on == "Day(s) after the end of the invoice month":
 		due_date = add_days(get_last_day(date), cint(term.credit_days))
-	elif term.due_date_based_on == "Day(s) after the end of the invoice following month":
-		due_date = add_days(get_last_day(add_months(date, 1)), cint(term.credit_days))
 	elif term.due_date_based_on == "Month(s) after the end of the invoice month":
 		due_date = get_last_day(add_months(date, cint(term.credit_months)))
 
