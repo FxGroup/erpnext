@@ -727,8 +727,6 @@ def send_emails(document_name, from_scheduler=False):
 			subject = frappe.render_template(doc.subject, context)
 			message = frappe.render_template(doc.body, context)
 
-			recipients = ["IT@fxmed.co.nz"]  # For testing only
-
 			enqueue_args = {
 				"queue":"short",
 				"method":frappe.sendmail,
