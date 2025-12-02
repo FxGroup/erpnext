@@ -696,7 +696,6 @@ def send_emails(document_name, from_scheduler=False):
 		"reference_doctype": "Process Statement Of Accounts",
 		"reference_name": document_name
 	}
-
 	if company == "FxMed":
 		sender = "ar@fxmed.co.nz"
 		enqueue_args["sender"] = sender
@@ -706,9 +705,14 @@ def send_emails(document_name, from_scheduler=False):
 	elif company == "NaturalMeds":
 		sender = "ar@naturalmeds.co.nz"
 		enqueue_args["sender"] = sender
+	elif company == "Therahealth":
+		sender = "support@therahealth.com.au"
+		enqueue_args["sender"] = sender
 	else:
 		company = None
 		sender = None
+		logger.error("Company not recognised for sending customer statements email.")
+		return
 
 	frappe.enqueue(**enqueue_args)
 	
@@ -730,6 +734,7 @@ def send_emails(document_name, from_scheduler=False):
 			enqueue_args = {
 				"queue":"short",
 				"method":frappe.sendmail,
+				"sender":sender,
 				"recipients":recipients,
 				"cc":cc,
 				"subject":subject,
@@ -740,8 +745,6 @@ def send_emails(document_name, from_scheduler=False):
 				"attachments":attachments,
 			}
 
-			if company == "FxMed" or company == "RN Labs":
-				enqueue_args["sender"] = sender
 
 			frappe.enqueue(**enqueue_args)
 
@@ -770,8 +773,8 @@ def send_emails(document_name, from_scheduler=False):
 				"queue":"short",
 				"method":frappe.sendmail,
 				"recipients":["IT@Fxmed.co.nz","ar@fxmed.co.nz"],
-				# sender=frappe.session.user, #Send as default outgoing
 				"subject": doc.company + ": Customer Statements Sending Complete",
+				"sender": sender,
 				"message":"Hi IT,<br><br><b>Company</b>: " + str(doc.company) + "<br><b>From</b>: " + str(doc.from_date) + "<br><b>To</b>: " + str(doc.to_date) + "<br><b>Customers Analysed</b>: " + str(len(doc.customers)) + "<br><b>Customers Sent</b>: " + str(len(report)) + "<br><br>Kind Regards, ERPNext",
 				# now=True,
 				"is_async":True,
@@ -779,8 +782,6 @@ def send_emails(document_name, from_scheduler=False):
 				"reference_name":document_name
 			}
 
-			if company == "FxMed":
-				enqueue_args["sender"] = sender
 
 			frappe.enqueue(**enqueue_args)
 
@@ -788,7 +789,7 @@ def send_emails(document_name, from_scheduler=False):
 			"queue":"short",
 			"method":frappe.sendmail,
 			"recipients":["IT@Fxmed.co.nz","ar@fxmed.co.nz"],
-			# sender=frappe.session.user, #Send as default outgoing
+			"sender": sender,
 			"subject": doc.company + ": Customer Statements Sending Complete",
 			"message":"Hi IT,<br><br><b>Company</b>: " + str(doc.company) + "<br><b>From</b>: " + str(doc.from_date) + "<br><b>To</b>: " + str(doc.to_date) + "<br><b>Customers Analysed</b>: " + str(len(doc.customers)) + "<br><b>Customers Sent</b>: " + str(len(report)) + "<br><br>Kind Regards, ERPNext",
 			# now=True,
@@ -797,8 +798,6 @@ def send_emails(document_name, from_scheduler=False):
 			"reference_name":document_name
 		}
 
-		if company == "FxMed":
-			enqueue_args["sender"] = sender
 			
 		#Send email to admin
 		frappe.enqueue(**enqueue_args)
