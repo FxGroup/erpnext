@@ -539,7 +539,6 @@ erpnext.sales_common = {
 							frappe.model.set_value(doc.doctype, doc.name, 'shortdated_batch', 0);
 						}
 						frappe.model.set_value(doc.doctype, doc.name, 'batch_no', r.message);
-						// debugger
 						if (r.content) {
 							console.log(r.content)
 							me.batch_selection(doc, r.content, r.lock_dialog, r.dialog_type);
