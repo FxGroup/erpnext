@@ -2591,7 +2591,7 @@ class AccountsController(TransactionBase):
 		if self.doctype == "Sales Invoice":
 			posting_date = self.get('transaction_date')
 		else:
-			posting_date = self.get("bill_date") or self.get("posting_date")
+			posting_date = self.get("bill_date") or self.get("posting_date") or self.get("transaction_date")
 
 		for schedule in po_or_so.payment_schedule:
 			payment_schedule = {
