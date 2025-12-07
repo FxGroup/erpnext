@@ -517,7 +517,7 @@ erpnext.sales_common = {
 				let me = this
 				let args = {
 					'item_code': doc.item_code, 
-					'warehouse': cur_frm.doc.set_warehouse, 
+					'warehouse': cur_frm.doc.set_warehouse || doc.warehouse, 
 					'qty': flt(doc.qty) * flt(doc.conversion_factor), 
 					"cur_batch_no": doc.batch_no, "accepts_backorders": cur_frm.doc.accepts_backorders, 
 					"actual_qty": doc.actual_qty,
