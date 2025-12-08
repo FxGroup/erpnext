@@ -17,10 +17,10 @@
             <div class="col-sm-3 small">
                 <span class="inline-graph">
                     <span class="inline-graph-half" title="{{ __(" Reserved Qty") }}">
-                        <span class="inline-graph-count">{{"Backordered: "+ d.total_reserved }}</span>
+                        <span class="inline-graph-count">{{"Backordered: "+ d.backorder_qty }}</span>
                         <span class="inline-graph-bar">
                             <span class="inline-graph-bar-inner"
-                                style="width: {{ cint(Math.abs(d.total_reserved)/max_count * 100) || 5 }}%">
+                                style="width: {{ cint(Math.abs(d.backorder_qty)/max_count * 100) || 5 }}%">
                             </span>
                         </span>
                     </span>
