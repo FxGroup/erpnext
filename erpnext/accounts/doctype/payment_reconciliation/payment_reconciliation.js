@@ -61,6 +61,22 @@ erpnext.accounts.PaymentReconciliationController = class PaymentReconciliationCo
 				},
 			};
 		});
+		this.frm.set_query("cost_center", "payments", () => {
+			return {
+				filters: {
+					company: this.frm.doc.company,
+					is_group: 0,
+				},
+			};
+		});
+		this.frm.set_query("cost_center", "allocation", () => {
+			return {
+				filters: {
+					company: this.frm.doc.company,
+					is_group: 0,
+				},
+			};
+		});
 	}
 
 	refresh() {
@@ -318,7 +334,9 @@ erpnext.accounts.PaymentReconciliationController = class PaymentReconciliationCo
 					},
 					{
 						fieldtype: "HTML",
-						options: "<b> New Journal Entry will be posted for the difference amount </b>",
+						options: __(
+							"New Journal Entry will be posted for the difference amount. The Posting Date can be modified."
+						).bold(),
 					},
 				],
 				primary_action: () => {

@@ -103,6 +103,7 @@ class Asset(AccountsController):
 		status: DF.Literal[
 			"Draft",
 			"Submitted",
+			"Cancelled",
 			"Partially Depreciated",
 			"Fully Depreciated",
 			"Sold",
@@ -458,6 +459,7 @@ class Asset(AccountsController):
 				"asset_name": self.asset_name,
 				"target_location": self.location,
 				"to_employee": self.custodian,
+				"company": self.company,
 			}
 		]
 		asset_movement = frappe.get_doc(
@@ -1204,7 +1206,7 @@ def get_values_from_purchase_doc(purchase_doc_name, item_code, doctype):
 
 	return {
 		"company": purchase_doc.company,
-		"purchase_date": purchase_doc.get("bill_date") or purchase_doc.get("posting_date"),
+		"purchase_date": purchase_doc.get("posting_date"),
 		"gross_purchase_amount": flt(first_item.base_net_amount),
 		"asset_quantity": first_item.qty,
 		"cost_center": first_item.cost_center or purchase_doc.get("cost_center"),
