@@ -4,6 +4,16 @@
 cur_frm.cscript.refresh = cur_frm.cscript.inspection_type;
 
 frappe.ui.form.on("Quality Inspection", {
+	onload(frm) {
+		frm.trigger("set_default_company");
+	},
+
+	set_default_company(frm) {
+		if (frm.doc.docstatus === 0 && !frm.doc.company) {
+			frm.set_value("company", frappe.defaults.get_default("company"));
+		}
+	},
+
 	setup: function (frm) {
 		frm.set_query("reference_name", function () {
 			return {
