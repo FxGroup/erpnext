@@ -83,6 +83,7 @@ frappe.pages["stock-balance"].on_page_load = function (wrapper) {
 			page_length: 20,
 			method: "erpnext.stock.dashboard.item_dashboard.get_data",
 			template: "item_dashboard_list",
+			source: "stock_summary"
 		});
 
 		page.item_dashboard.before_refresh = function () {

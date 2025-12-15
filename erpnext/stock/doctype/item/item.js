@@ -510,6 +510,7 @@ $.extend(erpnext.item, {
 					page_length: 20,
 					method: "erpnext.stock.dashboard.item_dashboard.get_data",
 					template: "item_dashboard_list",
+					source: "item"
 				});
 				erpnext.item.item_dashboard.refresh();
 			});
