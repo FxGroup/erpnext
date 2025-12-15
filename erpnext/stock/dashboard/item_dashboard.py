@@ -10,7 +10,7 @@ from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry impor
 
 
 @frappe.whitelist()
-def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=0, sort_by='actual_qty', sort_order='desc', limit_page_length=20):
+def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=0, sort_by='actual_qty', sort_order='desc', limit_page_length=20, source=None):
 	'''Self Modification of Return data to render the item dashboard'''
 	item_code_filter = ""
 	product_id = None
@@ -112,30 +112,30 @@ def get_data(item_code=None, warehouse=None, item_group=None, brand=None, start=
 			}
 		)
 		current_site_qty = flt(item.actual_qty, precision)
-		
-	params = {
-		"item_code": item_code,
-		"cur_product_id": product_id,
-		"current_site": get_default_company(),
-		"method": "item_exists", 
-		"has_batch_no": has_batch_no
-	}
-	
-	# Fetching Intersite Item Data
-	intersite_items = check_item_exists(params)
 
-	if intersite_items:
-		if isinstance(intersite_items, dict) and intersite_items.get('error'):
-			frappe.throw(intersite_items.get('error'))
-		else:
-			batch_match = intersite_items[0].get('batch_match', 0)
-			for item in intersite_items:
-				item["current_site_qty"] = current_site_qty
-				item["show_stock_buttons"] = show_button
+	if source != "stock_summary":
+		params = {
+			"item_code": item_code,
+			"cur_product_id": product_id,
+			"current_site": get_default_company(),
+			"method": "item_exists",
+			"has_batch_no": has_batch_no
+		}
 
-			for element in items:	
-				element['batch_match'] = batch_match
+		intersite_items = check_item_exists(params)
 
-			items = items + intersite_items
+		if intersite_items:
+			if isinstance(intersite_items, dict) and intersite_items.get('error'):
+				frappe.throw(intersite_items.get('error'))
+			else:
+				batch_match = intersite_items[0].get('batch_match', 0)
+				for item in intersite_items:
+					item["current_site_qty"] = current_site_qty
+					item["show_stock_buttons"] = show_button
+
+				for element in items:
+					element['batch_match'] = batch_match
+
+				items = items + intersite_items
 
 	return items

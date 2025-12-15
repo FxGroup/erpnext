@@ -295,7 +295,8 @@ erpnext.stock.ItemDashboard = class ItemDashboard {
 			sort_by: this.sort_by,
 			sort_order: this.sort_order,
 			brand: this.brand,
-			limit_page_length: this.limit_page_length
+			limit_page_length: this.limit_page_length,
+			source: this.source
 		};
 
 		var me = this;
