@@ -253,6 +253,9 @@ class SerialandBatchBundle(Document):
 				}
 			)
 
+		if self.voucher_type == "Delivery Note":
+			kwargs["ignore_voucher_nos"] = self.get_sre_against_dn()
+
 		available_serial_nos = get_available_serial_nos(frappe._dict(kwargs))
 
 		serial_no_warehouse = {}
@@ -1319,7 +1322,7 @@ class SerialandBatchBundle(Document):
 					sn_table.purchase_document_no,
 					self.voucher_no if not sn_table.purchase_document_no else self.voucher_no,
 				)
-				.where(sn_table.name.isin(serial_nos))
+				.where((sn_table.name.isin(serial_nos)) & (sn_table.purchase_document_no.isnull()))
 			).run()
 
 	def validate_serial_and_batch_inventory(self):
@@ -1365,7 +1368,36 @@ class SerialandBatchBundle(Document):
 		if self.voucher_type == "POS Invoice":
 			return
 
-		if frappe.db.get_value(self.voucher_type, self.voucher_no, "docstatus") == 1:
+		child_doctype = self.voucher_type + " Item"
+		mapper = {
+			"Asset Capitalization": "Asset Capitalization Stock Item",
+			"Asset Repair": "Asset Repair Consumed Item",
+			"Stock Entry": "Stock Entry Detail",
+		}.get(self.voucher_type)
+
+		if mapper:
+			child_doctype = mapper
+
+		if self.voucher_type == "Delivery Note" and not frappe.db.exists(
+			"Delivery Note Item", self.voucher_detail_no
+		):
+			child_doctype = "Packed Item"
+
+		elif self.voucher_type == "Sales Invoice" and not frappe.db.exists(
+			"Sales Invoice Item", self.voucher_detail_no
+		):
+			child_doctype = "Packed Item"
+
+		elif self.voucher_type == "Subcontracting Receipt" and not frappe.db.exists(
+			"Subcontracting Receipt Item", self.voucher_detail_no
+		):
+			child_doctype = "Subcontracting Receipt Supplied Item"
+
+		if (
+			frappe.db.get_value(self.voucher_type, self.voucher_no, "docstatus") == 1
+			and self.voucher_detail_no
+			and frappe.db.exists(child_doctype, self.voucher_detail_no)
+		):
 			msg = f"""The {self.voucher_type} {bold(self.voucher_no)}
 				is in submitted state, please cancel it first"""
 			frappe.throw(_(msg))
@@ -1400,6 +1432,22 @@ class SerialandBatchBundle(Document):
 		frappe.qb.from_(SBBE).delete().where(SBBE.parent == self.name).run()
 
 		self.set("entries", [])
+
+	def get_sre_against_dn(self):
+		from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+			get_sre_against_so_for_dn,
+		)
+
+		so_name, so_detail_no = frappe.db.get_value(
+			"Delivery Note Item", self.voucher_detail_no, ["against_sales_order", "so_detail"]
+		) or [None, None]
+
+		if so_name and so_detail_no:
+			sre_names = get_sre_against_so_for_dn(so_name, so_detail_no)
+
+			return sre_names
+
+		return None
 
 
 @frappe.whitelist()
@@ -2299,7 +2347,11 @@ def get_auto_batch_nos(kwargs):
 
 	stock_ledgers_batches = get_stock_ledgers_batches(kwargs)
 	pos_invoice_batches = get_reserved_batches_for_pos(kwargs)
-	sre_reserved_batches = get_reserved_batches_for_sre(kwargs)
+
+	sre_reserved_batches = frappe._dict()
+	if not kwargs.ignore_reserved_stock:
+		sre_reserved_batches = get_reserved_batches_for_sre(kwargs)
+
 	picked_batches = frappe._dict()
 	if kwargs.get("is_pick_list"):
 		picked_batches = get_picked_batches(kwargs)
@@ -2501,6 +2553,9 @@ def get_voucher_wise_serial_batch_from_bundle(**kwargs) -> dict[str, dict]:
 		child_row = group_by_voucher[key]
 		if row.serial_no:
 			child_row["serial_nos"].append(row.serial_no)
+			child_row["item_row"].qty = len(child_row["serial_nos"]) * (
+				-1 if row.type_of_transaction == "Outward" else 1
+			)
 
 		if row.batch_no:
 			child_row["batch_nos"][row.batch_no] += row.qty

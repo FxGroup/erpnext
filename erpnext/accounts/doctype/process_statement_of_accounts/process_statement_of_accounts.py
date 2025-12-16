@@ -2,41 +2,26 @@
 # For license information, please see license.txt
 
 
-import copy
-
-import frappe
-import os
 import re
+import copy
+import frappe
+
 from frappe import _
-from frappe.desk.reportview import get_match_cond
-from frappe.model.document import Document
-from frappe.utils import add_days, nowdate, add_months, format_date, getdate, today, flt
-from frappe.utils.jinja import validate_template
 from frappe.utils.pdf import get_pdf
-from frappe.www.printview import get_print_style
-
-from erpnext import get_company_currency
-from erpnext.accounts.party import get_party_account_currency
-from erpnext.accounts.report.accounts_receivable.accounts_receivable import execute as get_ar_soa
-from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
-	execute as get_ageing,
-)
-
-from erpnext.accounts.report.accounts_receivable.accounts_receivable import (
-	execute as get_outstanding,
-)
-from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
-
-import pdb
+from frappe.model.document import Document
 from erpnext import get_default_company
+from frappe.utils.jinja import validate_template
+from frappe.www.printview import get_print_style
+from frappe.utils import add_days, nowdate, add_months, format_date, getdate, today
+from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
+from erpnext.accounts.report.accounts_receivable.accounts_receivable import execute as get_ar_soa
+from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (execute as get_ageing)
+
 
 logger = frappe.logger("Process Statement of Account", allow_site=False, file_count=1, max_size=500000000)
 
 
 class ProcessStatementOfAccounts(Document):
-	# begin: auto-generated types
-	# This code is auto-generated. Do not modify anything in this block.
-
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
@@ -90,7 +75,6 @@ class ProcessStatementOfAccounts(Document):
 		terms_and_conditions: DF.Link | None
 		territory: DF.Link | None
 		to_date: DF.Date | None
-	# end: auto-generated types
 
 	def validate(self):
 		self.validate_account()
@@ -99,12 +83,15 @@ class ProcessStatementOfAccounts(Document):
 
 		if not self.subject:
 			self.subject = "Statement Of Accounts for {{ customer.customer_name }}"
+   
 		if not self.body:
 			if self.report == "General Ledger":
 				body_str = " from {{ doc.from_date }} to {{ doc.to_date }}."
 			else:
 				body_str = " until {{ doc.posting_date }}."
+    
 			self.body = "Hello {{ customer.customer_name }},<br>PFA your Statement Of Accounts" + body_str
+   
 		if not self.pdf_name:
 			self.pdf_name = "{{ customer.customer_name }}"
 
@@ -158,29 +145,79 @@ class ProcessStatementOfAccounts(Document):
 
 
 def get_report_pdf(doc, consolidated=True, customer=None, base64=False):
-	#Allow user to download report for just 1 customer
+	logger.info("[Get Report PDF] Starting PDF generation. Consolidated: {}, Customer: {}".format(consolidated, customer))
+
 	if customer:
 		doc.customers = [
 			cust for cust in doc.customers if cust.customer == customer
 		]
-  
+
 	statement_dict = get_statement_dict(doc)
 
 	if not bool(statement_dict):
+		logger.info("[Get Report PDF] No statements generated")
 		return False
-
 	elif consolidated:
 		delimiter = '<div style="page-break-before: always;"></div>' if doc.include_break else ""
 		result = delimiter.join(list(statement_dict.values()))
+		logger.info("[Get Report PDF] Generating consolidated PDF for {} customers".format(len(statement_dict)))
 		return get_pdf(result, {"orientation": doc.orientation})
 	else:
-		for customer, statement_html in statement_dict.items():
-			logger.info("Generating statement for customer: {}".format(customer))
+		logger.info("[Get Report PDF] Generating individual PDFs for {} customers".format(len(statement_dict)))
+		for idx, (customer, statement_html) in enumerate(statement_dict.items(), 1):
+			logger.info("[Get Report PDF][{}/{}] Generating statement for customer: {}".format(idx, len(statement_dict), customer))
 			statement_dict[customer] = get_pdf(statement_html, {"orientation": doc.orientation}, meta={"base64":base64})
+
+		logger.info("[Get Report PDF] Finished generating {} individual PDFs".format(len(statement_dict)))
 		return statement_dict
 
 
+def consolidate_vouchers(res):
+	consolidated = []
+	voucher_map = {}
+
+	for row in res:
+		if not row.get('voucher_no'):
+			consolidated.append(row)
+			continue
+
+		voucher_key = (
+			row.get('voucher_type'),
+			row.get('voucher_no'),
+			row.get('party')
+		)
+
+		if voucher_key not in voucher_map:
+			voucher_map[voucher_key] = len(consolidated)
+			consolidated.append(row.copy())
+		else:
+			idx = voucher_map[voucher_key]
+			consolidated[idx]['debit'] = (consolidated[idx].get('debit', 0) or 0) + (row.get('debit', 0) or 0)
+			consolidated[idx]['credit'] = (consolidated[idx].get('credit', 0) or 0) + (row.get('credit', 0) or 0)
+			consolidated[idx]['debit_in_account_currency'] = (consolidated[idx].get('debit_in_account_currency', 0) or 0) + (row.get('debit_in_account_currency', 0) or 0)
+			consolidated[idx]['credit_in_account_currency'] = (consolidated[idx].get('credit_in_account_currency', 0) or 0) + (row.get('credit_in_account_currency', 0) or 0)
+
+			if consolidated[idx].get('against_voucher'):
+				consolidated[idx]['against_voucher'] = None
+				consolidated[idx]['against_voucher_type'] = None
+
+	balance = 0
+	for row in consolidated:
+		if row.get('account') == "'Opening'":
+			balance = row.get('balance', 0) or 0
+		elif row.get('voucher_no'):
+			debit = row.get('debit', 0) or 0
+			credit = row.get('credit', 0) or 0
+			balance += debit - credit
+			row['balance'] = balance
+		elif row.get('account') in ["'Total'", "'Closing (Opening + Total)'"]:
+			row['balance'] = balance
+
+	return consolidated
+
+
 def get_statement_dict(doc, get_statement_dict=False):
+	logger.info("[Get Statement Dict] Starting statement dictionary generation")
 	statement_dict = {}
 	ageing = ""
 
@@ -192,33 +229,34 @@ def get_statement_dict(doc, get_statement_dict=False):
 	if doc.ignore_cr_dr_notes:
 		filters.update({"ignore_cr_dr_notes": True})
 
-	logger.info("Building party list for processing")
 	party_list = []
 	for entry in doc.customers:
 		party_list.append(entry.customer)
 
-	logger.info("Party list built. Party count: {}".format(len(party_list)))
-	logger.info("Starting AR Ageing calculation")
+	logger.info("[Get Statement Dict] Party list built. Party count: {}".format(len(party_list)))
+	logger.info("[Get Statement Dict] Starting AR Ageing calculation")
 
 	if doc.include_ageing:
 		ageing = set_ageing(doc,party_list)
 
-	logger.info("AR Ageing calculation completed")
-	logger.info("Starting GL Data fetch")
+	logger.info("[Get Statement Dict] AR Ageing calculation completed")
+	logger.info("[Get Statement Dict] Starting GL Data fetch")
 
 	if doc.report == "General Ledger":
 		filters.update(get_gl_filters(doc))
 		col, res = get_soa(filters)
 
-	logger.info("GL data fetch completed")
+		# Consolidate duplicate vouchers (payments/invoices split across multiple rows)
+		res = consolidate_vouchers(res)
+	else:
+		return []
 
-	for entry in doc.customers:
-		logger.info("Processing customer: {}".format(entry.customer))
+	logger.info("[Get Statement Dict] GL data fetch completed")
+
+	for idx, entry in enumerate(doc.customers, 1):
+		logger.info("[Get Statement Dict][{}/{}] Processing customer: {}".format(idx, len(doc.customers), entry.customer))
 
 		if doc.report == "General Ledger":
-
-			# Filter logic: Keep rows where party matches OR rows that are Opening/Total/Closing
-			# that belong to this customer's section (determined by proximity to party rows)
 			filtered_res = []
 			in_customer_section = False
 			pending_opening_rows = []
@@ -226,53 +264,32 @@ def get_statement_dict(doc, get_statement_dict=False):
 			for i, r in enumerate(res):
 				account = r.get("account", "")
 
-				# Skip rows without an account value
 				if not account:
 					continue
 
-				# Check if this is a party-specific row (transaction row)
 				if r.get("party") == entry.customer:
-					# Add any pending opening rows we collected
 					filtered_res.extend(pending_opening_rows)
 					pending_opening_rows = []
-
-					# Add this transaction row
 					filtered_res.append(r)
 					in_customer_section = True
-
 				elif r.get("party") and r.get("party") != entry.customer:
-					# Different customer - exit this customer's section
 					in_customer_section = False
 					pending_opening_rows = []
-
 				elif not r.get("party"):
-					# This row has no party field - could be Opening/Total/Closing or separator
-
-					# Check if it's a party-specific Opening/Total/Closing row
 					if account in ["'Opening'", "'Total'", "'Closing (Opening + Total)'"]:
 						if in_customer_section:
-							# We're in the customer section, so this Total/Closing row belongs to them
 							filtered_res.append(r)
 
-							# Closing row is the last row for this customer - stop processing
 							if account == "'Closing (Opening + Total)'":
 								break
 						elif account == "'Opening'":
-							# Only collect the opening row if we haven't found the customer yet
-							# Replace any previously collected rows - we only want the most recent opening
 							if not filtered_res:
 								pending_opening_rows = [r]
-						# Note: Total and Closing rows are NOT collected - they only apply if we're already in_customer_section
-
-					# Check if it's a separator row (blank row between parties)
 					elif r.get("debit_in_transaction_currency") is None:
 						if in_customer_section:
-							# Add separator after customer section
 							filtered_res.append(r)
-							# Exit customer section after separator
 							in_customer_section = False
 						else:
-							# Clear pending rows when we hit a separator - new section starting
 							if not filtered_res:
 								pending_opening_rows = []
 
@@ -281,7 +298,6 @@ def get_statement_dict(doc, get_statement_dict=False):
 			if not customer_res:
 				continue
 
-			# Clean up account field values by removing quotes and simplifying closing label
 			for row in customer_res:
 				if row.get("account"):
 					row["account"] = (
@@ -290,10 +306,8 @@ def get_statement_dict(doc, get_statement_dict=False):
 						.replace("Closing (Opening + Total)", "Closing")
 					)
 
-			#Cleanup Res
 			new_res = []
 			for item in customer_res:
-				# Clean up account field values by removing quotes and simplifying closing label
 				if item.get("debit") == item.get("credit") and item.get("account") not in ["Closing", "Opening"]:
 					continue
 				else:
@@ -302,18 +316,16 @@ def get_statement_dict(doc, get_statement_dict=False):
 			customer_res = new_res
 
 			if len(customer_res) == 2:
-				#No Transactions this month
 				if customer_res[1]["debit"] == 0 or (customer_res[1]["balance"] > -0.01 and customer_res[1]["balance"] < 0.01):
-					#No outstanding balance
 					if not doc.produce_0_statements:
 						continue
+  
 			if len(customer_res) == 0:
 				if not doc.produce_0_statements:
 					continue
 
 			if len(customer_res) >= 1:
 				if customer_res[-1]["balance"] == 0:
-					#No outstanding balance
 					if not doc.produce_0_statements:
 						continue
 
@@ -322,7 +334,6 @@ def get_statement_dict(doc, get_statement_dict=False):
 						continue
 
 		else:
-			#Block this path for now - Untested
 			return []
 			filters.update(get_ar_filters(doc, entry))
 			ar_res = get_ar_soa(filters)
@@ -340,10 +351,12 @@ def get_statement_dict(doc, get_statement_dict=False):
 			[customer_res, customer_ageing] if get_statement_dict else get_html(doc, filters, entry, col, customer_res, customer_ageing)
 		)
 
+	logger.info("[Get Statement Dict] Completed statement dictionary generation. Total statements: {}".format(len(statement_dict)))
 	return statement_dict
 
 
 def set_ageing(doc, party_list):
+	logger.info("[Set Ageing] Starting ageing calculation for {} parties".format(len(party_list)))
 	ageing_filters = frappe._dict(
 		{
 			"company": doc.company,
@@ -363,7 +376,8 @@ def set_ageing(doc, party_list):
 
 	if ageing:
 		ageing[0]["ageing_based_on"] = doc.ageing_based_on
-	
+
+	logger.info("[Set Ageing] Ageing calculation completed. Records: {}".format(len(ageing) if ageing else 0))
 	return ageing
 
 
@@ -423,6 +437,7 @@ def get_ar_filters(doc, entry):
 
 
 def get_html(doc, filters, entry, col, res, ageing):
+	logger.info("[Get HTML][{}] Rendering HTML template for this customer".format(entry.customer))
 	base_template_path = "frappe/www/printview.html"
 	template_path = "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
 	if doc.report == "General Ledger":
@@ -442,7 +457,7 @@ def get_html(doc, filters, entry, col, res, ageing):
 		from frappe.www.printview import get_letter_head
 
 		letter_head = get_letter_head(doc, 0)
-	
+
 	html = frappe.render_template(
 		template_path,
 		{
@@ -459,20 +474,23 @@ def get_html(doc, filters, entry, col, res, ageing):
 			else None,
 		},
 	)
- 
+
 	html = frappe.render_template(
 		base_template_path,
 		{"body": html, "css": get_print_style(), "title": "Statement For " + entry.customer},
 	)
- 
+
+	logger.info("[Get HTML][{}] HTML template rendered successfully for this customer.".format(entry.customer))
 	return html
 
 
 def get_customers_based_on_territory_or_customer_group(customer_collection, collection_name, currency):
+	logger.info("[Get Customers Territory/Group] Fetching customers for collection: {}, name: {}, currency: {}".format(customer_collection, collection_name, currency))
 	fields_dict = {
 		"Customer Group": "customer_group",
 		"Territory": "territory",
 	}
+
 	collection = frappe.get_doc(customer_collection, collection_name)
 	selected = [
 		customer.name
@@ -487,11 +505,15 @@ def get_customers_based_on_territory_or_customer_group(customer_collection, coll
 			order_by="lft asc, rgt desc",
 		)
 	]
-	return frappe.get_list(
+ 
+	customers = frappe.get_list(
 		"Customer",
 		fields=["name", "customer_name", "customer_primary_email_address", "customer_statement_email_address"],
 		filters=[[fields_dict[customer_collection], "IN", selected]],
 	)
+ 
+	logger.info("[Get Customers Territory/Group] Found {} customers".format(len(customers)))
+	return customers
 
 
 def get_logic_context(doc):
@@ -499,6 +521,7 @@ def get_logic_context(doc):
 
 
 def get_customers_based_on_custom_logic(custom_logic, currency=None):
+	logger.info("[Get Customers Custom Logic] Fetching customers with custom logic, currency: {}".format(currency))
 	customerList = frappe.db.sql(
 		"""
 		SELECT
@@ -542,26 +565,39 @@ def get_customers_based_on_custom_logic(custom_logic, currency=None):
 		if skipped == 0:
 			passCustomerList.append(customer)
 
+	logger.info("[Get Customers Custom Logic] Filtered to {} customers from {} total".format(len(passCustomerList), len(customerList)))
 	return passCustomerList
 
 
 def get_customers_based_on_sales_person(sales_person, currency):
+	logger.info("[Get Customers Sales Person] Fetching customers for sales person: {}, currency: {}".format(sales_person, currency))
 	lft, rgt = frappe.db.get_value("Sales Person", sales_person, ["lft", "rgt"])
-	records = frappe.db.sql(
-		"""
-		select distinct parent, parenttype
-		from `tabSales Team` steam
-		where parenttype = 'Customer'
-			and exists(select name from `tabSales Person` where lft >= %s and rgt <= %s and name = steam.sales_person)
-	""",
-		(lft, rgt),
-		as_dict=1,
-	)
+	records = frappe.db.sql("""
+		SELECT
+			DISTINCT parent,
+			parenttype
+		FROM
+			`tabSales Team` steam
+		WHERE
+			parenttype = 'Customer'
+			AND EXISTS(
+				SELECT
+					name
+				FROM
+					`tabSales Person`
+				WHERE
+					lft >= %s
+					AND rgt <= %s
+					AND name = steam.sales_person
+			)
+	""", (lft, rgt), as_dict=1)
+ 
 	sales_person_records = frappe._dict()
 	for d in records:
 		sales_person_records.setdefault(d.parenttype, set()).add(d.parent)
+  
 	if sales_person_records.get("Customer"):
-		return frappe.get_list(
+		customers = frappe.get_list(
 			"Customer",
 			fields=["name", "customer_name", "customer_primary_email_address", "customer_statement_email_address"],
 			filters=[
@@ -569,7 +605,10 @@ def get_customers_based_on_sales_person(sales_person, currency):
 				["default_currency", "=", currency],
 			]
 		)
+		logger.info("[Get Customers Sales Person] Found {} customers".format(len(customers)))
+		return customers
 	else:
+		logger.info("[Get Customers Sales Person] No customers found")
 		return []
 
 
@@ -599,8 +638,10 @@ def get_recipients_and_cc(customer, doc):
 def get_context(customer, doc):
 	template_doc = copy.deepcopy(doc)
 	del template_doc.customers
+
 	template_doc.from_date = format_date(template_doc.from_date)
 	template_doc.to_date = format_date(template_doc.to_date)
+
 	return {
 		"doc": template_doc,
 		"customer": frappe.get_doc("Customer", customer),
@@ -647,16 +688,19 @@ def fetch_customers(collection, collection_name, currency, logic=None):
 					"billing_email": customer['customer_statement_email_address'] or customer['customer_primary_email_address'],
 				}
 			)
-   
+	
+	logger.info("[Fetch Customers] Successfully returning customer list with {} records.".format(len(customer_list)))
 	return customer_list
 
 
 @frappe.whitelist()
 def download_statements(document_name):
 	doc = frappe.get_doc("Process Statement Of Accounts", document_name)
-	logger.info("Starting PDF generation for all customers")
+
+	logger.info("[Download Statement] Starting PDF generation for all customers using doc: {}".format(document_name))
 	report = get_report_pdf(doc)
-	logger.info("Finished PDF generation for all customers")
+	logger.info("[Download Statement]  Finished PDF generation for all customers")
+ 
 	if report:
 		frappe.local.response.filename = doc.company + " - Statement of Account.pdf"
 		frappe.local.response.filecontent = report
@@ -664,11 +708,13 @@ def download_statements(document_name):
 
 
 @frappe.whitelist()
-def download_individual_statement(document_name,customer):
+def download_individual_statement(document_name, customer):
 	doc = frappe.get_doc("Process Statement Of Accounts", document_name)
-	logger.info("Starting PDF generation for customer: {}".format(customer))
+ 
+	logger.info("[Download Indv Statement] Starting PDF generation for customer: {} using doc: ".format(customer, document_name))
 	report = get_report_pdf(doc,consolidated=True,customer=customer)
-	logger.info("Finished PDF generation for customer: {}".format(customer))
+	logger.info("Download Indv Statement] Finished PDF generation for customer: {}".format(customer))
+ 
 	if report:
 		frappe.local.response.filename = doc.company + " - Statement of Account - " + customer + ".pdf"
 		frappe.local.response.filecontent = report
@@ -716,11 +762,12 @@ def send_emails(document_name, from_scheduler=False):
 
 	frappe.enqueue(**enqueue_args)
 	
-	logger.info("Starting PDF generation for all customers")
+	logger.info("[Send Email] Starting PDF generation for all customers")
 	report = get_report_pdf(doc, consolidated=False)
-	logger.info("Finished PDF generation for all customers")
+	logger.info("[Send Email] Finished PDF generation for all customers")
 
 	if report:
+		logger.info("[Send Email] Starting email sending to {} customers".format(len(report)))
 		for customer, report_pdf in report.items():
 			attachments = [{"fname": doc.company + " - Statement of Account - " + customer + ".pdf", "fcontent": report_pdf}]
 
@@ -754,8 +801,10 @@ def send_emails(document_name, from_scheduler=False):
 			customerDoc.add_comment("Comment",'Customer has been sent a Statement of Accounts Email from us.')
 			recipient = ", ".join(recipients)
 
-			#Create Statement Doc
 			create_statement(doc, customer, recipient)
+			logger.info("[Send Email][{}] Successfully create Statement of Account document and sent email for this customer.".format(customer))
+   
+		logger.info("[Send Email] Finished email sending to all customers.")
 
 		if doc.schedule_send and from_scheduler:
 			new_from_date = add_months(doc.from_date, 1)
@@ -796,7 +845,7 @@ def send_emails(document_name, from_scheduler=False):
 		}
 			
 		frappe.enqueue(**enqueue_args)
-		frappe.publish_realtime(event='msgprint', message="Customer statements finished",user = "Administrator")
+		frappe.publish_realtime(event='msgprint', message="Customer statements finished", user="Administrator")
 		return True
 	else:
 		return False
@@ -809,20 +858,20 @@ def send_auto_email():
 		filters={"schedule_send": 1},
 	)
 
+	logger.info("[Send Auto Email]")
 	for entry in selected:
-		logger.info("[Send Auto Email] Processing Process Statement Of Accounts: {}".format(entry.name))
+		logger.info("[Send Auto Email] Processing Process Statement of Accounts: {}".format(entry.name))
 		processStatementDoc = frappe.get_doc("Process Statement Of Accounts", entry)
 
 		if processStatementDoc.customers:
-			logger.info("[Send Auto Email] Using {} existing customers from Process Statement Of Accounts document".format(len(processStatementDoc.customers)))
+			logger.info("[Send Auto Email] Using {} existing customers from Process Statement of Accounts document".format(len(processStatementDoc.customers)))
 		else:
 			logger.info("[Send Auto Email] No customers found in document, skipping")
 			continue
 
-		logger.info("[Send Auto Email] Sending emails for Process Statement Of Accounts: {}".format(entry.name))
+		logger.info("[Send Auto Email] Sending emails for Process Statement of Accounts: {}".format(entry.name))
 		send_emails(entry.name, from_scheduler=True)
-		logger.info("[Send Auto Email] Finished sending emails for Process Statement Of Accounts: {}".format(entry.name))
-		logger.info("[Send Auto Email] Finished processing Process Statement Of Accounts: {}".format(entry.name))
+		logger.info("[Send Auto Email] Finished sending emails for Process Statement of Accounts: {}".format(entry.name))
 
 
 def create_statement(doc, customer, recipient):
