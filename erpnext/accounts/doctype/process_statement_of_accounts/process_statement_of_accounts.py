@@ -245,9 +245,6 @@ def get_statement_dict(doc, get_statement_dict=False):
 	if doc.report == "General Ledger":
 		filters.update(get_gl_filters(doc))
 		col, res = get_soa(filters)
-
-		# Consolidate duplicate vouchers (payments/invoices split across multiple rows)
-		res = consolidate_vouchers(res)
 	else:
 		return []
 
@@ -293,7 +290,8 @@ def get_statement_dict(doc, get_statement_dict=False):
 							if not filtered_res:
 								pending_opening_rows = []
 
-			customer_res = filtered_res
+			# Consolidate duplicate vouchers (payments/invoices split across multiple rows) per customer
+			customer_res = consolidate_vouchers(filtered_res)
 
 			if not customer_res:
 				continue
