@@ -170,7 +170,8 @@
    "oldfieldname": "ref_rate",
    "oldfieldtype": "Currency",
    "options": "currency",
-   "reqd": 1
+   "reqd": 1,
+   "set_only_once": 1
   },
   {
    "fieldname": "section_break_15",
