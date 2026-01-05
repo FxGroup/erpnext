@@ -770,6 +770,7 @@ def send_emails(document_name, from_scheduler=False):
 			attachments = [{"fname": doc.company + " - Statement of Account - " + customer + ".pdf", "fcontent": report_pdf}]
 
 			recipients, cc = get_recipients_and_cc(customer, doc)
+			logger.info("[Send Email][{}] Customer email addresses: {}".format(customer, recipients))
 			if not recipients:
 				continue
 
@@ -857,9 +858,28 @@ def send_auto_email():
 	)
 
 	logger.info("[Send Auto Email]")
+
 	for entry in selected:
 		logger.info("[Send Auto Email] Processing Process Statement of Accounts: {}".format(entry.name))
 		processStatementDoc = frappe.get_doc("Process Statement Of Accounts", entry)
+
+		if processStatementDoc.customer_collection or (processStatementDoc.customer_collection == "Custom Logic" and processStatementDoc.logic):
+			# Rebuilding customer list + fetching fresh emails
+			customer_list = fetch_customers(processStatementDoc.customer_collection, processStatementDoc.collection_name, processStatementDoc.currency, processStatementDoc.logic)
+
+			processStatementDoc.customers = []
+			for c in customer_list:
+				processStatementDoc.append("customers", {
+					"customer": c['name'],
+					"customer_name": c['customer_name'],
+					"primary_email": c['primary_email'],
+					"billing_email": c['billing_email'],
+				})
+
+			processStatementDoc.save()
+			frappe.db.commit()
+
+			processStatementDoc = frappe.get_doc("Process Statement Of Accounts", entry)
 
 		if processStatementDoc.customers:
 			logger.info("[Send Auto Email] Using {} existing customers from Process Statement of Accounts document".format(len(processStatementDoc.customers)))
