@@ -17,11 +17,8 @@ class BankTransaction(Document):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
+		from erpnext.accounts.doctype.bank_transaction_payments.bank_transaction_payments import BankTransactionPayments
 		from frappe.types import DF
-
-		from erpnext.accounts.doctype.bank_transaction_payments.bank_transaction_payments import (
-			BankTransactionPayments,
-		)
 
 		allocated_amount: DF.Currency
 		amended_from: DF.Link | None
