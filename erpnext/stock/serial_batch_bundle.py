@@ -406,12 +406,7 @@ class SerialBatchBundle:
 
 		self.update_serial_no_status_warehouse(self.sle, serial_nos)
 
-	def update_serial_no_status_warehouse(self, sle, serial_nos):
-		warehouse = sle.warehouse if sle.actual_qty > 0 else None
-
-		if isinstance(serial_nos, str):
-			serial_nos = [serial_nos]
-
+	def get_status_for_serial_nos(self, sle):
 		status = "Inactive"
 		if sle.actual_qty < 0:
 			status = "Delivered"
@@ -424,6 +419,23 @@ class SerialBatchBundle:
 					"Material Consumption for Manufacture",
 				]:
 					status = "Consumed"
+
+			if sle.is_cancelled == 1 and (
+				sle.voucher_type in ["Purchase Invoice", "Purchase Receipt"] or status == "Consumed"
+			):
+				status = "Inactive"
+
+		return status
+
+	def update_serial_no_status_warehouse(self, sle, serial_nos):
+		warehouse = sle.warehouse if sle.actual_qty > 0 else None
+
+		if isinstance(serial_nos, str):
+			serial_nos = [serial_nos]
+
+		status = "Active"
+		if not warehouse:
+			status = self.get_status_for_serial_nos(sle)
 
 		customer = None
 		if sle.voucher_type in ["Sales Invoice", "Delivery Note"] and sle.actual_qty < 0:
@@ -1070,12 +1082,22 @@ class SerialBatchCreation:
 		for d in remove_list:
 			package.remove(d)
 
-	def make_serial_and_batch_bundle(self):
+	def make_serial_and_batch_bundle(
+		self, serial_nos=None, batch_nos=None
+	):  # passing None instead of [] due to ruff linter error B006
+		serial_nos = serial_nos or []
+		batch_nos = batch_nos or []
+
 		doc = frappe.new_doc("Serial and Batch Bundle")
 		valid_columns = doc.meta.get_valid_columns()
 		for key, value in self.__dict__.items():
 			if key in valid_columns:
 				doc.set(key, value)
+
+		if serial_nos:
+			self.serial_nos = serial_nos
+		if batch_nos:
+			self.batches = batch_nos
 
 		if self.type_of_transaction == "Outward":
 			self.set_auto_serial_batch_entries_for_outward()
