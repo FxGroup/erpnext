@@ -8,6 +8,7 @@ from collections import defaultdict
 import frappe
 from frappe import _, bold
 from frappe.model.mapper import get_mapped_doc
+from frappe.query_builder import DocType
 from frappe.query_builder.functions import Sum
 from frappe.utils import (
 	cint,
@@ -1815,9 +1816,7 @@ class StockEntry(StockController):
 		if self.purpose == "Material Issue":
 			ret["expense_account"] = item.get("expense_account") or item_group_defaults.get("expense_account")
 
-		if (self.purpose == "Manufacture" and not args.get("is_finished_item")) or not ret.get(
-			"expense_account"
-		):
+		if not ret.get("expense_account"):
 			ret["expense_account"] = frappe.get_cached_value(
 				"Company", self.company, "stock_adjustment_account"
 			)
@@ -1883,7 +1882,7 @@ class StockEntry(StockController):
 					},
 				)
 
-	def get_items_for_disassembly(self, disassemble_qty, production_item):
+	def get_items_for_disassembly(self):
 		"""Get items for Disassembly Order"""
 
 		if not self.work_order:
@@ -1896,7 +1895,7 @@ class StockEntry(StockController):
 		items_dict = get_bom_items_as_dict(
 			self.bom_no,
 			self.company,
-			disassemble_qty,
+			self.fg_completed_qty,
 			fetch_exploded=self.use_multi_level_bom,
 			fetch_qty_in_stock_uom=False,
 		)
@@ -1913,8 +1912,8 @@ class StockEntry(StockController):
 				child_row.qty = bom_items.get("qty", child_row.qty)
 				child_row.amount = bom_items.get("amount", child_row.amount)
 
-			if row.item_code == production_item:
-				child_row.qty = disassemble_qty
+			if row.is_finished_item:
+				child_row.qty = self.fg_completed_qty
 
 			child_row.s_warehouse = (self.from_warehouse or s_warehouse) if row.is_finished_item else ""
 			child_row.t_warehouse = row.s_warehouse
@@ -1927,8 +1926,8 @@ class StockEntry(StockController):
 				"`tabStock Entry Detail`.`item_code`",
 				"`tabStock Entry Detail`.`item_name`",
 				"`tabStock Entry Detail`.`description`",
-				"`tabStock Entry Detail`.`qty`",
-				"`tabStock Entry Detail`.`transfer_qty`",
+				"sum(`tabStock Entry Detail`.qty) as qty",
+				"sum(`tabStock Entry Detail`.transfer_qty) as transfer_qty",
 				"`tabStock Entry Detail`.`stock_uom`",
 				"`tabStock Entry Detail`.`uom`",
 				"`tabStock Entry Detail`.`basic_rate`",
@@ -1947,15 +1946,16 @@ class StockEntry(StockController):
 				["Stock Entry Detail", "docstatus", "=", 1],
 			],
 			order_by="`tabStock Entry Detail`.`idx` desc, `tabStock Entry Detail`.`is_finished_item` desc",
+			group_by="`tabStock Entry Detail`.`item_code`",
 		)
 
 	@frappe.whitelist()
-	def get_items(self, qty=None, production_item=None):
+	def get_items(self):
 		self.set("items", [])
 		self.validate_work_order()
 
-		if self.purpose == "Disassemble" and qty is not None:
-			return self.get_items_for_disassembly(qty, production_item)
+		if self.purpose == "Disassemble":
+			return self.get_items_for_disassembly()
 
 		if not self.posting_date or not self.posting_time:
 			frappe.throw(_("Posting date and posting time is mandatory"))
@@ -2794,6 +2794,17 @@ class StockEntry(StockController):
 					},
 				)
 
+				if d.docstatus == 1:
+					transfer_qty = frappe.get_value("Stock Entry Detail", d.ste_detail, "transfer_qty")
+
+					if transferred_qty and transferred_qty[0]:
+						if transferred_qty[0].qty > transfer_qty:
+							frappe.throw(
+								_(
+									"Row {0}: Transferred quantity cannot be greater than the requested quantity."
+								).format(d.idx)
+							)
+
 				stock_entries[(d.against_stock_entry, d.ste_detail)] = (
 					transferred_qty[0].qty if transferred_qty and transferred_qty[0] else 0.0
 				) or 0.0
@@ -2857,7 +2868,7 @@ class StockEntry(StockController):
 			parent_se = frappe.get_value("Stock Entry", self.outgoing_stock_entry, "add_to_transit")
 
 		for item in self.items:
-			material_request = item.material_request or None
+			material_request = item.get("material_request")
 			if self.purpose == "Material Transfer" and material_request not in material_requests:
 				if self.outgoing_stock_entry and parent_se:
 					material_request = frappe.get_value(
@@ -2866,6 +2877,11 @@ class StockEntry(StockController):
 
 			if material_request and material_request not in material_requests:
 				material_requests.append(material_request)
+				if status == "Completed":
+					qty = get_transferred_qty(material_request)
+					if qty.get("transfer_qty") > qty.get("transferred_qty"):
+						status = "In Transit"
+
 				frappe.db.set_value("Material Request", material_request, "transfer_status", status)
 
 	def set_serial_no_batch_for_finished_good(self):
@@ -3533,3 +3549,18 @@ def get_batchwise_serial_nos(item_code, row):
 			batchwise_serial_nos[batch_no] = sorted([serial_no.name for serial_no in serial_nos])
 
 	return batchwise_serial_nos
+
+
+def get_transferred_qty(material_request):
+	sed = DocType("Stock Entry Detail")
+
+	query = (
+		frappe.qb.from_(sed)
+		.select(
+			Sum(sed.transfer_qty).as_("transfer_qty"),
+			Sum(sed.transferred_qty).as_("transferred_qty"),
+		)
+		.where((sed.material_request == material_request) & (sed.docstatus == 1))
+	).run(as_dict=True)
+
+	return query[0]
