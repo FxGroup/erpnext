@@ -715,13 +715,6 @@ class update_entries_after:
 			{"item_code": self.item_code, "warehouse": self.args.warehouse}
 		)
 
-		key = (self.item_code, self.args.warehouse)
-		if key in self.distinct_item_warehouses and self.distinct_item_warehouses[key].get(
-			"transfer_entry_to_repost"
-		):
-			# only repost stock entries
-			args["filter_voucher_type"] = "Stock Entry"
-
 		return list(self.get_sle_after_datetime(args))
 
 	def get_dependent_entries_to_fix(self, entries_to_fix, sle):
@@ -1845,9 +1838,6 @@ def get_stock_ledger_entries(
 	if operator in (">", "<=") and previous_sle.get("name"):
 		conditions += " and name!=%(name)s"
 
-	if previous_sle.get("filter_voucher_type"):
-		conditions += " and voucher_type = %(filter_voucher_type)s"
-
 	if extra_cond:
 		conditions += f"{extra_cond}"
 
@@ -2349,8 +2339,6 @@ def validate_reserved_batch_nos(kwargs):
 				{
 					"item_code": kwargs.item_code,
 					"warehouse": kwargs.warehouse,
-					"posting_date": kwargs.posting_date,
-					"posting_time": kwargs.posting_time,
 					"ignore_voucher_nos": kwargs.ignore_voucher_nos,
 					"ignore_reserved_stock": True,
 				}
