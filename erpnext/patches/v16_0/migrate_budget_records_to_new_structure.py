@@ -128,6 +128,43 @@ def create_new_budget_from_row(budget_doc, fiscal_year, account_row, percentage_
 		)
 		current_start = add_months(current_start, 1)
 
+	# Generate a name following the pattern: [cost_center]/[FY]/Number
+	cost_center_name = new_budget.cost_center or "Budget"
+	fy_name = fiscal_year.name
+	base_name = f"{cost_center_name}/{fy_name}/"
+
+	# Find the next available number for this cost center/fiscal year combination
+	existing = frappe.db.sql(
+		"""SELECT name FROM `tabBudget`
+		WHERE name LIKE %s
+		ORDER BY name DESC LIMIT 1""",
+		f"{base_name}%"
+	)
+
+	if existing and existing[0][0]:
+		# Extract the number from the last budget name
+		last_name = existing[0][0]
+		try:
+			last_num = int(last_name.split("/")[-1])
+			next_num = last_num + 1
+		except (ValueError, IndexError):
+			next_num = 1
+	else:
+		next_num = 1
+
+	# Keep incrementing until we find an available name
+	max_attempts = 1000
+	for attempt in range(max_attempts):
+		proposed_name = f"{base_name}{next_num:03d}"
+		if not frappe.db.exists("Budget", proposed_name):
+			new_budget.name = proposed_name
+			break
+		next_num += 1
+	else:
+		# Fallback: use timestamp if we can't find a free slot
+		import time
+		new_budget.name = f"{base_name}{int(time.time())}"
+
 	new_budget.flags.ignore_validate = True
 	new_budget.flags.ignore_links = True
 	new_budget.insert(ignore_permissions=True, ignore_mandatory=True)
