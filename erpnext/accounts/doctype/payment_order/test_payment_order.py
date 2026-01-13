@@ -3,7 +3,7 @@
 
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import getdate
 
 from erpnext.accounts.doctype.bank_transaction.test_bank_transaction import (
@@ -17,7 +17,7 @@ from erpnext.accounts.doctype.payment_entry.payment_entry import (
 from erpnext.accounts.doctype.purchase_invoice.test_purchase_invoice import make_purchase_invoice
 
 
-class TestPaymentOrder(FrappeTestCase):
+class TestPaymentOrder(IntegrationTestCase):
 	def setUp(self):
 		# generate and use a uniq hash identifier for 'Bank Account' and it's linked GL 'Account' to avoid validation error
 		uniq_identifier = frappe.generate_hash(length=10)
@@ -50,12 +50,10 @@ class TestPaymentOrder(FrappeTestCase):
 
 def create_payment_order_against_payment_entry(ref_doc, order_type, bank_account):
 	payment_order = frappe.get_doc(
-		dict(
-			doctype="Payment Order",
-			company="_Test Company",
-			payment_order_type=order_type,
-			company_bank_account=bank_account,
-		)
+		doctype="Payment Order",
+		company="_Test Company",
+		payment_order_type=order_type,
+		company_bank_account=bank_account,
 	)
 	doc = make_payment_order(ref_doc.name, payment_order)
 	doc.save()

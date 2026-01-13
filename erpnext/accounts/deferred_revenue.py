@@ -7,6 +7,7 @@ from frappe.utils import (
 	cint,
 	date_diff,
 	flt,
+	formatdate,
 	get_first_day,
 	get_last_day,
 	get_link_to_form,
@@ -221,7 +222,7 @@ def calculate_monthly_amount(
 			if amount + already_booked_amount_in_account_currency > item.net_amount:
 				amount = item.net_amount - already_booked_amount_in_account_currency
 
-		if not (get_first_day(start_date) == start_date and get_last_day(end_date) == end_date):
+		if get_first_day(start_date) != start_date or get_last_day(end_date) != end_date:
 			partial_month = flt(date_diff(end_date, start_date)) / flt(
 				date_diff(get_last_day(end_date), get_first_day(start_date))
 			)
@@ -318,7 +319,7 @@ def get_already_booked_amount(doc, item):
 def book_deferred_income_or_expense(doc, deferred_process, posting_date=None):
 	enable_check = "enable_deferred_revenue" if doc.doctype == "Sales Invoice" else "enable_deferred_expense"
 
-	accounts_frozen_upto = frappe.db.get_single_value("Accounts Settings", "acc_frozen_upto")
+	accounts_frozen_upto = frappe.db.get_value("Company", doc.company, "accounts_frozen_till_date")
 
 	def _book_deferred_revenue_or_expense(
 		item,
@@ -449,14 +450,12 @@ def process_deferred_accounting(posting_date=None):
 	for company in companies:
 		for record_type in ("Income", "Expense"):
 			doc = frappe.get_doc(
-				dict(
-					doctype="Process Deferred Accounting",
-					company=company.name,
-					posting_date=posting_date,
-					start_date=start_date,
-					end_date=end_date,
-					type=record_type,
-				)
+				doctype="Process Deferred Accounting",
+				company=company.name,
+				posting_date=posting_date,
+				start_date=start_date,
+				end_date=end_date,
+				type=record_type,
 			)
 
 			doc.insert()
@@ -527,7 +526,7 @@ def make_gl_entries(
 			make_gl_entries(gl_entries, cancel=(doc.docstatus == 2), merge_entries=True)
 			frappe.db.commit()
 		except Exception as e:
-			if frappe.flags.in_test:
+			if frappe.in_test:
 				doc.log_error(f"Error while processing deferred accounting for Invoice {doc.name}")
 				raise e
 			else:

@@ -1,10 +1,11 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
-
 import unittest
 
-# test_records = frappe.get_test_records('Bank Account')
+import frappe
+from frappe import ValidationError
+from frappe.tests import IntegrationTestCase
 
 
-class TestBankAccount(unittest.TestCase):
+class TestBankAccount(IntegrationTestCase):
 	pass

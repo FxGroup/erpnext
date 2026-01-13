@@ -7,7 +7,7 @@ import json
 import frappe
 from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 from frappe.test_runner import make_test_objects
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
 from erpnext.controllers.item_variant import (
@@ -26,10 +26,10 @@ from erpnext.stock.doctype.item.item import (
 	validate_is_stock_item,
 )
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
-from erpnext.stock.get_item_details import get_item_details
+from erpnext.stock.get_item_details import ItemDetailsCtx, get_item_details
 
-test_ignore = ["BOM"]
-test_dependencies = ["Warehouse", "Item Group", "Item Tax Template", "Brand", "Item Attribute"]
+IGNORE_TEST_RECORD_DEPENDENCIES = ["BOM"]
+EXTRA_TEST_RECORD_DEPENDENCIES = ["Warehouse", "Item Group", "Item Tax Template", "Brand", "Item Attribute"]
 
 
 def make_item(item_code=None, properties=None, uoms=None, barcode=None):
@@ -74,22 +74,22 @@ def make_item(item_code=None, properties=None, uoms=None, barcode=None):
 	return item
 
 
-class TestItem(FrappeTestCase):
+class TestItem(IntegrationTestCase):
 	def setUp(self):
 		super().setUp()
 		frappe.flags.attribute_values = None
 
 	def get_item(self, idx):
-		item_code = test_records[idx].get("item_code")
+		item_code = self.globalTestRecords["Item"][idx].get("item_code")
 		if not frappe.db.exists("Item", item_code):
-			item = frappe.copy_doc(test_records[idx])
+			item = frappe.copy_doc(self.globalTestRecords["Item"][idx])
 			item.insert()
 		else:
 			item = frappe.get_doc("Item", item_code)
 		return item
 
 	def test_get_item_details(self):
-		# delete modified item price record and make as per test_records
+		# delete modified item price record and make as per self.globalTestRecords["Item"]
 		frappe.db.sql("""delete from `tabItem Price`""")
 		frappe.db.sql("""delete from `tabBin`""")
 
@@ -136,25 +136,58 @@ class TestItem(FrappeTestCase):
 		currency = frappe.get_cached_value("Company", company, "default_currency")
 
 		details = get_item_details(
-			{
-				"item_code": "_Test Item",
-				"company": company,
-				"price_list": "_Test Price List",
-				"currency": currency,
-				"doctype": "Sales Order",
-				"conversion_rate": 1,
-				"price_list_currency": currency,
-				"plc_conversion_rate": 1,
-				"order_type": "Sales",
-				"customer": "_Test Customer",
-				"conversion_factor": 1,
-				"price_list_uom_dependant": 1,
-				"ignore_pricing_rule": 1,
-			}
+			ItemDetailsCtx(
+				{
+					"item_code": "_Test Item",
+					"company": company,
+					"price_list": "_Test Price List",
+					"currency": currency,
+					"doctype": "Sales Order",
+					"conversion_rate": 1,
+					"price_list_currency": currency,
+					"plc_conversion_rate": 1,
+					"order_type": "Sales",
+					"customer": "_Test Customer",
+					"conversion_factor": 1,
+					"price_list_uom_dependant": 1,
+					"ignore_pricing_rule": 1,
+				}
+			)
 		)
 
 		for key, value in to_check.items():
 			self.assertEqual(value, details.get(key), key)
+
+	def test_get_asset_item_details(self):
+		from erpnext.assets.doctype.asset.test_asset import create_asset_category, create_fixed_asset_item
+
+		create_asset_category(0)
+		create_fixed_asset_item()
+
+		details = get_item_details(
+			ItemDetailsCtx(
+				{
+					"item_code": "Macbook Pro",
+					"company": "_Test Company",
+					"currency": "INR",
+					"doctype": "Purchase Receipt",
+				}
+			)
+		)
+		self.assertEqual(details.get("expense_account"), "_Test Fixed Asset - _TC")
+
+		frappe.db.set_value("Asset Category", "Computers", "enable_cwip_accounting", "1")
+		details = get_item_details(
+			ItemDetailsCtx(
+				{
+					"item_code": "Macbook Pro",
+					"company": "_Test Company",
+					"currency": "INR",
+					"doctype": "Purchase Receipt",
+				}
+			)
+		)
+		self.assertEqual(details.get("expense_account"), "CWIP Account - _TC")
 
 	def test_item_tax_template(self):
 		expected_item_tax_template = [
@@ -235,22 +268,24 @@ class TestItem(FrappeTestCase):
 
 		for data in expected_item_tax_template:
 			details = get_item_details(
-				{
-					"item_code": data["item_code"],
-					"tax_category": data["tax_category"],
-					"company": "_Test Company",
-					"price_list": "_Test Price List",
-					"currency": "_Test Currency",
-					"doctype": "Sales Order",
-					"conversion_rate": 1,
-					"price_list_currency": "_Test Currency",
-					"plc_conversion_rate": 1,
-					"order_type": "Sales",
-					"customer": "_Test Customer",
-					"conversion_factor": 1,
-					"price_list_uom_dependant": 1,
-					"ignore_pricing_rule": 1,
-				}
+				ItemDetailsCtx(
+					{
+						"item_code": data["item_code"],
+						"tax_category": data["tax_category"],
+						"company": "_Test Company",
+						"price_list": "_Test Price List",
+						"currency": "_Test Currency",
+						"doctype": "Sales Order",
+						"conversion_rate": 1,
+						"price_list_currency": "_Test Currency",
+						"plc_conversion_rate": 1,
+						"order_type": "Sales",
+						"customer": "_Test Customer",
+						"conversion_factor": 1,
+						"price_list_uom_dependant": 1,
+						"ignore_pricing_rule": 1,
+					}
+				)
 			)
 
 			self.assertEqual(details.item_tax_template, data["item_tax_template"])
@@ -270,6 +305,7 @@ class TestItem(FrappeTestCase):
 						"company": "_Test Company",
 						"default_warehouse": "_Test Warehouse 2 - _TC",  # no override
 						"expense_account": "_Test Account Stock Expenses - _TC",  # override brand default
+						"default_cogs_account": "_Test Account Cost for Goods Sold - _TC",  # override brand default
 						"buying_cost_center": "_Test Write Off Cost Center - _TC",  # override item group default
 					}
 				],
@@ -280,21 +316,23 @@ class TestItem(FrappeTestCase):
 			"item_code": "Test Item With Defaults",
 			"warehouse": "_Test Warehouse 2 - _TC",  # from item
 			"income_account": "_Test Account Sales - _TC",  # from brand
-			"expense_account": "_Test Account Stock Expenses - _TC",  # from item
+			"expense_account": "_Test Account Cost for Goods Sold - _TC",  # from item
 			"cost_center": "_Test Cost Center 2 - _TC",  # from item group
 		}
 		sales_item_details = get_item_details(
-			{
-				"item_code": "Test Item With Defaults",
-				"company": "_Test Company",
-				"price_list": "_Test Price List",
-				"currency": "_Test Currency",
-				"doctype": "Sales Invoice",
-				"conversion_rate": 1,
-				"price_list_currency": "_Test Currency",
-				"plc_conversion_rate": 1,
-				"customer": "_Test Customer",
-			}
+			ItemDetailsCtx(
+				{
+					"item_code": "Test Item With Defaults",
+					"company": "_Test Company",
+					"price_list": "_Test Price List",
+					"currency": "_Test Currency",
+					"doctype": "Sales Invoice",
+					"conversion_rate": 1,
+					"price_list_currency": "_Test Currency",
+					"plc_conversion_rate": 1,
+					"customer": "_Test Customer",
+				}
+			)
 		)
 		for key, value in sales_item_check.items():
 			self.assertEqual(value, sales_item_details.get(key))
@@ -307,17 +345,19 @@ class TestItem(FrappeTestCase):
 			"cost_center": "_Test Write Off Cost Center - _TC",  # from item
 		}
 		purchase_item_details = get_item_details(
-			{
-				"item_code": "Test Item With Defaults",
-				"company": "_Test Company",
-				"price_list": "_Test Price List",
-				"currency": "_Test Currency",
-				"doctype": "Purchase Invoice",
-				"conversion_rate": 1,
-				"price_list_currency": "_Test Currency",
-				"plc_conversion_rate": 1,
-				"supplier": "_Test Supplier",
-			}
+			ItemDetailsCtx(
+				{
+					"item_code": "Test Item With Defaults",
+					"company": "_Test Company",
+					"price_list": "_Test Price List",
+					"currency": "_Test Currency",
+					"doctype": "Purchase Invoice",
+					"conversion_rate": 1,
+					"price_list_currency": "_Test Currency",
+					"plc_conversion_rate": 1,
+					"supplier": "_Test Supplier",
+				}
+			)
 		)
 		for key, value in purchase_item_check.items():
 			self.assertEqual(value, purchase_item_details.get(key))
@@ -657,7 +697,7 @@ class TestItem(FrappeTestCase):
 		self.assertEqual(received_attrs, {"Extra Small", "Extra Large"})
 
 	def test_check_stock_uom_with_bin(self):
-		# this item has opening stock and stock_uom set in test_records.
+		# this item has opening stock and stock_uom set in self.globalTestRecords["Item"].
 		item = frappe.get_doc("Item", "_Test Item")
 		item.stock_uom = "Gram"
 		self.assertRaises(frappe.ValidationError, item.save)
@@ -701,13 +741,13 @@ class TestItem(FrappeTestCase):
 		except frappe.ValidationError as e:
 			self.fail(f"stock item considered non-stock item: {e}")
 
-	@change_settings("Stock Settings", {"item_naming_by": "Naming Series"})
+	@IntegrationTestCase.change_settings("Stock Settings", {"item_naming_by": "Naming Series"})
 	def test_autoname_series(self):
 		item = frappe.new_doc("Item")
 		item.item_group = "All Item Groups"
 		item.save()  # if item code saved without item_code then series worked
 
-	@change_settings("Stock Settings", {"allow_negative_stock": 0})
+	@IntegrationTestCase.change_settings("Stock Settings", {"allow_negative_stock": 0})
 	def test_item_wise_negative_stock(self):
 		"""When global settings are disabled check that item that allows
 		negative stock can still consume material in all known stock
@@ -719,7 +759,7 @@ class TestItem(FrappeTestCase):
 
 		self.consume_item_code_with_differet_stock_transactions(item_code=item.name)
 
-	@change_settings("Stock Settings", {"allow_negative_stock": 0})
+	@IntegrationTestCase.change_settings("Stock Settings", {"allow_negative_stock": 0})
 	def test_backdated_negative_stock(self):
 		"""same as test above but backdated entries"""
 		from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
@@ -732,7 +772,9 @@ class TestItem(FrappeTestCase):
 		)
 		self.consume_item_code_with_differet_stock_transactions(item_code=item.name)
 
-	@change_settings("Stock Settings", {"sample_retention_warehouse": "_Test Warehouse - _TC"})
+	@IntegrationTestCase.change_settings(
+		"Stock Settings", {"sample_retention_warehouse": "_Test Warehouse - _TC"}
+	)
 	def test_retain_sample(self):
 		item = make_item("_TestRetainSample", {"has_batch_no": 1, "retain_sample": 1, "sample_quantity": 1})
 
@@ -769,13 +811,6 @@ class TestItem(FrappeTestCase):
 		self.assertTrue(get_data(item_code="_Test Item"))
 		self.assertTrue(get_data(warehouse="_Test Warehouse - _TC"))
 		self.assertTrue(get_data(item_group="All Item Groups"))
-
-	def test_empty_description(self):
-		item = make_item(properties={"description": "<p></p>"})
-		self.assertEqual(item.description, item.item_name)
-		item.description = ""
-		item.save()
-		self.assertEqual(item.description, item.item_name)
 
 	def test_item_type_field_change(self):
 		"""Check if critical fields like `is_stock_item`, `has_batch_no` are not changed if transactions exist."""
@@ -883,6 +918,45 @@ class TestItem(FrappeTestCase):
 
 		self.assertRaises(frappe.ValidationError, item_doc.save)
 
+	def test_variant_uom_mismatch_throws_error(self):
+		frappe.db.set_single_value("Item Variant Settings", "allow_different_uom", 0)
+
+		template_item = frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": "_Test Template UOM",
+				"item_name": "_Test Template UOM",
+				"item_group": "_Test Item Group",
+				"stock_uom": "Kg",
+				"is_stock_item": 1,
+				"has_variants": 1,
+				"attributes": [
+					{"attribute": "Test Size"},
+				],
+			}
+		).insert()
+
+		with self.assertRaises(frappe.ValidationError) as ve:
+			frappe.get_doc(
+				{
+					"doctype": "Item",
+					"item_code": "_Test Variant UOM",
+					"item_name": "_Test Variant UOM",
+					"item_group": "_Test Item Group",
+					"stock_uom": "Litre",
+					"is_stock_item": 1,
+					"variant_of": template_item.name,
+					"attributes": [
+						{"attribute": "Test Size", "attribute_value": "Small"},
+					],
+				}
+			).insert()
+
+		self.assertTrue(
+			"must be same as in Template" in str(ve.exception),
+			msg="Different Variant UOM should not be allowed when `allow_different_uom` is disabled.",
+		)
+
 
 def set_item_variant_settings(fields):
 	doc = frappe.get_doc("Item Variant Settings")
@@ -896,9 +970,6 @@ def make_item_variant():
 		variant.item_code = "_Test Variant Item-S"
 		variant.item_name = "_Test Variant Item-S"
 		variant.save()
-
-
-test_records = frappe.get_test_records("Item")
 
 
 def create_item(

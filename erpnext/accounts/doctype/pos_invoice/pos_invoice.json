@@ -8,7 +8,6 @@
  "engine": "InnoDB",
  "field_order": [
   "customer_section",
-  "title",
   "naming_series",
   "customer",
   "customer_name",
@@ -31,24 +30,6 @@
   "project",
   "dimension_col_break",
   "cost_center",
-  "customer_po_details",
-  "po_no",
-  "column_break_23",
-  "po_date",
-  "address_and_contact",
-  "customer_address",
-  "address_display",
-  "contact_person",
-  "contact_display",
-  "contact_mobile",
-  "contact_email",
-  "territory",
-  "col_break4",
-  "shipping_address_name",
-  "shipping_address",
-  "company_address",
-  "company_address_display",
-  "company_contact_person",
   "currency_and_price_list",
   "currency",
   "conversion_rate",
@@ -89,18 +70,11 @@
   "taxes",
   "sec_tax_breakup",
   "other_charges_calculation",
+  "item_wise_tax_details",
   "section_break_43",
   "base_total_taxes_and_charges",
   "column_break_47",
   "total_taxes_and_charges",
-  "loyalty_points_redemption",
-  "loyalty_points",
-  "loyalty_amount",
-  "redeem_loyalty_points",
-  "column_break_77",
-  "loyalty_program",
-  "loyalty_redemption_account",
-  "loyalty_redemption_cost_center",
   "section_break_49",
   "coupon_code",
   "apply_discount_on",
@@ -120,13 +94,7 @@
   "in_words",
   "total_advance",
   "outstanding_amount",
-  "advances_section",
-  "allocate_advances_automatically",
-  "get_advances",
-  "advances",
-  "payment_schedule_section",
-  "payment_terms_template",
-  "payment_schedule",
+  "payments_tab",
   "payments_section",
   "cash_bank_account",
   "payments",
@@ -139,6 +107,10 @@
   "column_break_90",
   "change_amount",
   "account_for_change_amount",
+  "advances_section",
+  "allocate_advances_automatically",
+  "get_advances",
+  "advances",
   "column_break4",
   "write_off_amount",
   "base_write_off_amount",
@@ -146,9 +118,41 @@
   "column_break_74",
   "write_off_account",
   "write_off_cost_center",
+  "loyalty_points_redemption",
+  "loyalty_points",
+  "loyalty_amount",
+  "redeem_loyalty_points",
+  "column_break_77",
+  "loyalty_program",
+  "loyalty_redemption_account",
+  "loyalty_redemption_cost_center",
+  "contact_and_address_tab",
+  "address_and_contact",
+  "customer_address",
+  "address_display",
+  "contact_person",
+  "contact_display",
+  "contact_mobile",
+  "contact_email",
+  "territory",
+  "col_break4",
+  "shipping_address_name",
+  "shipping_address",
+  "company_address",
+  "company_address_display",
+  "company_contact_person",
+  "terms_tab",
+  "payment_schedule_section",
+  "payment_terms_template",
+  "payment_schedule",
   "terms_section_break",
   "tc_name",
   "terms",
+  "more_info_tab",
+  "customer_po_details",
+  "po_no",
+  "column_break_23",
+  "po_date",
   "edit_printing_settings",
   "letter_head",
   "group_same_items",
@@ -158,11 +162,13 @@
   "more_information",
   "inter_company_invoice_reference",
   "customer_group",
-  "campaign",
   "is_discounted",
   "col_break23",
+  "utm_source",
+  "utm_campaign",
+  "utm_medium",
+  "column_break_gpiw",
   "status",
-  "source",
   "more_info",
   "debit_to",
   "party_account_currency",
@@ -190,16 +196,6 @@
    "fieldname": "customer_section",
    "fieldtype": "Section Break",
    "options": "fa fa-user"
-  },
-  {
-   "allow_on_submit": 1,
-   "default": "{customer_name}",
-   "fieldname": "title",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Title",
-   "no_copy": 1,
-   "print_hide": 1
   },
   {
    "bold": 1,
@@ -409,7 +405,6 @@
    "label": "Customer's Purchase Order Date"
   },
   {
-   "collapsible": 1,
    "fieldname": "address_and_contact",
    "fieldtype": "Section Break",
    "label": "Address and Contact"
@@ -423,7 +418,7 @@
   },
   {
    "fieldname": "address_display",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Address",
    "read_only": 1
   },
@@ -478,7 +473,7 @@
   },
   {
    "fieldname": "shipping_address",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Shipping Address",
    "print_hide": 1,
    "read_only": 1
@@ -492,7 +487,7 @@
   },
   {
    "fieldname": "company_address_display",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "hidden": 1,
    "label": "Company Address",
    "print_hide": 1,
@@ -1061,7 +1056,6 @@
    "print_hide": 1
   },
   {
-   "collapsible": 1,
    "collapsible_depends_on": "eval:(!doc.is_pos && !doc.is_return)",
    "fieldname": "payment_schedule_section",
    "fieldtype": "Section Break",
@@ -1141,8 +1135,10 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_88",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Changes"
   },
   {
    "depends_on": "is_pos",
@@ -1229,7 +1225,6 @@
    "print_hide": 1
   },
   {
-   "collapsible": 1,
    "collapsible_depends_on": "terms",
    "fieldname": "terms_section_break",
    "fieldtype": "Section Break",
@@ -1322,15 +1317,6 @@
    "print_hide": 1
   },
   {
-   "fieldname": "campaign",
-   "fieldtype": "Link",
-   "label": "Campaign",
-   "oldfieldname": "campaign",
-   "oldfieldtype": "Link",
-   "options": "Campaign",
-   "print_hide": 1
-  },
-  {
    "default": "0",
    "fieldname": "is_discounted",
    "fieldtype": "Check",
@@ -1350,18 +1336,9 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "\nDraft\nReturn\nCredit Note Issued\nConsolidated\nSubmitted\nPaid\nUnpaid\nUnpaid and Discounted\nOverdue and Discounted\nOverdue\nCancelled",
+   "options": "\nDraft\nReturn\nCredit Note Issued\nConsolidated\nSubmitted\nPaid\nPartly Paid\nUnpaid\nPartly Paid and Discounted\nUnpaid and Discounted\nOverdue and Discounted\nOverdue\nCancelled",
    "print_hide": 1,
    "read_only": 1
-  },
-  {
-   "fieldname": "source",
-   "fieldtype": "Link",
-   "label": "Source",
-   "oldfieldname": "source",
-   "oldfieldtype": "Select",
-   "options": "Lead Source",
-   "print_hide": 1
   },
   {
    "collapsible": 1,
@@ -1565,6 +1542,35 @@
    "label": "Update Billed Amount in Delivery Note"
   },
   {
+   "fieldname": "column_break_gpiw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "utm_medium",
+   "fieldtype": "Link",
+   "label": "Medium",
+   "options": "UTM Medium",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "utm_campaign",
+   "fieldtype": "Link",
+   "label": "Campaign",
+   "oldfieldname": "campaign",
+   "oldfieldtype": "Link",
+   "options": "UTM Campaign",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "utm_source",
+   "fieldtype": "Link",
+   "label": "Source",
+   "oldfieldname": "source",
+   "oldfieldtype": "Select",
+   "options": "UTM Source",
+   "print_hide": 1
+  },
+  {
    "fieldname": "company_contact_person",
    "fieldtype": "Link",
    "label": "Company Contact Person",
@@ -1572,11 +1578,39 @@
    "print_hide": 1
   },
   {
+   "fieldname": "payments_tab",
+   "fieldtype": "Tab Break",
+   "label": "Payments"
+  },
+  {
+   "fieldname": "contact_and_address_tab",
+   "fieldtype": "Tab Break",
+   "label": "Address & Contact"
+  },
+  {
+   "fieldname": "terms_tab",
+   "fieldtype": "Tab Break",
+   "label": "Terms"
+  },
+  {
+   "fieldname": "more_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "More Info"
+  },
+  {
    "depends_on": "eval: doc.last_scanned_warehouse",
    "fieldname": "last_scanned_warehouse",
    "fieldtype": "Data",
    "is_virtual": 1,
    "label": "Last Scanned Warehouse"
+  },
+  {
+   "fieldname": "item_wise_tax_details",
+   "fieldtype": "Table",
+   "hidden": 1,
+   "label": "Item Wise Tax Details",
+   "no_copy": 1,
+   "options": "Item Wise Tax Detail"
   }
  ],
  "icon": "fa fa-file-text",
@@ -1627,12 +1661,13 @@
    "role": "All"
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "posting_date, due_date, customer, base_grand_total, outstanding_amount",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "timeline_field": "customer",
- "title_field": "title",
+ "title_field": "customer_name",
  "track_changes": 1
 }

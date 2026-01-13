@@ -32,11 +32,11 @@
 	<div style="margin-top:-5px;">
 		<h5 style="float: left;">{{ _("Customer: ") }} <b>{{ entry.customer }} - {{ entry.customer_name }}</b></h5>
 		<h5 style="float: right;">
-			{{ _("Date: ") }}
-			<b>{{ frappe.format(filters.from_date, 'Date')}}
-			{{ _("to") }}
-			{{ frappe.format(filters.to_date, 'Date')}}</b>
-			</h5>
+			{{ _("Date: {0} to {1}").format(
+				frappe.format(filters.from_date, "Date"),
+				frappe.format(filters.to_date, 'Date')
+			) }}
+		</h5>
 	</div>
 	<br>
 	

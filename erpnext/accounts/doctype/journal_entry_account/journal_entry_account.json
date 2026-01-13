@@ -267,8 +267,7 @@
    "fieldtype": "Data",
    "hidden": 1,
    "label": "Reference Detail No",
-   "no_copy": 1,
-   "search_index": 1
+   "no_copy": 1
   },
   {
    "fieldname": "advance_voucher_type",
@@ -307,7 +306,7 @@
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

@@ -5,7 +5,7 @@ import copy
 from collections import defaultdict
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import cint
 
 from erpnext.buying.doctype.purchase_order.test_purchase_order import create_purchase_order
@@ -25,7 +25,7 @@ from erpnext.subcontracting.doctype.subcontracting_order.subcontracting_order im
 )
 
 
-class TestSubcontractingController(FrappeTestCase):
+class TestSubcontractingController(IntegrationTestCase):
 	def setUp(self):
 		make_subcontracted_items()
 		make_raw_materials()
@@ -72,7 +72,7 @@ class TestSubcontractingController(FrappeTestCase):
 	def test_create_raw_materials_supplied(self):
 		sco = get_subcontracting_order()
 		sco.supplied_items = None
-		sco.create_raw_materials_supplied()
+		sco.create_raw_materials_supplied_or_received()
 		self.assertIsNotNone(sco.supplied_items)
 
 	def test_sco_with_bom(self):
@@ -778,9 +778,8 @@ class TestSubcontractingController(FrappeTestCase):
 				row.serial_no = "ABC"
 				break
 
-		bundle.save()
+		self.assertRaises(frappe.ValidationError, bundle.save)
 
-		self.assertRaises(frappe.ValidationError, scr1.save)
 		bundle.load_from_db()
 		for row in bundle.entries:
 			if row.idx == 1:
@@ -1141,6 +1140,28 @@ class TestSubcontractingController(FrappeTestCase):
 			itemwise_details.get(doc.items[0].item_code)["serial_no"][5:6],
 		)
 
+	def test_phantom_bom_explosion(self):
+		from erpnext.manufacturing.doctype.bom.test_bom import create_tree_for_phantom_bom_tests
+
+		expected = create_tree_for_phantom_bom_tests()
+		service_items = [
+			{
+				"warehouse": "_Test Warehouse - _TC",
+				"item_code": "Subcontracted Service Item 11",
+				"qty": 5,
+				"rate": 100,
+				"fg_item": "Top Level Parent",
+				"fg_item_qty": 5,
+			},
+		]
+		sco = get_subcontracting_order(service_items=service_items, do_not_submit=True)
+		sco.items[0].include_exploded_items = 0
+		sco.save()
+		sco.submit()
+		sco.reload()
+
+		self.assertEqual([item.rm_item_code for item in sco.supplied_items], expected)
+
 
 def add_second_row_in_scr(scr):
 	item_dict = {}
@@ -1308,7 +1329,12 @@ def make_subcontracted_items():
 		"Subcontracted Item SA7": {},
 		"Subcontracted Item SA8": {},
 		"Subcontracted Item SA9": {"stock_uom": "Litre"},
-		"Subcontracted Item SA10": {},
+		"Subcontracted Item SA10": {
+			"has_batch_no": 1,
+			"create_new_batch": 1,
+			"batch_number_series": "SBAT.####",
+		},
+		"Top Level Parent": {},
 	}
 
 	for item, properties in sub_contracted_items.items():
@@ -1360,6 +1386,7 @@ def make_service_items():
 		"Subcontracted Service Item 8": {},
 		"Subcontracted Service Item 9": {},
 		"Subcontracted Service Item 10": {},
+		"Subcontracted Service Item 11": {},
 	}
 
 	for item, properties in service_items.items():
@@ -1385,6 +1412,7 @@ def make_bom_for_subcontracted_items():
 		"Subcontracted Item SA7": ["Subcontracted SRM Item 1"],
 		"Subcontracted Item SA8": ["Subcontracted SRM Item 8"],
 		"Subcontracted Item SA10": ["Subcontracted SRM Item 10"],
+		"Subcontracted Service Item 11": ["Top Level Parent"],
 	}
 
 	for item_code, raw_materials in boms.items():

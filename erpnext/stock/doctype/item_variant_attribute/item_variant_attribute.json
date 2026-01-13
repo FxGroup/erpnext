@@ -92,7 +92,7 @@
  "name": "Item Variant Attribute",
  "owner": "Administrator",
  "permissions": [],
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

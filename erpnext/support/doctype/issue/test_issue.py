@@ -1,11 +1,11 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors and Contributors
 # See license.txt
-
 import unittest
 
 import frappe
 from frappe import _
 from frappe.core.doctype.user_permission.test_user_permission import create_user
+from frappe.tests import IntegrationTestCase
 from frappe.utils import flt, get_datetime
 
 from erpnext.support.doctype.service_level_agreement.test_service_level_agreement import (
@@ -13,7 +13,7 @@ from erpnext.support.doctype.service_level_agreement.test_service_level_agreemen
 )
 
 
-class TestSetUp(unittest.TestCase):
+class TestSetUp(IntegrationTestCase):
 	def setUp(self):
 		frappe.db.sql("delete from `tabService Level Agreement`")
 		frappe.db.sql("delete from `tabService Level Priority`")
@@ -219,6 +219,7 @@ class TestIssue(TestSetUp):
 		frappe.flags.current_time = get_datetime("2021-11-01 19:00")
 
 		issue = make_issue(frappe.flags.current_time, index=1)
+		create_user("test@admin.com")
 		create_communication(issue.name, "test@example.com", "Received", frappe.flags.current_time)
 		add_assignment({"doctype": issue.doctype, "name": issue.name, "assign_to": ["test@admin.com"]})
 		issue.reload()

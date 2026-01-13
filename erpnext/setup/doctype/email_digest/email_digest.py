@@ -271,7 +271,7 @@ class EmailDigest(Document):
 		issue_list = frappe.db.sql(
 			"""select *
 			from `tabIssue` where status in ("Replied","Open")
-			order by modified asc limit 10""",
+			order by creation asc limit 10""",
 			as_dict=True,
 		)
 
@@ -295,7 +295,7 @@ class EmailDigest(Document):
 		project_list = frappe.db.sql(
 			"""select *
 			from `tabProject` where status='Open' and project_type='External'
-			order by modified asc limit 10""",
+			order by creation asc limit 10""",
 			as_dict=True,
 		)
 
@@ -799,7 +799,7 @@ class EmailDigest(Document):
 				"status": ["not in", ("Cancelled")],
 				"company": self.company,
 			},
-			fields=["count(*) as count", "sum(grand_total) as grand_total"],
+			fields=[{"COUNT": "*", "as": "count"}, {"SUM": "grand_total", "as": "grand_total"}],
 		)
 
 	def get_from_to_date(self):

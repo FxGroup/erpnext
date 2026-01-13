@@ -69,7 +69,7 @@ frappe.ui.form.on("Supplier", {
 
 		frm.make_methods = {
 			"Bank Account": () => erpnext.utils.make_bank_account(frm.doc.doctype, frm.doc.name),
-			"Pricing Rule": () => erpnext.utils.make_pricing_rule(frm.doc.doctype, frm.doc.name),
+			"Pricing Rule": () => frm.trigger("make_pricing_rule"),
 		};
 	},
 
@@ -110,10 +110,6 @@ frappe.ui.form.on("Supplier", {
 				},
 				__("View")
 			);
-
-			frm.add_custom_button(__("Bank Account"), () => frm.make_methods["Bank Account"](), __("Create"));
-
-			frm.add_custom_button(__("Pricing Rule"), () => frm.make_methods["Pricing Rule"](), __("Create"));
 
 			frm.add_custom_button(
 				__("Get Supplier Group Details"),
@@ -166,7 +162,7 @@ frappe.ui.form.on("Supplier", {
 					address_dict: frm.doc.supplier_primary_address,
 				},
 				callback: function (r) {
-					frm.set_value("primary_address", r.message);
+					frm.set_value("primary_address", frappe.utils.html2text(r.message));
 				},
 			});
 		}
@@ -230,5 +226,12 @@ frappe.ui.form.on("Supplier", {
 			primary_action_label: __("Create Link"),
 		});
 		dialog.show();
+	},
+	make_pricing_rule: function (frm) {
+		frappe.new_doc("Pricing Rule", {
+			applicable_for: "Supplier",
+			supplier: frm.doc.name,
+			buying: 1,
+		});
 	},
 });

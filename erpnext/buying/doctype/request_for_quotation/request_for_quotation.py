@@ -40,7 +40,7 @@ class RequestforQuotation(BuyingController):
 
 		amended_from: DF.Link | None
 		billing_address: DF.Link | None
-		billing_address_display: DF.SmallText | None
+		billing_address_display: DF.TextEditor | None
 		company: DF.Link
 		email_template: DF.Link | None
 		has_unit_price_items: DF.Check
@@ -56,6 +56,7 @@ class RequestforQuotation(BuyingController):
 		send_attached_files: DF.Check
 		send_document_print: DF.Check
 		status: DF.Literal["", "Draft", "Submitted", "Cancelled"]
+		subject: DF.Data
 		suppliers: DF.Table[RequestforQuotationSupplier]
 		tc_name: DF.Link | None
 		terms: DF.TextEditor | None
@@ -66,6 +67,7 @@ class RequestforQuotation(BuyingController):
 	def before_validate(self):
 		self.set_has_unit_price_items()
 		self.flags.allow_zero_qty = self.has_unit_price_items
+		self.set_data_for_supplier()
 
 	def validate(self):
 		self.validate_duplicate_supplier()
@@ -89,6 +91,19 @@ class RequestforQuotation(BuyingController):
 		self.has_unit_price_items = any(
 			not row.qty for row in self.get("items") if (row.item_code and not row.qty)
 		)
+
+	def set_data_for_supplier(self):
+		if self.email_template:
+			data = frappe.get_value(
+				"Email Template",
+				self.email_template,
+				["use_html", "response", "response_html", "subject"],
+				as_dict=True,
+			)
+			if not self.message_for_supplier:
+				self.message_for_supplier = data.response_html if data.use_html else data.response
+			if not self.subject:
+				self.subject = data.subject
 
 	def validate_duplicate_supplier(self):
 		supplier_list = [d.supplier for d in self.suppliers]
@@ -283,12 +298,6 @@ class RequestforQuotation(BuyingController):
 			}
 		)
 
-		if not self.email_template:
-			return
-
-		email_template = frappe.get_doc("Email Template", self.email_template)
-		message = frappe.render_template(email_template.response_, doc_args)
-		subject = frappe.render_template(email_template.subject, doc_args)
 		fixed_procurement_email = frappe.db.get_single_value("Buying Settings", "fixed_email")
 		if fixed_procurement_email:
 			sender = frappe.db.get_value("Email Account", fixed_procurement_email, "email_id")
@@ -296,7 +305,12 @@ class RequestforQuotation(BuyingController):
 			sender = frappe.session.user not in STANDARD_USERS and frappe.session.user or None
 
 		if preview:
-			return {"message": message, "subject": subject}
+			return {
+				"message": self.message_for_supplier,
+				"subject": self.subject
+				or frappe.get_value("Email Template", self.email_template, "subject")
+				or _("Request for Quotation"),
+			}
 
 		attachments = []
 		if self.send_attached_files:
@@ -316,7 +330,15 @@ class RequestforQuotation(BuyingController):
 				)
 			)
 
-		self.send_email(data, sender, subject, message, attachments)
+		self.send_email(
+			data,
+			sender,
+			self.subject
+			or frappe.get_value("Email Template", self.email_template, "subject")
+			or _("Request for Quotation"),
+			self.message_for_supplier,
+			attachments,
+		)
 
 	def send_email(self, data, sender, subject, message, attachments):
 		make(
@@ -386,6 +408,7 @@ def get_list_context(context=None):
 			"show_search": True,
 			"no_breadcrumbs": True,
 			"title": _("Request for Quotation"),
+			"list_template": "templates/includes/list/list.html",
 		}
 	)
 	return list_context
@@ -400,8 +423,8 @@ def make_supplier_quotation_from_rfq(source_name, target_doc=None, for_supplier=
 			target_doc.currency = args.currency or get_party_account_currency(
 				"Supplier", for_supplier, source.company
 			)
-			target_doc.buying_price_list = args.buying_price_list or frappe.db.get_value(
-				"Buying Settings", None, "buying_price_list"
+			target_doc.buying_price_list = args.buying_price_list or frappe.db.get_single_value(
+				"Buying Settings", "buying_price_list"
 			)
 		set_missing_values(source, target_doc)
 
@@ -446,7 +469,7 @@ def create_supplier_quotation(doc):
 				"currency": doc.get("currency")
 				or get_party_account_currency("Supplier", doc.get("supplier"), doc.get("company")),
 				"buying_price_list": doc.get("buying_price_list")
-				or frappe.db.get_value("Buying Settings", None, "buying_price_list"),
+				or frappe.db.get_single_value("Buying Settings", "buying_price_list"),
 			}
 		)
 		add_items(sq_doc, doc.get("supplier"), doc.get("items"))

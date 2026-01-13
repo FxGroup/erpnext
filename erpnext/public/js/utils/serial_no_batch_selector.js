@@ -1042,9 +1042,18 @@ erpnext.SerialBatchPackageSelector = class SerialBatchPackageSelector {
 					item_code: me.item_code,
 					warehouse: typeof me.warehouse_details.name == "string" ? me.warehouse_details.name : '',
 					batch_nos: me.item.batch_no || null,
+					exclude_sr_nos: already_selected_serial_nos,
+					based_on: based_on,
 					posting_date: me.frm.doc.posting_date || me.frm.doc.transaction_date,
-					exclude_sr_nos: already_selected_serial_nos
-				}
+					posting_time: this.frm.doc.posting_time,
+					scio_detail: this.item.scio_detail,
+				},
+				callback: (r) => {
+					if (r.message) {
+						this.dialog.fields_dict.entries.df.data = r.message;
+						this.dialog.fields_dict.entries.grid.refresh();
+					}
+				},
 			});
 
 			numbers.then((data) => {

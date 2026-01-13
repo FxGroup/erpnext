@@ -17,7 +17,6 @@ from frappe.utils import cint, flt
 from erpnext.accounts.party import get_due_date
 from erpnext.controllers.accounts_controller import get_taxes_and_charges, merge_taxes
 from erpnext.controllers.selling_controller import SellingController
-from erpnext.stock.stock_ledger import validate_reserved_stock
 
 form_grid_templates = {"items": "templates/form_grid/item_grid.html"}
 
@@ -31,6 +30,7 @@ class DeliveryNote(SellingController):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		from erpnext.accounts.doctype.item_wise_tax_detail.item_wise_tax_detail import ItemWiseTaxDetail
 		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
 		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
 			SalesTaxesandCharges,
@@ -40,7 +40,7 @@ class DeliveryNote(SellingController):
 		from erpnext.stock.doctype.packed_item.packed_item import PackedItem
 
 		additional_discount_percentage: DF.Float
-		address_display: DF.SmallText | None
+		address_display: DF.TextEditor | None
 		amended_from: DF.Link | None
 		amount_eligible_for_commission: DF.Currency
 		apply_discount_on: DF.Literal["", "Grand Total", "Net Total"]
@@ -53,11 +53,10 @@ class DeliveryNote(SellingController):
 		base_rounding_adjustment: DF.Currency
 		base_total: DF.Currency
 		base_total_taxes_and_charges: DF.Currency
-		campaign: DF.Link | None
 		commission_rate: DF.Float
 		company: DF.Link
 		company_address: DF.Link | None
-		company_address_display: DF.SmallText | None
+		company_address_display: DF.TextEditor | None
 		company_contact_person: DF.Link | None
 		contact_display: DF.SmallText | None
 		contact_email: DF.Data | None
@@ -70,9 +69,10 @@ class DeliveryNote(SellingController):
 		customer_address: DF.Link | None
 		customer_group: DF.Link | None
 		customer_name: DF.Data | None
+		delivery_trip: DF.Link | None
 		disable_rounded_total: DF.Check
 		discount_amount: DF.Currency
-		dispatch_address: DF.SmallText | None
+		dispatch_address: DF.TextEditor | None
 		dispatch_address_name: DF.Link | None
 		driver: DF.Link | None
 		driver_name: DF.Data | None
@@ -88,8 +88,9 @@ class DeliveryNote(SellingController):
 		is_internal_customer: DF.Check
 		is_return: DF.Check
 		issue_credit_note: DF.Check
+		item_wise_tax_details: DF.Table[ItemWiseTaxDetail]
 		items: DF.Table[DeliveryNoteItem]
-		language: DF.Data | None
+		language: DF.Link | None
 		letter_head: DF.Link | None
 		lr_date: DF.Date | None
 		lr_no: DF.Data | None
@@ -122,10 +123,9 @@ class DeliveryNote(SellingController):
 		set_posting_time: DF.Check
 		set_target_warehouse: DF.Link | None
 		set_warehouse: DF.Link | None
-		shipping_address: DF.SmallText | None
+		shipping_address: DF.TextEditor | None
 		shipping_address_name: DF.Link | None
 		shipping_rule: DF.Link | None
-		source: DF.Link | None
 		status: DF.Literal[
 			"", "Draft", "To Bill", "Completed", "Return", "Return Issued", "Cancelled", "Closed"
 		]
@@ -136,7 +136,6 @@ class DeliveryNote(SellingController):
 		tc_name: DF.Link | None
 		terms: DF.TextEditor | None
 		territory: DF.Link | None
-		title: DF.Data | None
 		total: DF.Currency
 		total_commission: DF.Currency
 		total_net_weight: DF.Float
@@ -144,6 +143,10 @@ class DeliveryNote(SellingController):
 		total_taxes_and_charges: DF.Currency
 		transporter: DF.Link | None
 		transporter_name: DF.Data | None
+		utm_campaign: DF.Link | None
+		utm_content: DF.Data | None
+		utm_medium: DF.Link | None
+		utm_source: DF.Link | None
 		vehicle_no: DF.Data | None
 	# end: auto-generated types
 
@@ -265,7 +268,7 @@ class DeliveryNote(SellingController):
 
 	def so_required(self):
 		"""check in manage account if sales order required or not"""
-		if frappe.db.get_single_value("Selling Settings", "so_required") == "Yes":
+		if frappe.get_single_value("Selling Settings", "so_required") == "Yes":
 			for d in self.get("items"):
 				if not d.against_sales_order:
 					frappe.throw(_("Sales Order required for Item {0}").format(d.item_code))
@@ -336,7 +339,7 @@ class DeliveryNote(SellingController):
 		)
 
 		if (
-			cint(frappe.db.get_single_value("Selling Settings", "maintain_same_sales_rate"))
+			cint(frappe.get_single_value("Selling Settings", "maintain_same_sales_rate"))
 			and not self.is_return
 			and not self.is_internal_customer
 		):
@@ -455,7 +458,7 @@ class DeliveryNote(SellingController):
 		self.update_pick_list_status()
 
 		# Check for Approving Authority
-		frappe.get_doc("Authorization Control").validate_approving_authority(
+		frappe.get_cached_doc("Authorization Control").validate_approving_authority(
 			self.doctype, self.company, self.base_grand_total, self
 		)
 
@@ -476,10 +479,6 @@ class DeliveryNote(SellingController):
 			self.make_bundle_using_old_serial_batch_fields(table_name)
 
 		self.validate_standalone_serial_nos_customer()
-
-		if not self.is_return:
-			self.validate_reserved_stock()
-
 		self.update_stock_reservation_entries()
 
 		# Updating stock ledger should always be called after updating prevdoc status,
@@ -516,66 +515,6 @@ class DeliveryNote(SellingController):
 		)
 
 		self.delete_auto_created_batches()
-
-	def validate_reserved_stock(self):
-		from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
-			get_sre_against_so_for_dn,
-		)
-
-		if not frappe.db.get_single_value("Stock Settings", "enable_stock_reservation"):
-			return
-
-		# fetch reserved stock data from bin
-		reserved_stocks = self.get_reserved_stock_details()
-
-		for row in self.items:
-			if flt(reserved_stocks.get((row.item_code, row.warehouse))) > 0:
-				args = frappe._dict(
-					{
-						"item_code": row.item_code,
-						"warehouse": row.warehouse,
-						"batch_nos": [row.batch_no] if row.batch_no else [],
-						"serial_nos": row.serial_no.split("\n") if row.serial_no else [],
-						"serial_and_batch_bundle": row.serial_and_batch_bundle,
-						"voucher_type": self.doctype,
-						"voucher_no": self.name,
-						"voucher_detail_no": row.name,
-						"actual_qty": row.qty * -1,
-						"posting_date": self.posting_date,
-						"posting_time": self.posting_time,
-					}
-				)
-
-				if row.against_sales_order and row.so_detail:
-					args.ignore_voucher_nos = get_sre_against_so_for_dn(
-						row.against_sales_order, row.so_detail
-					)
-
-				validate_reserved_stock(args)
-
-	def get_reserved_stock_details(self):
-		"""
-		Create dict from bin based on item and warehouse:
-		{(item_code, warehouse): reserved_stock}
-
-		Use: to quickly retrieve/check reserved stock value instead of looping n times
-		"""
-		item_codes = set()
-		warehouses = set()
-
-		for row in self.items:
-			item_codes.add(row.item_code)
-			warehouses.add(row.warehouse)
-
-		bins = frappe.db.get_all(
-			"Bin",
-			{"item_code": ["in", item_codes], "warehouse": ["in", warehouses]},
-			["item_code", "warehouse", "reserved_stock"],
-		)
-
-		reserved_stock_lookup = {(b.item_code, b.warehouse): flt(b.reserved_stock) for b in bins}
-
-		return reserved_stock_lookup
 
 	def validate_against_stock_reservation_entries(self):
 		"""Validates if Stock Reservation Entries are available for the Sales Order Item reference."""
@@ -725,7 +664,7 @@ class DeliveryNote(SellingController):
 				updated_delivery_notes += update_billed_amount_based_on_so(d.so_detail, update_modified)
 
 		for dn in set(updated_delivery_notes):
-			dn_doc = self if (dn == self.name) else frappe.get_doc("Delivery Note", dn)
+			dn_doc = self if (dn == self.name) else frappe.get_lazy_doc("Delivery Note", dn)
 			dn_doc.update_billing_percentage(update_modified=update_modified)
 
 		self.load_from_db()
@@ -808,36 +747,36 @@ def update_billed_amount_based_on_so(so_detail, update_modified=True):
 
 	updated_dn = []
 	for dnd in dn_details:
-		billed_amt_agianst_dn = 0
+		billed_amt_against_dn = 0
 
 		# If delivered against Sales Invoice
 		if dnd.si_detail:
-			billed_amt_agianst_dn = flt(dnd.amount)
-			billed_against_so -= billed_amt_agianst_dn
+			billed_amt_against_dn = flt(dnd.amount)
+			billed_against_so -= billed_amt_against_dn
 		else:
 			# Get billed amount directly against Delivery Note
-			billed_amt_agianst_dn = frappe.db.sql(
+			billed_amt_against_dn = frappe.db.sql(
 				"""select sum(amount) from `tabSales Invoice Item`
 				where dn_detail=%s and docstatus=1""",
 				dnd.name,
 			)
-			billed_amt_agianst_dn = billed_amt_agianst_dn and billed_amt_agianst_dn[0][0] or 0
+			billed_amt_against_dn = billed_amt_against_dn and billed_amt_against_dn[0][0] or 0
 
 		# Distribute billed amount directly against SO between DNs based on FIFO
-		if billed_against_so and billed_amt_agianst_dn < dnd.amount:
-			pending_to_bill = flt(dnd.amount) - billed_amt_agianst_dn
+		if billed_against_so and billed_amt_against_dn < dnd.amount:
+			pending_to_bill = flt(dnd.amount) - billed_amt_against_dn
 			if pending_to_bill <= billed_against_so:
-				billed_amt_agianst_dn += pending_to_bill
+				billed_amt_against_dn += pending_to_bill
 				billed_against_so -= pending_to_bill
 			else:
-				billed_amt_agianst_dn += billed_against_so
+				billed_amt_against_dn += billed_against_so
 				billed_against_so = 0
 
 		frappe.db.set_value(
 			"Delivery Note Item",
 			dnd.name,
 			"billed_amt",
-			billed_amt_agianst_dn,
+			billed_amt_against_dn,
 			update_modified=update_modified,
 		)
 
@@ -856,6 +795,7 @@ def get_list_context(context=None):
 			"show_search": True,
 			"no_breadcrumbs": True,
 			"title": _("Shipments"),
+			"list_template": "templates/includes/list/list.html",
 		}
 	)
 	return list_context
@@ -922,7 +862,7 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 			frappe.throw(_("All these items have already been Invoiced/Returned"))
 
 		if args and args.get("merge_taxes"):
-			merge_taxes(source.get("taxes") or [], target)
+			merge_taxes(source, target)
 
 		target.run_method("calculate_taxes_and_totals")
 
@@ -938,6 +878,7 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 
 	def update_item(source_doc, target_doc, source_parent):
 		target_doc.qty = to_make_invoice_qty_map[source_doc.name]
+		target_doc._old_name = source_doc.name
 
 	def get_pending_qty(item_row):
 		pending_qty = item_row.qty - invoiced_qty_map.get(item_row.name, 0)
@@ -1004,7 +945,7 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 	)
 
 	automatically_fetch_payment_terms = cint(
-		frappe.db.get_single_value("Accounts Settings", "automatically_fetch_payment_terms")
+		frappe.get_single_value("Accounts Settings", "automatically_fetch_payment_terms")
 	)
 
 	if not doc.is_return:
@@ -1031,32 +972,25 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 
 @frappe.whitelist()
 def make_delivery_trip(source_name, target_doc=None, kwargs=None):
-	def update_stop_details(source_doc, target_doc, source_parent):
-		target_doc.customer = source_parent.customer
-		target_doc.address = source_parent.shipping_address_name
-		target_doc.customer_address = source_parent.shipping_address
-		target_doc.contact = source_parent.contact_person
-		target_doc.customer_contact = source_parent.contact_display
-		target_doc.grand_total = source_parent.grand_total
-
-		# Append unique Delivery Notes in Delivery Trip
-		delivery_notes.append(target_doc.delivery_note)
-
-	delivery_notes = []
-
+	if not target_doc:
+		target_doc = frappe.new_doc("Delivery Trip")
 	doclist = get_mapped_doc(
 		"Delivery Note",
 		source_name,
 		{
-			"Delivery Note": {"doctype": "Delivery Trip", "validation": {"docstatus": ["=", 1]}},
-			"Delivery Note Item": {
+			"Delivery Note": {
 				"doctype": "Delivery Stop",
-				"field_map": {"parent": "delivery_note"},
-				"condition": lambda item: item.parent not in delivery_notes,
-				"postprocess": update_stop_details,
+				"on_parent": target_doc,
+				"field_map": {
+					"name": "delivery_note",
+					"shipping_address_name": "address",
+					"shipping_address": "customer_address",
+					"contact_person": "contact",
+					"contact_display": "customer_contact",
+				},
 			},
 		},
-		target_doc,
+		ignore_child_tables=True,
 	)
 
 	return doclist
@@ -1229,7 +1163,7 @@ def make_sales_return(source_name, target_doc=None):
 
 @frappe.whitelist()
 def update_delivery_note_status(docname, status):
-	dn = frappe.get_doc("Delivery Note", docname)
+	dn = frappe.get_lazy_doc("Delivery Note", docname)
 	dn.update_status(status)
 
 

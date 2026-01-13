@@ -117,7 +117,7 @@
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2025-11-28 10:53:57.350894",
+ "modified": "2024-03-27 13:10:11.511137",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Payment Term",
@@ -161,9 +161,7 @@
   }
  ],
  "quick_entry": 1,
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

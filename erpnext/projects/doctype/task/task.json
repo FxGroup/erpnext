@@ -147,7 +147,7 @@
   },
   {
    "collapsible": 1,
-   "collapsible_depends_on": "eval:doc.__islocal",
+   "collapsible_depends_on": "exp_start_date",
    "fieldname": "sb_timeline",
    "fieldtype": "Section Break",
    "label": "Timeline"
@@ -155,7 +155,7 @@
   {
    "bold": 1,
    "fieldname": "exp_start_date",
-   "fieldtype": "Date",
+   "fieldtype": "Datetime",
    "label": "Expected Start Date",
    "oldfieldname": "exp_start_date",
    "oldfieldtype": "Date"
@@ -181,7 +181,7 @@
   {
    "bold": 1,
    "fieldname": "exp_end_date",
-   "fieldtype": "Date",
+   "fieldtype": "Datetime",
    "label": "Expected End Date",
    "oldfieldname": "exp_end_date",
    "oldfieldtype": "Date",
@@ -428,7 +428,7 @@
  "search_fields": "subject",
  "show_name_in_global_search": 1,
  "show_preview_popup": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "timeline_field": "project",

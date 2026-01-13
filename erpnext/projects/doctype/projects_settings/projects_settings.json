@@ -37,14 +37,16 @@
   },
   {
    "default": "0",
+   "description": "Enabling the check box will fetch timesheet on select of a Project in Sales Invoice",
    "fieldname": "fetch_timesheet_in_sales_invoice",
    "fieldtype": "Check",
    "label": "Fetch Timesheet in Sales Invoice"
   }
  ],
+ "hide_toolbar": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-02-25 22:48:03.164862",
+ "modified": "2026-01-02 18:18:28.414222",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Projects Settings",
@@ -62,7 +64,8 @@
   }
  ],
  "quick_entry": 1,
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

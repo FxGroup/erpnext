@@ -2,7 +2,13 @@
 # License: GNU General Public License v3. See license.txt
 
 
+import frappe
+from frappe import _
 from frappe.model.document import Document
+from frappe.utils.data import cint
+
+from erpnext.assets.doctype.asset.depreciation import get_disposal_account_and_cost_center
+from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
 
 
 class SalesInvoiceItem(Document):
@@ -18,6 +24,7 @@ class SalesInvoiceItem(Document):
 		actual_qty: DF.Float
 		allow_zero_valuation_rate: DF.Check
 		amount: DF.Currency
+		apply_tds: DF.Check
 		asset: DF.Link | None
 		barcode: DF.Data | None
 		base_amount: DF.Currency
@@ -78,6 +85,7 @@ class SalesInvoiceItem(Document):
 		rate_with_margin: DF.Currency
 		sales_invoice_item: DF.Data | None
 		sales_order: DF.Link | None
+		scio_detail: DF.Data | None
 		serial_and_batch_bundle: DF.Link | None
 		serial_no: DF.Text | None
 		service_end_date: DF.Date | None
@@ -88,6 +96,7 @@ class SalesInvoiceItem(Document):
 		stock_uom: DF.Link | None
 		stock_uom_rate: DF.Currency
 		target_warehouse: DF.Link | None
+		tax_withholding_category: DF.Link | None
 		total_weight: DF.Float
 		uom: DF.Link
 		use_serial_batch_fields: DF.Check
@@ -96,4 +105,31 @@ class SalesInvoiceItem(Document):
 		weight_uom: DF.Link | None
 	# end: auto-generated types
 
-	pass
+	def validate_cost_center(self, company: str):
+		cost_center_company = frappe.get_cached_value("Cost Center", self.cost_center, "company")
+		if cost_center_company != company:
+			frappe.throw(
+				_("Row #{0}: Cost Center {1} does not belong to company {2}").format(
+					frappe.bold(self.idx), frappe.bold(self.cost_center), frappe.bold(company)
+				)
+			)
+
+	def set_actual_qty(self):
+		if self.item_code and self.warehouse:
+			self.actual_qty = (
+				frappe.db.get_value(
+					"Bin", {"item_code": self.item_code, "warehouse": self.warehouse}, "actual_qty"
+				)
+				or 0
+			)
+
+	def set_income_account_for_fixed_asset(self, company: str):
+		"""Set income account for fixed asset item based on company's disposal account and cost center."""
+		if not self.is_fixed_asset:
+			return
+
+		disposal_account, depreciation_cost_center = get_disposal_account_and_cost_center(company)
+
+		self.income_account = disposal_account
+		if not self.cost_center:
+			self.cost_center = depreciation_cost_center

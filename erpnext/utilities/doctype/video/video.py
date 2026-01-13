@@ -6,7 +6,6 @@ import re
 from datetime import datetime
 
 import frappe
-import pytz
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint
@@ -77,17 +76,16 @@ def get_frequency(value):
 
 
 def update_youtube_data():
-	# Called every 30 minutes via hooks
-	enable_youtube_tracking, frequency = frappe.db.get_value(
-		"Video Settings", "Video Settings", ["enable_youtube_tracking", "frequency"]
-	)
+	from zoneinfo import ZoneInfo
 
-	if not cint(enable_youtube_tracking):
+	# Called every 30 minutes via hooks
+	video_settings = frappe.get_cached_doc("Video Settings")
+	if not video_settings.enable_youtube_tracking:
 		return
 
-	frequency = get_frequency(frequency)
+	frequency = get_frequency(video_settings.frequency)
 	time = datetime.now()
-	timezone = pytz.timezone(get_system_timezone())
+	timezone = ZoneInfo(get_system_timezone())
 	site_time = time.astimezone(timezone)
 
 	if frequency == 30:

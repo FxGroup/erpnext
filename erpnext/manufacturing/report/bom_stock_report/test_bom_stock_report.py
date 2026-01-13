@@ -4,7 +4,7 @@
 
 import frappe
 from frappe.exceptions import ValidationError
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import floor
 
 from erpnext.manufacturing.doctype.production_plan.test_production_plan import make_bom
@@ -15,7 +15,7 @@ from erpnext.stock.doctype.item.test_item import make_item
 from erpnext.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
 
 
-class TestBomStockReport(FrappeTestCase):
+class TestBomStockReport(IntegrationTestCase):
 	def setUp(self):
 		self.warehouse = "_Test Warehouse - _TC"
 		self.fg_item, self.rm_items = create_items()
@@ -96,6 +96,7 @@ def get_expected_data(bom, warehouse, qty_to_produce, show_exploded_view=False):
 				item.item_code,
 				item.item_name,
 				item.description,
+				bom.name,
 				item.stock_qty,
 				item.stock_uom,
 				item.stock_qty * qty_to_produce / bom.quantity,
@@ -103,6 +104,8 @@ def get_expected_data(bom, warehouse, qty_to_produce, show_exploded_view=False):
 				floor(in_stock_qty / (item.stock_qty * qty_to_produce / bom.quantity))
 				if in_stock_qty
 				else None,
+				item.bom_no,
+				item.is_phantom_item,
 			]
 		)
 

@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import qb
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
 from erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool import (
@@ -15,7 +15,7 @@ from erpnext.accounts.doctype.payment_entry.test_payment_entry import create_pay
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
 
 
-class TestBankReconciliationTool(AccountsTestMixin, FrappeTestCase):
+class TestBankReconciliationTool(AccountsTestMixin, IntegrationTestCase):
 	def setUp(self):
 		self.create_company()
 		self.create_customer()
@@ -40,7 +40,7 @@ class TestBankReconciliationTool(AccountsTestMixin, FrappeTestCase):
 				{
 					"doctype": "Bank Account",
 					"account_name": "HDFC _current_",
-					"bank": bank,
+					"bank": bank.name,
 					"is_company_account": True,
 					"account": self.bank,  # account from Chart of Accounts
 				}

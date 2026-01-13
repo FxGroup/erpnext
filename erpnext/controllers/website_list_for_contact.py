@@ -35,7 +35,7 @@ def get_webform_list_context(module):
 
 
 def get_webform_transaction_list(
-	doctype, txt=None, filters=None, limit_start=0, limit_page_length=20, order_by="modified"
+	doctype, txt=None, filters=None, limit_start=0, limit_page_length=20, order_by="creation"
 ):
 	"""Get List of transactions for custom doctypes"""
 	from frappe.www.list import get_list
@@ -59,7 +59,7 @@ def get_webform_transaction_list(
 		limit_page_length,
 		ignore_permissions=False,
 		fields=None,
-		order_by="modified",
+		order_by="creation",
 	)
 
 
@@ -149,7 +149,7 @@ def get_list_for_transactions(
 		limit_start=limit_start,
 		limit_page_length=limit_page_length,
 		ignore_permissions=ignore_permissions,
-		order_by="modified desc",
+		order_by="creation desc",
 	):
 		data.append(d)
 
@@ -180,7 +180,7 @@ def get_list_for_transactions(
 def rfq_transaction_list(parties_doctype, doctype, parties, limit_start, limit_page_length):
 	data = frappe.db.sql(
 		"""select distinct parent as name, supplier from `tab{doctype}`
-			where supplier = '{supplier}' and docstatus=1  order by modified desc limit {start}, {len}""".format(
+			where supplier = '{supplier}' and docstatus=1  order by creation desc limit {start}, {len}""".format(
 			doctype=parties_doctype, supplier=parties[0], start=limit_start, len=limit_page_length
 		),
 		as_dict=1,

@@ -552,6 +552,18 @@ body[data-route="pos"] {
 	padding-bottom: 25px;
 }
 
+.workstation-image {
+	cursor: pointer;
+}
+
+.workstation-image-container {
+	height: 4.5rem;
+}
+
+.workstation-image-cls {
+	padding-top: 2px;
+}
+
 .plant-floor-filter {
 	padding-top: 10px;
 	display: flex;
@@ -560,8 +572,12 @@ body[data-route="pos"] {
 
 .plant-floor-container {
 	display: grid;
-	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: var(--margin-xl);
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 6px;
+}
+
+.workstation-off {
+	opacity: 0.6;
 }
 
 @media screen and (max-width: 620px) {
@@ -577,7 +593,7 @@ body[data-route="pos"] {
 .plant-floor-container .workstation-image-link {
 	width: 100%;
 	font-size: 50px;
-	margin: var(--margin-sm);
+	margin: var(--margin-xs);
 	min-height: 9rem;
 }
 
@@ -590,7 +606,16 @@ body[data-route="pos"] {
 	justify-content: center;
 }
 
-.frappe-control[data-fieldname="other_charges_calculation"] .ql-editor {
+.frappe-control[data-fieldname="other_charges_calculation"] .ql-editor,
+.frappe-control[data-fieldname="address_display"] .ql-editor,
+.frappe-control[data-fieldname="shipping_address_display"] .ql-editor,
+.frappe-control[data-fieldname="shipping_address"] .ql-editor,
+.frappe-control[data-fieldname="dispatch_address_display"] .ql-editor,
+.frappe-control[data-fieldname="dispatch_address"] .ql-editor,
+.frappe-control[data-fieldname="source_address_display"] .ql-editor,
+.frappe-control[data-fieldname="target_address_display"] .ql-editor,
+.frappe-control[data-fieldname="billing_address_display"] .ql-editor,
+.frappe-control[data-fieldname="company_address_display"] .ql-editor {
 	white-space: normal;
 }
 

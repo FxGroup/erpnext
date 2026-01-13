@@ -129,7 +129,7 @@ def make_order(source_name):
 
 	def update_item(source, target, source_parent):
 		target_qty = source.get("qty") - source.get("ordered_qty")
-		target.qty = target_qty if not flt(target_qty) < 0 else 0
+		target.qty = target_qty if flt(target_qty) >= 0 else 0
 		target.rate = source.get("rate")
 		item = get_item_defaults(target.item_code, source_parent.company)
 		if item:

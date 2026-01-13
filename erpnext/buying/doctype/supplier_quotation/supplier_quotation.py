@@ -24,6 +24,7 @@ class SupplierQuotation(BuyingController):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		from erpnext.accounts.doctype.item_wise_tax_detail.item_wise_tax_detail import ItemWiseTaxDetail
 		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
 		from erpnext.accounts.doctype.purchase_taxes_and_charges.purchase_taxes_and_charges import (
 			PurchaseTaxesandCharges,
@@ -33,7 +34,7 @@ class SupplierQuotation(BuyingController):
 		)
 
 		additional_discount_percentage: DF.Float
-		address_display: DF.SmallText | None
+		address_display: DF.TextEditor | None
 		amended_from: DF.Link | None
 		apply_discount_on: DF.Literal["", "Grand Total", "Net Total"]
 		auto_repeat: DF.Link | None
@@ -48,7 +49,7 @@ class SupplierQuotation(BuyingController):
 		base_total: DF.Currency
 		base_total_taxes_and_charges: DF.Currency
 		billing_address: DF.Link | None
-		billing_address_display: DF.SmallText | None
+		billing_address_display: DF.TextEditor | None
 		buying_price_list: DF.Link | None
 		company: DF.Link
 		contact_display: DF.SmallText | None
@@ -67,6 +68,7 @@ class SupplierQuotation(BuyingController):
 		in_words: DF.Data | None
 		incoterm: DF.Link | None
 		is_subcontracted: DF.Check
+		item_wise_tax_details: DF.Table[ItemWiseTaxDetail]
 		items: DF.Table[SupplierQuotationItem]
 		language: DF.Data | None
 		letter_head: DF.Link | None
@@ -84,7 +86,7 @@ class SupplierQuotation(BuyingController):
 		rounding_adjustment: DF.Currency
 		select_print_heading: DF.Link | None
 		shipping_address: DF.Link | None
-		shipping_address_display: DF.SmallText | None
+		shipping_address_display: DF.TextEditor | None
 		shipping_rule: DF.Link | None
 		status: DF.Literal["", "Draft", "Submitted", "Stopped", "Cancelled", "Expired"]
 		supplier: DF.Link
@@ -230,6 +232,7 @@ def get_list_context(context=None):
 			"show_search": True,
 			"no_breadcrumbs": True,
 			"title": _("Supplier Quotation"),
+			"list_template": "templates/includes/list/list.html",
 		}
 	)
 
@@ -344,4 +347,16 @@ def set_expired_status():
 			`status` not in ('Cancelled', 'Stopped') AND `valid_till` < %s
 		""",
 		(nowdate()),
+	)
+
+
+def get_purchased_items(supplier_quotation: str):
+	return frappe._dict(
+		frappe.get_all(
+			"Purchase Order Item",
+			filters={"supplier_quotation": supplier_quotation, "docstatus": 1},
+			fields=["supplier_quotation_item", {"SUM": "qty"}],
+			group_by="supplier_quotation_item",
+			as_list=1,
+		)
 	)

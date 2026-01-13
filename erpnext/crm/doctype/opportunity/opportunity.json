@@ -19,7 +19,6 @@
   "status",
   "column_break0",
   "opportunity_type",
-  "source",
   "opportunity_owner",
   "column_break_10",
   "sales_stage",
@@ -45,9 +44,15 @@
   "column_break_17",
   "opportunity_amount",
   "base_opportunity_amount",
+  "section_break_analytics",
+  "utm_source",
+  "utm_content",
+  "column_break_emai",
+  "utm_campaign",
+  "column_break_whcu",
+  "utm_medium",
   "more_info",
   "company",
-  "campaign",
   "transaction_date",
   "column_break1",
   "language",
@@ -250,7 +255,7 @@
   },
   {
    "fieldname": "address_display",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "hidden": 1,
    "label": "Address",
    "oldfieldname": "address",
@@ -315,24 +320,6 @@
    "label": "More Information",
    "oldfieldtype": "Section Break",
    "options": "fa fa-file-text"
-  },
-  {
-   "fieldname": "source",
-   "fieldtype": "Link",
-   "label": "Source",
-   "oldfieldname": "source",
-   "oldfieldtype": "Select",
-   "options": "Lead Source"
-  },
-  {
-   "depends_on": "eval: doc.source==\"Campaign\"",
-   "description": "Enter name of campaign if source of enquiry is campaign",
-   "fieldname": "campaign",
-   "fieldtype": "Link",
-   "label": "Campaign",
-   "oldfieldname": "campaign",
-   "oldfieldtype": "Link",
-   "options": "Campaign"
   },
   {
    "fieldname": "column_break1",
@@ -619,13 +606,57 @@
    "fieldtype": "Link",
    "label": "Country",
    "options": "Country"
+  },
+  {
+   "fieldname": "column_break_emai",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "utm_source",
+   "fieldtype": "Link",
+   "label": "Source",
+   "oldfieldname": "source",
+   "oldfieldtype": "Select",
+   "options": "UTM Source",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "utm_campaign",
+   "fieldtype": "Link",
+   "label": "Campaign",
+   "oldfieldname": "campaign",
+   "oldfieldtype": "Link",
+   "options": "UTM Campaign",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "section_break_analytics",
+   "fieldtype": "Section Break",
+   "label": "Analytics"
+  },
+  {
+   "fieldname": "column_break_whcu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "utm_medium",
+   "fieldtype": "Link",
+   "label": "Medium",
+   "options": "UTM Medium",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "utm_content",
+   "fieldtype": "Data",
+   "label": "Content",
+   "print_hide": 1
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-info-sign",
  "idx": 195,
  "links": [],
- "modified": "2025-06-26 11:16:13.665866",
+ "modified": "2025-08-11 13:35:39.476016",
  "modified_by": "Administrator",
  "module": "CRM",
  "name": "Opportunity",
@@ -661,7 +692,7 @@
  "search_fields": "status,transaction_date,party_name,opportunity_type,territory,company",
  "sender_field": "contact_email",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "subject_field": "title",

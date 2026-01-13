@@ -22,7 +22,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 	def run(self, args):
 		self.account_type = args.get("account_type")
 		self.party_type = get_party_types_from_account_type(self.account_type)
-		self.party_naming_by = frappe.db.get_value(args.get("naming_by")[0], None, args.get("naming_by")[1])
+		self.party_naming_by = frappe.db.get_single_value(args.get("naming_by")[0], args.get("naming_by")[1])
 		self.company_currency = frappe.get_cached_value("Company", self.filters.company, "default_currency")
 		self.get_columns()
 		self.get_data(args)
@@ -256,13 +256,6 @@ def get_gl_balance(report_date, company, party_type=None):
 		filters["party_type"] = party_type
 		party_type_condition = "AND party_type = %(party_type)s"
 
-	# Handle finance book (similar to General Ledger logic)
-	finance_book_condition = ""
-	if finance_book:
-		finance_book_condition = "AND (finance_book in (%(finance_book)s, '') OR finance_book IS NULL)"
-		filters["finance_book"] = finance_book
-	else:
-		finance_book_condition = "AND (finance_book in ('') OR finance_book IS NULL)"
 
 	result = frappe.db.sql(f"""
 		SELECT
@@ -274,7 +267,6 @@ def get_gl_balance(report_date, company, party_type=None):
 			AND is_cancelled = %(is_cancelled)s
 			AND ({date_conditions})
 			{party_type_condition}
-			{finance_book_condition}
 			AND party IS NOT NULL
 		GROUP BY party
 	""", filters, as_dict=1)

@@ -2,13 +2,13 @@
 # MIT License. See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import today
 
 from erpnext.accounts.report.trial_balance.trial_balance import execute
 
 
-class TestTrialBalance(FrappeTestCase):
+class TestTrialBalance(IntegrationTestCase):
 	def setUp(self):
 		from erpnext.accounts.doctype.account.test_account import create_account
 		from erpnext.accounts.doctype.cost_center.test_cost_center import create_cost_center
@@ -75,6 +75,8 @@ def create_company(**args):
 			"company_name": args.company_name or "Trial Balance Company",
 			"country": args.country or "India",
 			"default_currency": args.currency or "INR",
+			"parent_company": args.get("parent_company"),
+			"is_group": args.get("is_group"),
 		}
 	)
 	company.insert(ignore_if_duplicate=True)

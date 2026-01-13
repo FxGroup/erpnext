@@ -4,19 +4,20 @@
 import json
 
 import frappe
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase
 from frappe.utils import flt, nowtime, today
 
 from erpnext.stock.doctype.item.test_item import make_item
 from erpnext.stock.doctype.serial_and_batch_bundle.serial_and_batch_bundle import (
 	add_serial_batch_ledgers,
+	combine_datetime,
 	make_batch_nos,
 	make_serial_nos,
 )
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 
 
-class TestSerialandBatchBundle(FrappeTestCase):
+class TestSerialandBatchBundle(IntegrationTestCase):
 	def test_naming_for_sabb(self):
 		frappe.db.set_single_value(
 			"Stock Settings", "set_serial_and_batch_bundle_naming_based_on_naming_series", 1
@@ -638,7 +639,9 @@ class TestSerialandBatchBundle(FrappeTestCase):
 		make_serial_nos(item_code, serial_nos)
 		self.assertTrue(frappe.db.exists("Serial No", serial_no_id))
 
-	@change_settings("Stock Settings", {"auto_create_serial_and_batch_bundle_for_outward": 1})
+	@IntegrationTestCase.change_settings(
+		"Stock Settings", {"auto_create_serial_and_batch_bundle_for_outward": 1}
+	)
 	def test_duplicate_serial_and_batch_bundle(self):
 		from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
 
@@ -967,14 +970,17 @@ def make_serial_batch_bundle(kwargs):
 	if kwargs.get("type_of_transaction"):
 		type_of_transaction = kwargs.get("type_of_transaction")
 
+	posting_datetime = None
+	if kwargs.get("posting_date"):
+		posting_datetime = combine_datetime(kwargs.posting_date, kwargs.posting_time or nowtime())
+
 	sb = SerialBatchCreation(
 		{
 			"item_code": kwargs.item_code,
 			"warehouse": kwargs.warehouse,
 			"voucher_type": kwargs.voucher_type,
 			"voucher_no": kwargs.voucher_no,
-			"posting_date": kwargs.posting_date,
-			"posting_time": kwargs.posting_time,
+			"posting_datetime": posting_datetime,
 			"qty": kwargs.qty,
 			"avg_rate": kwargs.rate,
 			"batches": kwargs.batches,
@@ -982,6 +988,7 @@ def make_serial_batch_bundle(kwargs):
 			"type_of_transaction": type_of_transaction,
 			"company": kwargs.company or "_Test Company",
 			"do_not_submit": kwargs.do_not_submit,
+			"ignore_sabb_validation": kwargs.ignore_sabb_validation or False,
 		}
 	)
 

@@ -3,6 +3,7 @@
  "creation": "2015-12-23 21:31:52.699821",
  "doctype": "DocType",
  "editable_grid": 1,
+ "engine": "InnoDB",
  "field_order": [
   "payment_gateway",
   "payment_channel",
@@ -49,7 +50,7 @@
    "label": "Currency"
   },
   {
-   "depends_on": "eval: doc.payment_channel !== \"Phone\"",
+   "depends_on": "eval: doc.payment_channel == 'Email' || (!doc.payment_channel)",
    "fieldname": "payment_request_message",
    "fieldtype": "Section Break"
   },
@@ -70,7 +71,7 @@
    "fieldname": "payment_channel",
    "fieldtype": "Select",
    "label": "Payment Channel",
-   "options": "\nEmail\nPhone"
+   "options": "\nEmail\nPhone\nOther"
   },
   {
    "fieldname": "company",
@@ -104,6 +105,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC"
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
 }

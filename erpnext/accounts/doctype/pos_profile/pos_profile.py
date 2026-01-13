@@ -28,13 +28,15 @@ class POSProfile(Document):
 		from erpnext.accounts.doctype.pos_profile_user.pos_profile_user import POSProfileUser
 
 		account_for_change_amount: DF.Link | None
+		action_on_new_invoice: DF.Literal[
+			"Always Ask", "Save Changes and Load New Invoice", "Discard Changes and Load New Invoice"
+		]
 		allow_discount_change: DF.Check
 		allow_partial_payment: DF.Check
 		allow_rate_change: DF.Check
 		applicable_for_users: DF.Table[POSProfileUser]
 		apply_discount_on: DF.Literal["Grand Total", "Net Total"]
 		auto_add_item_to_cart: DF.Check
-		campaign: DF.Link | None
 		company: DF.Link
 		company_address: DF.Link | None
 		cost_center: DF.Link | None
@@ -42,7 +44,6 @@ class POSProfile(Document):
 		currency: DF.Link
 		customer: DF.Link | None
 		customer_groups: DF.Table[POSCustomerGroup]
-		disable_grand_total_to_default_mop: DF.Check
 		disable_rounded_total: DF.Check
 		disabled: DF.Check
 		expense_account: DF.Link | None
@@ -58,10 +59,14 @@ class POSProfile(Document):
 		project: DF.Link | None
 		select_print_heading: DF.Link | None
 		selling_price_list: DF.Link | None
+		set_grand_total_to_default_mop: DF.Check
 		tax_category: DF.Link | None
 		taxes_and_charges: DF.Link | None
 		tc_name: DF.Link | None
 		update_stock: DF.Check
+		utm_campaign: DF.Link | None
+		utm_medium: DF.Link | None
+		utm_source: DF.Link | None
 		validate_stock_on_save: DF.Check
 		warehouse: DF.Link
 		write_off_account: DF.Link
@@ -161,7 +166,7 @@ class POSProfile(Document):
 
 		if len(customer_groups) != len(set(customer_groups)):
 			frappe.throw(
-				_("Duplicate customer group found in the cutomer group table"),
+				_("Duplicate customer group found in the customer group table"),
 				title=_("Duplicate Customer Group"),
 			)
 

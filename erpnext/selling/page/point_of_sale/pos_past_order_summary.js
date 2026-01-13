@@ -24,7 +24,7 @@ erpnext.PointOfSale.PastOrderSummary = class {
 					<div class="abs-container">
 						<div class="upper-section"></div>
 						<div class="label">${__("Items")}</div>
-						<div class="items-container summary-container"></div>
+						<div class="items-container summary-container order-summary-container"></div>
 						<div class="label">${__("Totals")}</div>
 						<div class="totals-container summary-container"></div>
 						<div class="label">${__("Payments")}</div>
@@ -76,8 +76,9 @@ erpnext.PointOfSale.PastOrderSummary = class {
 		const is_customer_naming_by_customer_name = frappe.sys_defaults.cust_master_name !== "Customer Name";
 
 		["Paid", "Consolidated"].includes(status) && (indicator_color = "green");
-		status === "Draft" && (indicator_color = "red");
-		status === "Return" && (indicator_color = "grey");
+		["Partly Paid", "Overdue"].includes(status) && (indicator_color = "yellow");
+		["Draft", "Unpaid"].includes(status) && (indicator_color = "red");
+		["Credit Note Issued", "Return"].includes(status) && (indicator_color = "grey");
 
 		return `<div class="left-section">
 					<div class="customer-section">
@@ -94,12 +95,18 @@ erpnext.PointOfSale.PastOrderSummary = class {
 				</div>`;
 	}
 
-	get_item_html(doc, item_data) {
+	async get_item_html(doc, item_data) {
+		const item_refund_data = doc.is_return || doc.docstatus === 0 ? "" : await get_returned_qty();
+
 		return `<div class="item-row-wrapper">
+				<div class="item-row-data">
 					<div class="item-name">${item_data.item_name}</div>
 					<div class="item-qty">${item_data.qty || 0} ${item_data.uom}</div>
 					<div class="item-rate-disc">${get_rate_discount_html()}</div>
-				</div>`;
+				</div>
+
+				${item_refund_data}
+		</div>`;
 
 		function get_rate_discount_html() {
 			if (item_data.rate && item_data.price_list_rate && item_data.rate !== item_data.price_list_rate) {
@@ -111,6 +118,26 @@ erpnext.PointOfSale.PastOrderSummary = class {
 					doc.currency
 				)}</div>`;
 			}
+		}
+
+		async function get_returned_qty() {
+			const r = await frappe.call({
+				method: "erpnext.controllers.sales_and_purchase_return.get_invoice_item_returned_qty",
+				args: {
+					doctype: doc.doctype,
+					invoice: doc.name,
+					customer: doc.customer,
+					item_row_name: item_data.name,
+				},
+			});
+
+			if (!r.message.qty) {
+				return "";
+			}
+
+			return `<div class="item-row-refund">
+				<strong>${r.message.qty}</strong> ${__("Returned")}
+			</div>`;
 		}
 	}
 
@@ -137,15 +164,9 @@ erpnext.PointOfSale.PastOrderSummary = class {
 
 		let taxes_html = doc.taxes
 			.map((t) => {
-				// if tax rate is 0, don't print it.
-				const description = /[0-9]+/.test(t.description)
-					? t.description
-					: t.rate != 0
-					? `${t.description} @ ${t.rate}%`
-					: t.description;
 				return `
 				<div class="tax-row">
-					<div class="tax-label">${description}</div>
+					<div class="tax-label">${t.description}</div>
 					<div class="tax-value">${format_currency(t.tax_amount_after_discount_amount, doc.currency)}</div>
 				</div>
 			`;
@@ -170,22 +191,31 @@ erpnext.PointOfSale.PastOrderSummary = class {
 	}
 
 	bind_events() {
-		this.$summary_container.on("click", ".return-btn", () => {
-			this.events.process_return(this.doc.name);
+		this.$summary_container.on("click", ".return-btn", async () => {
+			const r = await this.is_invoice_returnable(this.doc.doctype, this.doc.name);
+			if (!r) {
+				frappe.msgprint({
+					title: __("Invalid Return"),
+					indicator: "orange",
+					message: __("All the items have been already returned."),
+				});
+				return;
+			}
+			this.events.process_return(this.doc.doctype, this.doc.name);
 			this.toggle_component(false);
 			this.$component.find(".no-summary-placeholder").css("display", "flex");
 			this.$summary_wrapper.css("display", "none");
 		});
 
 		this.$summary_container.on("click", ".edit-btn", () => {
-			this.events.edit_order(this.doc.name);
+			this.events.edit_order(this.doc.doctype, this.doc.name);
 			this.toggle_component(false);
 			this.$component.find(".no-summary-placeholder").css("display", "flex");
 			this.$summary_wrapper.css("display", "none");
 		});
 
 		this.$summary_container.on("click", ".delete-btn", () => {
-			this.events.delete_order(this.doc.name);
+			this.events.delete_order(this.doc.doctype, this.doc.name);
 			this.show_summary_placeholder();
 		});
 
@@ -211,6 +241,10 @@ erpnext.PointOfSale.PastOrderSummary = class {
 
 		this.$summary_container.on("click", ".print-btn", () => {
 			this.print_receipt();
+		});
+
+		this.$summary_container.on("click", ".open-btn", () => {
+			this.events.open_in_form_view(this.doc.doctype, this.doc.name);
 		});
 	}
 
@@ -331,7 +365,14 @@ erpnext.PointOfSale.PastOrderSummary = class {
 		return [
 			{ condition: this.doc.docstatus === 0, visible_btns: ["Edit Order", "Delete Order"] },
 			{
-				condition: !this.doc.is_return && this.doc.docstatus === 1,
+				condition: ["Partly Paid", "Overdue", "Unpaid"].includes(this.doc.status),
+				visible_btns: ["Print Receipt", "Email Receipt", "Open in Form View"],
+			},
+			{
+				condition:
+					!this.doc.is_return &&
+					this.doc.docstatus === 1 &&
+					!["Partly Paid", "Overdue", "Unpaid"].includes(this.doc.status),
 				visible_btns: ["Print Receipt", "Email Receipt", "Return"],
 			},
 			{
@@ -375,13 +416,13 @@ erpnext.PointOfSale.PastOrderSummary = class {
 		});
 	}
 
-	attach_items_info(doc) {
+	async attach_items_info(doc) {
 		this.$items_container.html("");
-		doc.items.forEach((item) => {
-			const item_dom = this.get_item_html(doc, item);
+		for (const item of doc.items) {
+			const item_dom = await this.get_item_html(doc, item);
 			this.$items_container.append(item_dom);
 			this.set_dynamic_rate_header_width();
-		});
+		}
 	}
 
 	set_dynamic_rate_header_width() {
@@ -429,6 +470,18 @@ erpnext.PointOfSale.PastOrderSummary = class {
 	}
 
 	toggle_component(show) {
+		this.$component.css("grid-column", "span 6 / span 6");
 		show ? this.$component.css("display", "flex") : this.$component.css("display", "none");
+	}
+
+	async is_invoice_returnable(doctype, invoice) {
+		const r = await frappe.call({
+			method: "erpnext.controllers.sales_and_purchase_return.is_invoice_returnable",
+			args: {
+				doctype: doctype,
+				invoice: invoice,
+			},
+		});
+		return r.message;
 	}
 };

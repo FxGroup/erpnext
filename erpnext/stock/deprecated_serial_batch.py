@@ -3,15 +3,21 @@ import json
 from collections import defaultdict
 
 import frappe
-from frappe.query_builder.functions import CombineDatetime, Sum
+from frappe.query_builder.functions import Sum
 from frappe.utils import flt, nowtime
-from frappe.utils.deprecations import deprecated
 from pypika import Order
 from pypika.functions import Coalesce
 
+from erpnext.deprecation_dumpster import deprecated
+
 
 class DeprecatedSerialNoValuation:
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.SerialNoValuation.calculate_stock_value_from_deprecarated_ledgers",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def calculate_stock_value_from_deprecarated_ledgers(self):
 		serial_nos = []
 		if hasattr(self, "old_serial_nos"):
@@ -26,12 +32,22 @@ class DeprecatedSerialNoValuation:
 
 		self.stock_value_change += flt(stock_value_change)
 
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.SerialNoValuation.get_incoming_value_for_serial_nos",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def get_incoming_value_for_serial_nos(self, serial_nos):
 		from erpnext.stock.utils import get_combine_datetime
 
 		# get rate from serial nos within same company
 		incoming_values = 0.0
+		posting_datetime = self.sle.posting_datetime
+
+		if not posting_datetime and self.sle.posting_date:
+			posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+
 		for serial_no in serial_nos:
 			sn_details = frappe.db.get_value("Serial No", serial_no, ["purchase_rate", "company"], as_dict=1)
 			if sn_details and sn_details.purchase_rate and sn_details.company == self.sle.company:
@@ -55,10 +71,8 @@ class DeprecatedSerialNoValuation:
 					& (table.serial_and_batch_bundle.isnull())
 					& (table.actual_qty > 0)
 					& (table.is_cancelled == 0)
-					& (
-						table.posting_datetime
-						<= get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
-					)
+					& table.posting_datetime
+					<= posting_datetime
 				)
 				.orderby(table.posting_datetime, order=Order.desc)
 				.limit(1)
@@ -72,7 +86,12 @@ class DeprecatedSerialNoValuation:
 
 
 class DeprecatedBatchNoValuation:
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.BatchNoValuation.calculate_avg_rate_from_deprecarated_ledgers",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def calculate_avg_rate_from_deprecarated_ledgers(self):
 		entries = self.get_sle_for_batches()
 		for ledger in entries:
@@ -80,7 +99,12 @@ class DeprecatedBatchNoValuation:
 			self.available_qty[ledger.batch_no] += flt(ledger.batch_qty)
 			self.total_qty[ledger.batch_no] += flt(ledger.batch_qty)
 
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.BatchNoValuation.get_sle_for_batches",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def get_sle_for_batches(self):
 		from erpnext.stock.utils import get_combine_datetime
 
@@ -90,11 +114,8 @@ class DeprecatedBatchNoValuation:
 		sle = frappe.qb.DocType("Stock Ledger Entry")
 
 		timestamp_condition = None
-		if self.sle.posting_date:
-			if self.sle.posting_time is None:
-				self.sle.posting_time = nowtime()
-
-			posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+		if self.sle.posting_datetime:
+			posting_datetime = self.sle.posting_datetime
 			if not self.sle.creation:
 				posting_datetime = posting_datetime + datetime.timedelta(milliseconds=1)
 
@@ -131,7 +152,12 @@ class DeprecatedBatchNoValuation:
 
 		return query.run(as_dict=True)
 
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.BatchNoValuation.calculate_avg_rate_for_non_batchwise_valuation",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def calculate_avg_rate_for_non_batchwise_valuation(self):
 		if not self.non_batchwise_valuation_batches:
 			return
@@ -172,7 +198,12 @@ class DeprecatedBatchNoValuation:
 				},
 			)
 
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.BatchNoValuation.set_balance_value_for_non_batchwise_valuation_batches",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def set_balance_value_for_non_batchwise_valuation_batches(self):
 		if hasattr(self, "prev_sle"):
 			self.last_sle = self.prev_sle
@@ -187,14 +218,23 @@ class DeprecatedBatchNoValuation:
 		self.set_balance_value_from_sl_entries()
 		self.set_balance_value_from_bundle()
 
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.BatchNoValuation.set_balance_value_from_sl_entries",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def set_balance_value_from_sl_entries(self) -> None:
 		from erpnext.stock.utils import get_combine_datetime
 
 		sle = frappe.qb.DocType("Stock Ledger Entry")
 		batch = frappe.qb.DocType("Batch")
 
-		posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+		posting_datetime = self.sle.posting_datetime
+
+		if not posting_datetime and self.sle.posting_date:
+			posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+
 		if not self.sle.creation:
 			posting_datetime = posting_datetime + datetime.timedelta(milliseconds=1)
 
@@ -243,7 +283,10 @@ class DeprecatedBatchNoValuation:
 
 		sle = frappe.qb.DocType("Stock Ledger Entry")
 
-		posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+		posting_datetime = self.sle.posting_datetime
+		if not posting_datetime and self.sle.posting_date:
+			posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+
 		if not self.sle.creation:
 			posting_datetime = posting_datetime + datetime.timedelta(milliseconds=1)
 
@@ -283,21 +326,29 @@ class DeprecatedBatchNoValuation:
 
 		return data[0] if data else frappe._dict()
 
-	@deprecated
+	@deprecated(
+		"erpnext.stock.serial_batch_bundle.BatchNoValuation.set_balance_value_from_bundle",
+		"unknown",
+		"v16",
+		"No known instructions.",
+	)
 	def set_balance_value_from_bundle(self) -> None:
+		from erpnext.stock.utils import get_combine_datetime
+
 		bundle = frappe.qb.DocType("Serial and Batch Bundle")
 		bundle_child = frappe.qb.DocType("Serial and Batch Entry")
 		batch = frappe.qb.DocType("Batch")
 
-		timestamp_condition = CombineDatetime(bundle.posting_date, bundle.posting_time) < CombineDatetime(
-			self.sle.posting_date, self.sle.posting_time
-		)
+		posting_datetime = self.sle.posting_datetime
+		if not posting_datetime and self.sle.posting_date:
+			posting_datetime = get_combine_datetime(self.sle.posting_date, self.sle.posting_time)
+
+		timestamp_condition = bundle.posting_datetime < posting_datetime
 
 		if self.sle.creation:
-			timestamp_condition |= (
-				CombineDatetime(bundle.posting_date, bundle.posting_time)
-				== CombineDatetime(self.sle.posting_date, self.sle.posting_time)
-			) & (bundle.creation < self.sle.creation)
+			timestamp_condition |= (bundle.posting_datetime == posting_datetime) & (
+				bundle.creation < self.sle.creation
+			)
 
 		query = (
 			frappe.qb.from_(bundle)

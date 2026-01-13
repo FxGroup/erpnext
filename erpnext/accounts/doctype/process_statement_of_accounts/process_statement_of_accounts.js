@@ -86,6 +86,16 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 				},
 			};
 		});
+		frm.set_query("print_format", function () {
+			return {
+				filters: {
+					print_format_for: "Report",
+					report: frm.doc.report,
+					disabled: 0,
+					print_format_type: "Jinja",
+				},
+			};
+		});
 		if (frm.doc.__islocal) {
 			frm.set_value("from_date", frappe.datetime.add_months(frappe.datetime.get_today(), -1));
 			frm.set_value("to_date", frappe.datetime.get_today());
@@ -107,6 +117,16 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 		frm.set_query("account", function () {
 			return {
 				filters: filters,
+			};
+		});
+		frm.set_query("print_format", function () {
+			return {
+				filters: {
+					print_format_for: "Report",
+					report: frm.doc.report,
+					disabled: 0,
+					print_format_type: "Jinja",
+				},
 			};
 		});
 	},

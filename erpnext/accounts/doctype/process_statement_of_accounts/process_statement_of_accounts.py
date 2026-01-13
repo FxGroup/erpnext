@@ -51,7 +51,7 @@ class ProcessStatementOfAccounts(Document):
 		enable_auto_email: DF.Check
 		filter_duration: DF.Int
 		finance_book: DF.Link | None
-		frequency: DF.Literal["Weekly", "Monthly", "Quarterly"]
+		frequency: DF.Literal["Daily", "Weekly", "Biweekly", "Monthly", "Quarterly"]
 		from_date: DF.Date | None
 		ignore_cr_dr_notes: DF.Check
 		ignore_exchange_rate_revaluation_journals: DF.Check
@@ -63,11 +63,13 @@ class ProcessStatementOfAccounts(Document):
 		pdf_name: DF.Data | None
 		posting_date: DF.Date | None
 		primary_mandatory: DF.Check
+		print_format: DF.Link | None
 		project: DF.TableMultiSelect[PSOAProject]
 		report: DF.Literal["General Ledger", "Accounts Receivable"]
 		sales_partner: DF.Link | None
 		sales_person: DF.Link | None
 		sender: DF.Link | None
+		show_future_payments: DF.Check
 		show_net_values_in_party_account: DF.Check
 		show_remarks: DF.Check
 		start_date: DF.Date | None
@@ -105,6 +107,25 @@ class ProcessStatementOfAccounts(Document):
 			if self.start_date and getdate(self.start_date) >= getdate(today()):
 				self.to_date = self.start_date
 				self.from_date = add_months(self.to_date, -1 * self.filter_duration)
+
+		if self.print_format:
+			pf = frappe.db.get_value(
+				"Print Format",
+				self.print_format,
+				["print_format_type", "print_format_for", "report", "disabled"],
+				as_dict=True,
+			)
+			if not pf:
+				frappe.throw(title=_("Invalid Print Format"), msg=_("Selected Print Format does not exist."))
+			if pf.print_format_type != "Jinja":
+				frappe.throw(title=_("Invalid Print Format"), msg=_("Print Format Type should be Jinja."))
+			if pf.print_format_for != "Report" or pf.report != self.report or pf.disabled:
+				frappe.throw(
+					title=_("Invalid Print Format"),
+					msg=_(
+						"Print Format must be an enabled Report Print Format matching the selected Report."
+					),
+				)
 
 	def validate_account(self):
 		if not self.account:

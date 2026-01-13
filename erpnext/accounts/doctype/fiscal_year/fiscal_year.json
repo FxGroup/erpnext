@@ -87,7 +87,7 @@
  "module": "Accounts",
  "name": "Fiscal Year",
  "naming_rule": "By fieldname",
-  "owner": "Administrator",
+ "owner": "Administrator",
  "permissions": [
   {
    "create": 1,

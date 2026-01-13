@@ -215,7 +215,7 @@
  "row_format": "Dynamic",
  "search_fields": "posting_date",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

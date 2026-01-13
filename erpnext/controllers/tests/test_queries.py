@@ -7,14 +7,25 @@ from frappe.core.doctype.user_permission.user_permission import add_user_permiss
 from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
 from erpnext.controllers import queries
+from erpnext.tests.utils import ERPNextTestSuite
 
 
 def add_default_params(func, doctype):
 	return partial(func, doctype=doctype, txt="", searchfield="name", start=0, page_len=20, filters=None)
 
 
-class TestQueries(unittest.TestCase):
-	# All tests are based on doctype/test_records.json
+EXTRA_TEST_RECORD_DEPENDENCIES = ["Item", "BOM", "Account"]
+
+
+class TestQueries(ERPNextTestSuite):
+	# All tests are based on self.globalTestRecords[doctype]
+
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.make_employees()
+		cls.make_leads()
+		cls.make_projects()
 
 	def assert_nested_in(self, item, container):
 		self.assertIn(item, [vals for tuples in container for vals in tuples])
@@ -94,14 +105,13 @@ class TestQueries(unittest.TestCase):
 			value=1,
 			property_type="Check",
 		)
-		ps.save()
 
-		user = create_user("test_employee_query@example.com", ("Accounts User", "HR User"))
+		user = create_user("test_employee_query@example.com", "Accounts User", "HR User")
 		add_user_permissions(
 			{
 				"user": user.name,
 				"doctype": "Employee",
-				"docname": "_T-Employee-00001",
+				"docname": self.employees[0].name,
 				"is_default": 1,
 				"apply_to_all_doctypes": 1,
 				"applicable_doctypes": [],
@@ -109,29 +119,23 @@ class TestQueries(unittest.TestCase):
 			}
 		)
 
-		frappe.reload_doc("accounts", "doctype", "payment entry")
+		with self.set_user(user.name):
+			params = {
+				"doctype": "Employee",
+				"txt": "",
+				"searchfield": "name",
+				"start": 0,
+				"page_len": 20,
+				"filters": None,
+				"reference_doctype": "Payment Entry",
+				"ignore_user_permissions": 1,
+			}
 
-		frappe.set_user(user.name)
-		params = {
-			"doctype": "Employee",
-			"txt": "",
-			"searchfield": "name",
-			"start": 0,
-			"page_len": 20,
-			"filters": None,
-			"reference_doctype": "Payment Entry",
-			"ignore_user_permissions": 1,
-		}
+			result = queries.employee_query(**params)
+			self.assertGreater(len(result), 1)
 
-		result = queries.employee_query(**params)
-		self.assertGreater(len(result), 1)
+			ps.delete(ignore_permissions=1, force=1, delete_permanently=1)
 
-		ps.delete(ignore_permissions=1, force=1, delete_permanently=1)
-		frappe.reload_doc("accounts", "doctype", "payment entry")
-		frappe.clear_cache()
-
-		# only one employee should be returned even though ignore_user_permissions is passed as 1
-		result = queries.employee_query(**params)
-		self.assertEqual(len(result), 1)
-
-		frappe.set_user("Administrator")
+			# only one employee should be returned even though ignore_user_permissions is passed as 1
+			result = queries.employee_query(**params)
+			self.assertEqual(len(result), 1)

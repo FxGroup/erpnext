@@ -36,8 +36,7 @@ def get_pricing_rules(args, doc=None, returnAll=False):
 	pricing_rules = []
 	values = {}
 
-	if not frappe.db.exists("Pricing Rule", {"disable": 0, args.transaction_type: 1}):
-		lookup_logger.info(f"No active pricing rules found for transaction type: {args.transaction_type}")
+	if not frappe.db.count("Pricing Rule", cache=True):
 		return []
 
 	for apply_on in ["Item Code", "Item Group", "Brand", "Batch No"]:
@@ -155,8 +154,8 @@ def _get_pricing_rules(apply_on, args, values):
 		if apply_on_field == "item_code":
 			if args.get("uom", None):
 				item_conditions += (
-					" and ({child_doc}.uom='{item_uom}' or IFNULL({child_doc}.uom, '')='')".format(
-						child_doc=child_doc, item_uom=args.get("uom")
+					" and ({child_doc}.uom={item_uom} or IFNULL({child_doc}.uom, '')='')".format(
+						child_doc=child_doc, item_uom=frappe.db.escape(args.get("uom"))
 					)
 				)
 			if "variant_of" not in args:
@@ -168,8 +167,8 @@ def _get_pricing_rules(apply_on, args, values):
 	elif apply_on_field == "item_group":
 		item_conditions = _get_tree_conditions(args, "Item Group", child_doc, False)
 		if args.get("uom", None):
-			item_conditions += " and ({child_doc}.uom='{item_uom}' or IFNULL({child_doc}.uom, '')='')".format(
-				child_doc=child_doc, item_uom=args.get("uom")
+			item_conditions += " and ({child_doc}.uom={item_uom} or IFNULL({child_doc}.uom, '')='')".format(
+				child_doc=child_doc, item_uom=frappe.db.escape(args.get("uom"))
 			)
 
 	conditions += get_other_conditions(conditions, values, args)
@@ -671,7 +670,11 @@ def apply_pricing_rule_on_transaction(doc):
 					if not d.get(pr_field):
 						continue
 
-					if d.validate_applied_rule and (doc.get(field) or 0) < d.get(pr_field):
+					if (
+						d.validate_applied_rule
+						and doc.get(field) is not None
+						and doc.get(field) < d.get(pr_field)
+					):
 						frappe.msgprint(_("User has not applied rule on the invoice {0}").format(doc.name))
 					else:
 						if not d.coupon_code_based:
@@ -871,7 +874,10 @@ def update_coupon_code_count(coupon_name, transaction_type):
 	coupon = frappe.get_doc("Coupon Code", coupon_name)
 	if coupon:
 		if transaction_type == "used":
-			if coupon.used < coupon.maximum_use:
+			if not coupon.maximum_use:
+				coupon.used = coupon.used + 1
+				coupon.save(ignore_permissions=True)
+			elif coupon.used < coupon.maximum_use:
 				coupon.used = coupon.used + 1
 				coupon.save(ignore_permissions=True)
 			else:

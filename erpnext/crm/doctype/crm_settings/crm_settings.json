@@ -87,11 +87,13 @@
    "label": "Carry Forward Communication and Comments"
   }
  ],
+ "grid_page_length": 50,
+ "hide_toolbar": 1,
  "icon": "fa fa-cog",
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2022-06-06 11:22:08.464253",
+ "modified": "2026-01-02 18:18:52.204988",
  "modified_by": "Administrator",
  "module": "CRM",
  "name": "CRM Settings",
@@ -127,7 +129,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

@@ -21,7 +21,8 @@ frappe.listview_settings["Material Request"] = {
 		} else if (
 			doc.docstatus == 1 &&
 			flt(doc.per_ordered, precision) < 100 &&
-			doc.material_request_type == "Material Transfer"
+			(doc.material_request_type == "Material Transfer" ||
+				doc.material_request_type == "Customer Provided")
 		) {
 			return [__("Partially Received"), "yellow", "per_ordered,<,100"];
 		} else if (doc.docstatus == 1 && flt(doc.per_ordered, precision) < 100) {
@@ -38,7 +39,7 @@ frappe.listview_settings["Material Request"] = {
 			} else if (["Purchase", "Manufacture"].includes(doc.material_request_type)) {
 				return [__("Ordered"), "green", "per_ordered,=,100"];
 			} else if (doc.material_request_type == "Material Transfer") {
-				return [__("Transfered"), "green", "per_ordered,=,100"];
+				return [__("Transferred"), "green", "per_ordered,=,100"];
 			} else if (doc.material_request_type == "Material Issue") {
 				return [__("Issued"), "green", "per_ordered,=,100"];
 			} else if (doc.material_request_type == "Customer Provided") {

@@ -52,6 +52,9 @@ class BankTransaction(Document):
 		self.handle_excluded_fee()
 		self.update_allocated_amount()
 
+	def on_discard(self):
+		self.db_set("status", "Cancelled")
+
 	def validate(self):
 		self.validate_included_fee()
 		self.validate_duplicate_references()
@@ -127,7 +130,7 @@ class BankTransaction(Document):
 		self.allocate_payment_entries()
 		self.set_status()
 
-		if frappe.db.get_single_value("Accounts Settings", "enable_party_matching"):
+		if frappe.get_single_value("Accounts Settings", "enable_party_matching"):
 			self.auto_set_party()
 
 	def before_update_after_submit(self):

@@ -5,9 +5,7 @@
 import json
 
 import frappe
-from frappe.custom.doctype.property_setter.property_setter import make_property_setter
-from frappe.test_runner import make_test_records
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import flt
 
 from erpnext.accounts.party import get_due_date
@@ -19,16 +17,11 @@ from erpnext.selling.doctype.customer.customer import (
 )
 from erpnext.tests.utils import create_test_contact_and_address
 
-test_ignore = ["Price List"]
-test_dependencies = ["Payment Term", "Payment Terms Template"]
-test_records = frappe.get_test_records("Customer")
+IGNORE_TEST_RECORD_DEPENDENCIES = ["Price List"]
+EXTRA_TEST_RECORD_DEPENDENCIES = ["Payment Term", "Payment Terms Template"]
 
 
-class TestCustomer(FrappeTestCase):
-	def setUp(self):
-		if not frappe.get_value("Item", "_Test Item"):
-			make_test_records("Item")
-
+class TestCustomer(IntegrationTestCase):
 	def tearDown(self):
 		set_credit_limit("_Test Customer", "_Test Company", 0)
 
@@ -111,28 +104,24 @@ class TestCustomer(FrappeTestCase):
 		self.assertEqual(details.tax_category, "_Test Tax Category 1")
 
 		billing_address = frappe.get_doc(
-			dict(
-				doctype="Address",
-				address_title="_Test Address With Tax Category",
-				tax_category="_Test Tax Category 2",
-				address_type="Billing",
-				address_line1="Station Road",
-				city="_Test City",
-				country="India",
-				links=[dict(link_doctype="Customer", link_name="_Test Customer With Tax Category")],
-			)
+			doctype="Address",
+			address_title="_Test Address With Tax Category",
+			tax_category="_Test Tax Category 2",
+			address_type="Billing",
+			address_line1="Station Road",
+			city="_Test City",
+			country="India",
+			links=[dict(link_doctype="Customer", link_name="_Test Customer With Tax Category")],
 		).insert()
 		shipping_address = frappe.get_doc(
-			dict(
-				doctype="Address",
-				address_title="_Test Address With Tax Category",
-				tax_category="_Test Tax Category 3",
-				address_type="Shipping",
-				address_line1="Station Road",
-				city="_Test City",
-				country="India",
-				links=[dict(link_doctype="Customer", link_name="_Test Customer With Tax Category")],
-			)
+			doctype="Address",
+			address_title="_Test Address With Tax Category",
+			tax_category="_Test Tax Category 3",
+			address_type="Shipping",
+			address_line1="Station Road",
+			city="_Test City",
+			country="India",
+			links=[dict(link_doctype="Customer", link_name="_Test Customer With Tax Category")],
 		).insert()
 
 		settings = frappe.get_single("Accounts Settings")
@@ -198,8 +187,6 @@ class TestCustomer(FrappeTestCase):
 		frappe.db.rollback()
 
 	def test_freezed_customer(self):
-		make_test_records("Item")
-
 		frappe.db.set_value("Customer", "_Test Customer", "is_frozen", 1)
 
 		from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
@@ -223,8 +210,6 @@ class TestCustomer(FrappeTestCase):
 		frappe.delete_doc("Customer", customer.name)
 
 	def test_disabled_customer(self):
-		make_test_records("Item")
-
 		frappe.db.set_value("Customer", "_Test Customer", "disabled", 1)
 
 		from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
@@ -419,9 +404,9 @@ def create_internal_customer(customer_name=None, represents_company=None, allowe
 	if not allowed_to_interact_with:
 		allowed_to_interact_with = represents_company
 
-	exisiting_representative = frappe.db.get_value("Customer", {"represents_company": represents_company})
-	if exisiting_representative:
-		return exisiting_representative
+	existing_representative = frappe.db.get_value("Customer", {"represents_company": represents_company})
+	if existing_representative:
+		return existing_representative
 
 	if not frappe.db.exists("Customer", customer_name):
 		customer = frappe.get_doc(

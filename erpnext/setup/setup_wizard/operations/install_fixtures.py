@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 
 import frappe
-from frappe import _
 from frappe.desk.doctype.global_search_settings.global_search_settings import (
 	update_global_search_doctypes,
 )
@@ -16,6 +15,7 @@ from frappe.utils import cstr, getdate
 
 from erpnext.accounts.doctype.account.account import RootNotEditable
 from erpnext.regional.address_template.setup import set_up_address_templates
+from erpnext.setup.utils import identity as _
 
 
 def read_lines(filename: str) -> list[str]:
@@ -68,51 +68,75 @@ def install(country=None):
 		# Stock Entry Type
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Material Issue",
+			"name": _("Material Issue"),
 			"purpose": "Material Issue",
 			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Material Receipt",
+			"name": _("Material Receipt"),
 			"purpose": "Material Receipt",
 			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Material Transfer",
+			"name": _("Material Transfer"),
 			"purpose": "Material Transfer",
 			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Manufacture",
+			"name": _("Manufacture"),
 			"purpose": "Manufacture",
 			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Repack",
+			"name": _("Repack"),
 			"purpose": "Repack",
 			"is_standard": 1,
 		},
 		{"doctype": "Stock Entry Type", "name": "Disassemble", "purpose": "Disassemble", "is_standard": 1},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Send to Subcontractor",
+			"name": _("Send to Subcontractor"),
 			"purpose": "Send to Subcontractor",
 			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Material Transfer for Manufacture",
+			"name": _("Material Transfer for Manufacture"),
 			"purpose": "Material Transfer for Manufacture",
 			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
-			"name": "Material Consumption for Manufacture",
+			"name": _("Material Consumption for Manufacture"),
 			"purpose": "Material Consumption for Manufacture",
+			"is_standard": 1,
+		},
+		{
+			"doctype": "Stock Entry Type",
+			"name": _("Receive from Customer"),
+			"purpose": "Receive from Customer",
+			"is_standard": 1,
+		},
+		{
+			"doctype": "Stock Entry Type",
+			"name": _("Return Raw Material to Customer"),
+			"purpose": "Return Raw Material to Customer",
+			"is_standard": 1,
+		},
+		{
+			"doctype": "Stock Entry Type",
+			"name": _("Subcontracting Delivery"),
+			"purpose": "Subcontracting Delivery",
+			"is_standard": 1,
+		},
+		{
+			"doctype": "Stock Entry Type",
+			"name": _("Subcontracting Return"),
+			"purpose": "Subcontracting Return",
 			"is_standard": 1,
 		},
 		# territory: with two default territories, one for home country and one named Rest of the World
@@ -273,9 +297,9 @@ def install(country=None):
 		{"doctype": "Opportunity Type", "name": _("Sales")},
 		{"doctype": "Opportunity Type", "name": _("Support")},
 		{"doctype": "Opportunity Type", "name": _("Maintenance")},
-		{"doctype": "Project Type", "project_type": "Internal"},
-		{"doctype": "Project Type", "project_type": "External"},
-		{"doctype": "Project Type", "project_type": "Other"},
+		{"doctype": "Project Type", "project_type": _("Internal")},
+		{"doctype": "Project Type", "project_type": _("External")},
+		{"doctype": "Project Type", "project_type": _("Other")},
 		{"doctype": "Print Heading", "print_heading": _("Credit Note")},
 		{"doctype": "Print Heading", "print_heading": _("Debit Note")},
 		# Share Management
@@ -287,13 +311,17 @@ def install(country=None):
 		{"doctype": "Market Segment", "market_segment": _("Upper Income")},
 		# Warehouse Type
 		{"doctype": "Warehouse Type", "name": "Transit"},
+		{"doctype": "Workstation Operating Component", "component_name": _("Electricity")},
+		{"doctype": "Workstation Operating Component", "component_name": _("Consumables")},
+		{"doctype": "Workstation Operating Component", "component_name": _("Rent")},
+		{"doctype": "Workstation Operating Component", "component_name": _("Wages")},
 	]
 
 	for doctype, title_field, filename in (
 		("Designation", "designation_name", "designation.txt"),
 		("Sales Stage", "stage_name", "sales_stage.txt"),
 		("Industry Type", "industry", "industry_type.txt"),
-		("Lead Source", "source_name", "lead_source.txt"),
+		("UTM Source", "name", "marketing_source.txt"),
 		("Sales Partner Type", "sales_partner_type", "sales_partner_type.txt"),
 	):
 		records += [{"doctype": doctype, title_field: title} for title in read_lines(filename)]
@@ -357,16 +385,10 @@ def add_uom_data():
 		open(frappe.get_app_path("erpnext", "setup", "setup_wizard", "data", "uom_data.json")).read()
 	)
 	for d in uoms:
-		if not frappe.db.exists("UOM", _(d.get("uom_name"))):
-			frappe.get_doc(
-				{
-					"doctype": "UOM",
-					"uom_name": _(d.get("uom_name")),
-					"name": _(d.get("uom_name")),
-					"must_be_whole_number": d.get("must_be_whole_number"),
-					"enabled": 1,
-				}
-			).db_insert()
+		if not frappe.db.exists("UOM", d.get("uom_name")):
+			doc = frappe.new_doc("UOM")
+			doc.update(d)
+			doc.insert(ignore_permissions=True)
 
 	# bootstrap uom conversion factors
 	uom_conversions = json.loads(
@@ -375,19 +397,19 @@ def add_uom_data():
 		).read()
 	)
 	for d in uom_conversions:
-		if not frappe.db.exists("UOM Category", _(d.get("category"))):
-			frappe.get_doc({"doctype": "UOM Category", "category_name": _(d.get("category"))}).db_insert()
+		if not frappe.db.exists("UOM Category", d.get("category")):
+			frappe.get_doc({"doctype": "UOM Category", "category_name": d.get("category")}).db_insert()
 
 		if not frappe.db.exists(
 			"UOM Conversion Factor",
-			{"from_uom": _(d.get("from_uom")), "to_uom": _(d.get("to_uom"))},
+			{"from_uom": d.get("from_uom"), "to_uom": d.get("to_uom")},
 		):
 			frappe.get_doc(
 				{
 					"doctype": "UOM Conversion Factor",
-					"category": _(d.get("category")),
-					"from_uom": _(d.get("from_uom")),
-					"to_uom": _(d.get("to_uom")),
+					"category": d.get("category"),
+					"from_uom": d.get("from_uom"),
+					"to_uom": d.get("to_uom"),
 					"value": d.get("value"),
 				}
 			).db_insert()
@@ -504,7 +526,7 @@ def update_stock_settings():
 	stock_settings.item_naming_by = "Item Code"
 	stock_settings.valuation_method = "FIFO"
 	stock_settings.default_warehouse = frappe.db.get_value("Warehouse", {"warehouse_name": _("Stores")})
-	stock_settings.stock_uom = _("Nos")
+	stock_settings.stock_uom = "Nos"
 	stock_settings.auto_indent = 1
 	stock_settings.auto_insert_price_list_rate_if_missing = 1
 	stock_settings.update_price_list_based_on = "Rate"
@@ -550,7 +572,7 @@ def create_bank_account(args, demo=False):
 			return doc
 
 		except RootNotEditable:
-			frappe.throw(_("Bank account cannot be named as {0}").format(args.get("bank_account")))
+			frappe.throw(frappe._("Bank account cannot be named as {0}").format(args.get("bank_account")))
 		except frappe.DuplicateEntryError:
 			# bank account same as a CoA entry
 			pass

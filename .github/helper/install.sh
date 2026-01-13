@@ -13,15 +13,22 @@ cd ~ || exit
 
 sudo apt update
 sudo apt remove mysql-server mysql-client
-sudo apt install libcups2-dev redis-server mariadb-client
+sudo apt install libcups2-dev redis-server mariadb-client libmariadb-dev
 
 pip install frappe-bench
 
 githubbranch=${GITHUB_BASE_REF:-${GITHUB_REF##*/}}
 frappeuser=${FRAPPE_USER:-"frappe"}
-frappebranch=${FRAPPE_BRANCH:-$githubbranch}
+frappecommitish=${FRAPPE_BRANCH:-$githubbranch}
 
-git clone "https://github.com/${frappeuser}/frappe" --branch "${frappebranch}" --depth 1
+mkdir frappe
+pushd frappe
+git init
+git remote add origin "https://github.com/${frappeuser}/frappe"
+git fetch origin "${frappecommitish}" --depth 1
+git checkout FETCH_HEAD
+popd
+
 bench init --skip-assets --frappe-path ~/frappe --python "$(which python)" frappe-bench
 
 mkdir ~/frappe-bench/sites/test_site
@@ -66,7 +73,7 @@ sed -i 's/schedule:/# schedule:/g' Procfile
 sed -i 's/socketio:/# socketio:/g' Procfile
 sed -i 's/redis_socketio:/# redis_socketio:/g' Procfile
 
-bench get-app payments --branch ${githubbranch%"-hotfix"}
+bench get-app payments --branch develop
 bench get-app erpnext "${GITHUB_WORKSPACE}"
 
 if [ "$TYPE" == "server" ]; then bench setup requirements --dev; fi

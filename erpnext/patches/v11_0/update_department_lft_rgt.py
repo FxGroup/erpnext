@@ -16,4 +16,4 @@ def execute():
 		where is_group = 0""".format(_("All Departments"))
 	)
 
-	rebuild_tree("Department", "parent_department")
+	rebuild_tree("Department")

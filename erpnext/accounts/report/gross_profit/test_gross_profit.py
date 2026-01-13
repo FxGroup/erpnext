@@ -1,6 +1,6 @@
 import frappe
 from frappe import qb
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, flt, get_first_day, get_last_day, nowdate
 
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_delivery_note, make_sales_return
@@ -12,7 +12,7 @@ from erpnext.stock.doctype.item.test_item import create_item
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
 
 
-class TestGrossProfit(FrappeTestCase):
+class TestGrossProfit(IntegrationTestCase):
 	def setUp(self):
 		self.create_company()
 		self.create_item()
@@ -227,7 +227,8 @@ class TestGrossProfit(FrappeTestCase):
 			"gross_profit_%": -50.0,
 		}
 		gp_entry = [x for x in data if x.parent_invoice == sinv.name]
-		self.assertDictContainsSubset(expected_entry_without_dn, gp_entry[0])
+		report_output = {k: v for k, v in gp_entry[0].items() if k in expected_entry_without_dn}
+		self.assertEqual(report_output, expected_entry_without_dn)
 
 		# make delivery note
 		dn = make_delivery_note(sinv.name)
@@ -255,7 +256,8 @@ class TestGrossProfit(FrappeTestCase):
 			"gross_profit_%": 0.0,
 		}
 		gp_entry = [x for x in data if x.parent_invoice == sinv.name]
-		self.assertDictContainsSubset(expected_entry_with_dn, gp_entry[0])
+		report_output = {k: v for k, v in gp_entry[0].items() if k in expected_entry_with_dn}
+		self.assertEqual(report_output, expected_entry_with_dn)
 
 	def test_bundled_delivery_note_with_different_warehouses(self):
 		"""
@@ -386,7 +388,8 @@ class TestGrossProfit(FrappeTestCase):
 			"gross_profit_%": -25.0,
 		}
 		gp_entry = [x for x in data if x.parent_invoice == sinv.name]
-		self.assertDictContainsSubset(expected_entry, gp_entry[0])
+		report_output = {k: v for k, v in gp_entry[0].items() if k in expected_entry}
+		self.assertEqual(report_output, expected_entry)
 
 	def test_crnote_against_invoice_with_multiple_instances_of_same_item(self):
 		"""
@@ -427,8 +430,10 @@ class TestGrossProfit(FrappeTestCase):
 		gp_entry = [x for x in data if x.parent_invoice == sinv.name]
 		# Both items of Invoice should have '0' qty
 		self.assertEqual(len(gp_entry), 2)
-		self.assertDictContainsSubset(expected_entry, gp_entry[0])
-		self.assertDictContainsSubset(expected_entry, gp_entry[1])
+		report_output = {k: v for k, v in gp_entry[0].items() if k in expected_entry}
+		self.assertEqual(report_output, expected_entry)
+		report_output = {k: v for k, v in gp_entry[1].items() if k in expected_entry}
+		self.assertEqual(report_output, expected_entry)
 
 	def test_standalone_cr_notes(self):
 		"""
@@ -468,7 +473,8 @@ class TestGrossProfit(FrappeTestCase):
 			"gross_profit_%": 100.0,
 		}
 		gp_entry = [x for x in data if x.parent_invoice == sinv.name]
-		self.assertDictContainsSubset(expected_entry, gp_entry[0])
+		report_output = {k: v for k, v in gp_entry[0].items() if k in expected_entry}
+		self.assertEqual(report_output, expected_entry)
 
 	def test_different_rates_in_si_and_dn(self):
 		from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
@@ -560,7 +566,8 @@ class TestGrossProfit(FrappeTestCase):
 			"gross_profit_%": 12.5,
 		}
 		gp_entry = [x for x in data if x.parent_invoice == sinv.name]
-		self.assertDictContainsSubset(expected_entry, gp_entry[0])
+		report_output = {k: v for k, v in gp_entry[0].items() if k in expected_entry}
+		self.assertEqual(report_output, expected_entry)
 
 	def test_valuation_rate_without_previous_sle(self):
 		"""

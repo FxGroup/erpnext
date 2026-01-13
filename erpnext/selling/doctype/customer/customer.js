@@ -3,17 +3,36 @@
 
 frappe.ui.form.on("Customer", {
 	setup: function (frm) {
+		frm.custom_make_buttons = {
+			Opportunity: "Opportunity",
+			Quotation: "Quotation",
+			"Sales Order": "Sales Order",
+			"Pricing Rule": "Pricing Rule",
+			"Payment Entry": "Payment Entry",
+		};
 		frm.make_methods = {
 			Quotation: () =>
 				frappe.model.open_mapped_doc({
 					method: "erpnext.selling.doctype.customer.customer.make_quotation",
-					frm: cur_frm,
+					frm: frm,
+				}),
+			"Sales Order": () =>
+				frappe.model.with_doctype("Sales Order", function () {
+					var so = frappe.model.get_new_doc("Sales Order");
+					so.customer = frm.doc.name; // Set the current customer as the SO customer
+					frappe.set_route("Form", "Sales Order", so.name);
 				}),
 			Opportunity: () =>
 				frappe.model.open_mapped_doc({
 					method: "erpnext.selling.doctype.customer.customer.make_opportunity",
-					frm: cur_frm,
+					frm: frm,
 				}),
+			"Payment Entry": () =>
+				frappe.model.open_mapped_doc({
+					method: "erpnext.selling.doctype.customer.customer.make_payment_entry",
+					frm: frm,
+				}),
+			"Pricing Rule": () => frm.trigger("make_pricing_rule"),
 			"Bank Account": () => erpnext.utils.make_bank_account(frm.doc.doctype, frm.doc.name),
 		};
 
@@ -97,7 +116,7 @@ frappe.ui.form.on("Customer", {
 					address_dict: frm.doc.customer_primary_address,
 				},
 				callback: function (r) {
-					frm.set_value("primary_address", r.message);
+					frm.set_value("primary_address", frappe.utils.html2text(r.message));
 				},
 			});
 		}
@@ -162,13 +181,9 @@ frappe.ui.form.on("Customer", {
 				__("View")
 			);
 
-			frm.add_custom_button(
-				__("Pricing Rule"),
-				function () {
-					erpnext.utils.make_pricing_rule(frm.doc.doctype, frm.doc.name);
-				},
-				__("Create")
-			);
+			for (const doctype in frm.make_methods) {
+				frm.add_custom_button(__(doctype), frm.make_methods[doctype], __("Create"));
+			}
 
 			frm.add_custom_button(
 				__("Get Customer Group Details"),
@@ -270,5 +285,12 @@ frappe.ui.form.on("Customer", {
 			primary_action_label: __("Create Link"),
 		});
 		dialog.show();
+	},
+	make_pricing_rule: function (frm) {
+		frappe.new_doc("Pricing Rule", {
+			applicable_for: "Customer",
+			customer: frm.doc.name,
+			selling: 1,
+		});
 	},
 });

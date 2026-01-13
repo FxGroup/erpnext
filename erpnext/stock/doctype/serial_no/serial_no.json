@@ -39,7 +39,11 @@
   "company",
   "column_break_2cmm",
   "work_order",
-  "purchase_document_no"
+  "source_document_section",
+  "reference_doctype",
+  "posting_date",
+  "column_break_ctcx",
+  "reference_name"
  ],
  "fields": [
   {
@@ -263,19 +267,45 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "purchase_document_no",
-   "fieldtype": "Data",
-   "label": "Creation Document No",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
    "fieldname": "customer",
    "fieldtype": "Link",
    "label": "Customer",
    "no_copy": 1,
    "options": "Customer",
    "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_document_section",
+   "fieldtype": "Section Break",
+   "label": "Source Document"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Source Document Type",
+   "no_copy": 1,
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ctcx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Source Document Name",
+   "no_copy": 1,
+   "options": "reference_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "no_copy": 1,
    "read_only": 1
   }
  ],
@@ -323,7 +353,7 @@
  "row_format": "Dynamic",
  "search_fields": "item_code",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

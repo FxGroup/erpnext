@@ -7,7 +7,7 @@
 import json
 
 import frappe
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, cstr, flt, nowdate, nowtime
 
 from erpnext.accounts.utils import get_stock_and_account_balance
@@ -25,10 +25,15 @@ from erpnext.stock.doctype.stock_reconciliation.stock_reconciliation import (
 from erpnext.stock.doctype.warehouse.test_warehouse import create_warehouse
 from erpnext.stock.stock_ledger import get_previous_sle, update_entries_after
 from erpnext.stock.tests.test_utils import StockTestMixin
-from erpnext.stock.utils import get_incoming_rate, get_stock_value_on, get_valuation_method
+from erpnext.stock.utils import (
+	get_combine_datetime,
+	get_incoming_rate,
+	get_stock_value_on,
+	get_valuation_method,
+)
 
 
-class TestStockReconciliation(FrappeTestCase, StockTestMixin):
+class TestStockReconciliation(IntegrationTestCase, StockTestMixin):
 	@classmethod
 	def setUpClass(cls):
 		create_batch_or_serial_no_items()
@@ -45,7 +50,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 	def test_reco_for_moving_average(self):
 		self._test_reco_sle_gle("Moving Average")
 
-	@change_settings("Stock Settings", {"allow_negative_stock": 1})
+	@IntegrationTestCase.change_settings("Stock Settings", {"allow_negative_stock": 1})
 	def _test_reco_sle_gle(self, valuation_method):
 		item_code = self.make_item(properties={"valuation_method": valuation_method}).name
 
@@ -418,7 +423,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		assertBalance(pr2, 11)
 		assertBalance(sr4, 6)  # check if future stock reco is unaffected
 
-	@change_settings("Stock Settings", {"allow_negative_stock": 0})
+	@IntegrationTestCase.change_settings("Stock Settings", {"allow_negative_stock": 0})
 	def test_backdated_stock_reco_future_negative_stock(self):
 		"""
 		Test if a backdated stock reco causes future negative stock and is blocked.
@@ -467,7 +472,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		dn2.cancel()
 		pr1.cancel()
 
-	@change_settings("Stock Settings", {"allow_negative_stock": 0})
+	@IntegrationTestCase.change_settings("Stock Settings", {"allow_negative_stock": 0})
 	def test_backdated_stock_reco_cancellation_future_negative_stock(self):
 		"""
 		Test if a backdated stock reco cancellation that causes future negative stock is blocked.
@@ -673,7 +678,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		self.assertEqual(flt(sl_entry.actual_qty), 1.0)
 		self.assertEqual(flt(sl_entry.qty_after_transaction), 1.0)
 
-	@change_settings("Stock Reposting Settings", {"item_based_reposting": 0})
+	@IntegrationTestCase.change_settings("Stock Reposting Settings", {"item_based_reposting": 0})
 	def test_backdated_stock_reco_entry(self):
 		from erpnext.stock.doctype.stock_entry.test_stock_entry import make_stock_entry
 
@@ -714,6 +719,13 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 			batch_no=batch_no,
 			qty=100,
 			rate=100,
+		)
+
+		stock_reco.reload()
+		stock_reco_sabb = stock_reco.items[0].serial_and_batch_bundle
+		posting_datetime = frappe.db.get_value("Serial and Batch Bundle", stock_reco_sabb, "posting_datetime")
+		self.assertEqual(
+			posting_datetime, get_combine_datetime(stock_reco.posting_date, stock_reco.posting_time)
 		)
 
 		sle = frappe.get_all(
@@ -1868,4 +1880,4 @@ def set_valuation_method(item_code, valuation_method):
 			)
 
 
-test_dependencies = ["Item", "Warehouse"]
+EXTRA_TEST_RECORD_DEPENDENCIES = ["Item", "Warehouse"]

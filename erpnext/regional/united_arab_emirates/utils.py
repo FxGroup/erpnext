@@ -14,7 +14,30 @@ def update_itemised_tax_data(doc):
 	if not meta.has_field("tax_rate"):
 		return
 
-	itemised_tax = get_itemised_tax(doc.taxes)
+	itemised_tax = get_itemised_tax(doc)
+
+	def determine_if_export(doc):
+		if doc.doctype != "Sales Invoice":
+			return False
+
+		if not doc.customer_address:
+			if not doc.total_taxes_and_charges:
+				frappe.msgprint(
+					_("Please set Customer Address to determine if the transaction is an export."),
+					alert=True,
+				)
+
+			return False
+
+		company_country = frappe.get_cached_value("Company", doc.company, "country")
+		customer_country = frappe.db.get_value("Address", doc.customer_address, "country")
+
+		if company_country != customer_country:
+			return True
+
+		return False
+
+	is_export = determine_if_export(doc)
 
 	def determine_if_export(doc):
 		if doc.doctype != "Sales Invoice":
@@ -79,7 +102,7 @@ def get_tax_accounts(company):
 	tax_accounts_dict = frappe._dict()
 	tax_accounts_list = frappe.get_all("UAE VAT Account", filters={"parent": company}, fields=["Account"])
 
-	if not tax_accounts_list and not frappe.flags.in_test:
+	if not tax_accounts_list and not frappe.in_test:
 		frappe.throw(_('Please set Vat Accounts for Company: "{0}" in UAE VAT Settings').format(company))
 	for tax_account in tax_accounts_list:
 		for _account, name in tax_account.items():

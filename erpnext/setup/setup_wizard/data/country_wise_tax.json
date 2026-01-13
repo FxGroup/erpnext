@@ -4045,9 +4045,13 @@
 	},
 
 	"Indonesia": {
-		"Indonesia Tax": {
-			"account_name": "VAT",
-			"tax_rate": 10.00
+		"Sales Tax": {
+			"account_name": "PPN Keluaran",
+			"tax_rate": 11.00
+		},
+		"Purchase Tax": {
+			"account_name": "PPN Masukan",
+			"tax_rate": 11.00
 		}
 	},
 
@@ -4844,17 +4848,17 @@
 
 	"Switzerland": {
 		"Switzerland normal VAT": {
-			"account_name": "VAT 7.7%",
-			"tax_rate": 7.70,
+			"account_name": "VAT 8.1%",
+			"tax_rate": 8.10,
 			"default": 1
 		},
 		"Switzerland reduced VAT": {
-			"account_name": "VAT 2.5%",
-			"tax_rate": 2.50
+			"account_name": "VAT 2.6%",
+			"tax_rate": 2.60
 		},
 		"Switzerland lodging VAT": {
-			"account_name": "VAT 3.7%",
-			"tax_rate": 3.70
+			"account_name": "VAT 3.8%",
+			"tax_rate": 3.80
 		}
 	},
 

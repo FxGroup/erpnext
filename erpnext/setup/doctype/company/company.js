@@ -17,6 +17,9 @@ frappe.ui.form.on("Company", {
 				frm.toggle_enable("default_currency", !r.message);
 			});
 		}
+		if (frm.doc.__islocal) {
+			frm.set_value("reporting_currency", "");
+		}
 	},
 	setup: function (frm) {
 		frm.__rename_queue = "long";
@@ -172,6 +175,10 @@ frappe.ui.form.on("Company", {
 			}
 		}
 
+		if (frm.doc.__islocal) {
+			frm.set_value("reporting_currency", "");
+		}
+
 		erpnext.company.set_chart_of_accounts_options(frm.doc);
 	},
 
@@ -250,7 +257,7 @@ erpnext.company.set_chart_of_accounts_options = function (doc) {
 			callback: function (r) {
 				if (!r.exc) {
 					set_field_options("chart_of_accounts", [""].concat(r.message).join("\n"));
-					if (in_list(r.message, selected_value))
+					if (r.message.includes(selected_value))
 						cur_frm.set_value("chart_of_accounts", selected_value);
 				}
 			},
@@ -267,7 +274,7 @@ erpnext.company.setup_queries = function (frm) {
 			["default_payable_account", { root_type: "Liability", account_type: "Payable" }],
 			["default_expense_account", { root_type: "Expense" }],
 			["default_income_account", { root_type: "Income" }],
-			["round_off_account", { root_type: "Expense" }],
+			["round_off_account", { root_type: ["in", ["Expense", "Income"]] }],
 			["round_off_for_opening", { root_type: "Liability", account_type: "Round Off for Opening" }],
 			["write_off_account", { root_type: "Expense" }],
 			["default_deferred_expense_account", {}],
@@ -287,19 +294,18 @@ erpnext.company.setup_queries = function (frm) {
 			["depreciation_expense_account", { root_type: "Expense", account_type: "Depreciation" }],
 			["disposal_account", { report_type: "Profit and Loss" }],
 			["default_inventory_account", { account_type: "Stock" }],
+			["purchase_expense_account", { root_type: "Expense" }],
+			["purchase_expense_contra_account", { root_type: "Expense" }],
 			["cost_center", {}],
 			["round_off_cost_center", {}],
 			["depreciation_cost_center", {}],
-			[
-				"expenses_included_in_asset_valuation",
-				{ account_type: "Expenses Included In Asset Valuation" },
-			],
 			["capital_work_in_progress_account", { account_type: "Capital Work in Progress" }],
 			["asset_received_but_not_billed", { account_type: "Asset Received But Not Billed" }],
 			["unrealized_profit_loss_account", { root_type: ["in", ["Liability", "Asset"]] }],
 			["default_provisional_account", { root_type: ["in", ["Liability", "Asset"]] }],
 			["default_advance_received_account", { root_type: "Liability", account_type: "Receivable" }],
 			["default_advance_paid_account", { root_type: "Asset", account_type: "Payable" }],
+			["service_expense_account", { root_type: "Expense" }],
 		],
 		function (i, v) {
 			erpnext.company.set_custom_query(frm, v);
@@ -310,10 +316,6 @@ erpnext.company.setup_queries = function (frm) {
 		$.each(
 			[
 				["stock_adjustment_account", { root_type: "Expense", account_type: "Stock Adjustment" }],
-				[
-					"expenses_included_in_valuation",
-					{ root_type: "Expense", account_type: "Expenses Included in Valuation" },
-				],
 				[
 					"stock_received_but_not_billed",
 					{ root_type: "Liability", account_type: "Stock Received But Not Billed" },
