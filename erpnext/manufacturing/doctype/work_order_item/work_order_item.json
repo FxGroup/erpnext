@@ -8,6 +8,7 @@
   "operation",
   "item_code",
   "source_warehouse",
+  "operation_row_id",
   "column_break_3",
   "item_name",
   "description",
@@ -22,8 +23,14 @@
   "transferred_qty",
   "consumed_qty",
   "returned_qty",
+  "section_break_idhr",
   "available_qty_at_source_warehouse",
-  "available_qty_at_wip_warehouse"
+  "available_qty_at_wip_warehouse",
+  "column_break_jash",
+  "stock_reserved_qty",
+  "is_additional_item",
+  "is_customer_provided_item",
+  "voucher_detail_reference"
  ],
  "fields": [
   {
@@ -46,7 +53,8 @@
    "ignore_user_permissions": 1,
    "in_list_view": 1,
    "label": "Source Warehouse",
-   "options": "Warehouse"
+   "options": "Warehouse",
+   "read_only_depends_on": "eval:parent.subcontracting_inward_order && doc.is_customer_provided_item"
   },
   {
    "fieldname": "column_break_3",
@@ -85,6 +93,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:!parent.subcontracting_inward_order",
    "fieldname": "allow_alternative_item",
    "fieldtype": "Check",
    "label": "Allow Alternative Item"
@@ -141,24 +150,72 @@
    "read_only": 1
   },
   {
+   "fieldname": "operation_row_id",
+   "fieldtype": "Int",
+   "label": "Operation Row Id",
+   "read_only": 1
+  },
+  {
    "fetch_from": "item_code.stock_uom",
    "fieldname": "stock_uom",
    "fieldtype": "Link",
    "label": "Stock UOM",
    "options": "UOM",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_break_idhr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_jash",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "stock_reserved_qty",
+   "fieldtype": "Float",
+   "label": "Stock Reserved Qty",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_additional_item",
+   "fieldtype": "Check",
+   "label": "Is Additional Item",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "is_additional_item",
+   "fieldname": "voucher_detail_reference",
+   "fieldtype": "Data",
+   "label": "Voucher Detail Reference",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "item_code.is_customer_provided_item",
+   "fieldname": "is_customer_provided_item",
+   "fieldtype": "Check",
+   "label": "Is Customer Provided Item",
+   "read_only": 1
   }
  ],
+ "grid_page_length": 50,
  "istable": 1,
  "links": [],
- "modified": "2024-11-19 15:48:16.823384",
+ "modified": "2025-12-02 11:16:05.081613",
  "modified_by": "Administrator",
  "module": "Manufacturing",
  "name": "Work Order Item",
  "owner": "Administrator",
  "permissions": [],
  "quick_entry": 1,
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

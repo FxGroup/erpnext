@@ -9,6 +9,7 @@ from frappe.desk.notifications import clear_notifications
 from frappe.model.document import Document
 from frappe.utils import cint, comma_and, create_batch, get_link_to_form
 from frappe.utils.background_jobs import get_job, is_job_enqueued
+from frappe.utils.caching import request_cache
 
 LEDGER_ENTRY_DOCTYPES = frozenset(
 	(
@@ -64,6 +65,9 @@ class TransactionDeletionRecord(Document):
 				"Delete Transactions": "delete_company_transactions",
 			}
 		)
+
+	def on_discard(self):
+		self.db_set("status", "Cancelled")
 
 	def validate(self):
 		frappe.only_for("System Manager")
@@ -484,6 +488,7 @@ def get_doctypes_to_be_ignored():
 
 
 @frappe.whitelist()
+@request_cache
 def is_deletion_doc_running(company: str | None = None, err_msg: str | None = None):
 	if not company:
 		return

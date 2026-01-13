@@ -36,14 +36,14 @@ erpnext.utils.get_party_details = function (frm, method, args, callback) {
 		}
 
 		if (!args) {
-			if (in_list(SALES_DOCTYPES, frm.doc.doctype)) {
+			if (SALES_DOCTYPES.includes(frm.doc.doctype)) {
 				args = {
 					party: frm.doc.customer || frm.doc.party_name,
 					party_type: "Customer",
 				};
 			}
 
-			if (in_list(PURCHASE_DOCTYPES, frm.doc.doctype)) {
+			if (PURCHASE_DOCTYPES.includes(frm.doc.doctype)) {
 				args = {
 					party: frm.doc.supplier,
 					party_type: "Supplier",
@@ -57,13 +57,13 @@ erpnext.utils.get_party_details = function (frm, method, args, callback) {
 		args.fetch_payment_terms_template = cint(!frm.doc.ignore_default_payment_terms_template);
 	}
 
-	if (in_list(SALES_DOCTYPES, frm.doc.doctype)) {
+	if (SALES_DOCTYPES.includes(frm.doc.doctype)) {
 		if (!args.company_address && frm.doc.company_address) {
 			args.company_address = frm.doc.company_address;
 		}
 	}
 
-	if (in_list(PURCHASE_DOCTYPES, frm.doc.doctype)) {
+	if (PURCHASE_DOCTYPES.includes(frm.doc.doctype)) {
 		if (!args.company_address && frm.doc.billing_address) {
 			args.company_address = frm.doc.billing_address;
 		}
@@ -108,7 +108,8 @@ erpnext.utils.get_party_details = function (frm, method, args, callback) {
 		args: args,
 		callback: function (r) {
 			if (r.message) {
-				frm.supplier_tds = r.message.supplier_tds;
+				frm.tax_withholding_category = r.message.tax_withholding_category;
+				frm.tax_withholding_group = r.message.tax_withholding_group;
 				frm.updating_party_details = true;
 				frappe.run_serially([
 					() => frm.set_value(r.message),
@@ -156,7 +157,7 @@ erpnext.utils.get_address_display = function (frm, address_field, display_field,
 			args: { address_dict: frm.doc[address_field] },
 			callback: function (r) {
 				if (r.message) {
-					frm.set_value(display_field, r.message);
+					frm.set_value(display_field, frappe.utils.html2text(r.message));
 				}
 			},
 		});

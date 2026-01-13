@@ -7,6 +7,8 @@ from frappe.contacts.address_and_contact import (
 	delete_contact_and_address,
 	load_address_and_contact,
 )
+from frappe.contacts.doctype.address.address import get_default_address
+from frappe.contacts.doctype.contact.contact import get_default_contact
 from frappe.email.inbox import link_communication_to_document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import comma_and, get_link_to_form, has_gravatar, validate_email_address
@@ -30,7 +32,6 @@ class Lead(SellingController, CRMNote):
 
 		annual_revenue: DF.Currency
 		blog_subscriber: DF.Check
-		campaign_name: DF.Link | None
 		city: DF.Data | None
 		company: DF.Link | None
 		company_name: DF.Data | None
@@ -61,7 +62,6 @@ class Lead(SellingController, CRMNote):
 		qualified_on: DF.Date | None
 		request_type: DF.Literal["", "Product Enquiry", "Request for Information", "Suggestions", "Other"]
 		salutation: DF.Link | None
-		source: DF.Link | None
 		state: DF.Data | None
 		status: DF.Literal[
 			"Lead",
@@ -78,6 +78,10 @@ class Lead(SellingController, CRMNote):
 		title: DF.Data | None
 		type: DF.Literal["", "Client", "Channel Partner", "Consultant"]
 		unsubscribed: DF.Check
+		utm_campaign: DF.Link | None
+		utm_content: DF.Data | None
+		utm_medium: DF.Link | None
+		utm_source: DF.Link | None
 		website: DF.Data | None
 		whatsapp_no: DF.Data | None
 	# end: auto-generated types
@@ -99,7 +103,7 @@ class Lead(SellingController, CRMNote):
 	def before_insert(self):
 		self.contact_doc = None
 		if frappe.db.get_single_value("CRM Settings", "auto_creation_of_contact"):
-			if self.source == "Existing Customer" and self.customer:
+			if self.utm_source == "Existing Customer" and self.customer:
 				contact = frappe.db.get_value(
 					"Dynamic Link",
 					{"link_doctype": "Customer", "parenttype": "Contact", "link_name": self.customer},
@@ -326,6 +330,13 @@ def _make_customer(source_name, target_doc=None, ignore_permissions=False):
 		if not target.customer_group:
 			target.customer_group = frappe.db.get_default("Customer Group")
 
+		address = get_default_address("Lead", source.name)
+		contact = get_default_contact("Lead", source.name)
+		if address:
+			target.customer_primary_address = address
+		if contact:
+			target.customer_primary_contact = contact
+
 	doclist = get_mapped_doc(
 		"Lead",
 		source_name,
@@ -361,7 +372,6 @@ def make_opportunity(source_name, target_doc=None):
 			"Lead": {
 				"doctype": "Opportunity",
 				"field_map": {
-					"campaign_name": "campaign",
 					"doctype": "opportunity_from",
 					"name": "party_name",
 					"lead_name": "contact_display",

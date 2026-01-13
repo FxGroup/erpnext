@@ -284,7 +284,7 @@
    "fieldname": "campaign",
    "fieldtype": "Link",
    "label": "Campaign",
-   "options": "Campaign"
+   "options": "UTM Campaign"
   },
   {
    "depends_on": "eval:doc.applicable_for==\"Supplier\"",
@@ -347,7 +347,7 @@
   {
    "fieldname": "valid_upto",
    "fieldtype": "Date",
-   "label": "Valid Upto"
+   "label": "Valid Up To"
   },
   {
    "fieldname": "col_break1",
@@ -715,7 +715,7 @@
   }
  ],
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "title_field": "title"

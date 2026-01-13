@@ -7,7 +7,7 @@ from frappe.utils import get_link_to_form, today
 
 
 @frappe.whitelist()
-def transaction_processing(data, from_doctype, to_doctype):
+def transaction_processing(data, from_doctype, to_doctype, args=None):
 	frappe.has_permission(from_doctype, "read", throw=True)
 	frappe.has_permission(to_doctype, "create", throw=True)
 
@@ -15,6 +15,9 @@ def transaction_processing(data, from_doctype, to_doctype):
 		deserialized_data = json.loads(data)
 	else:
 		deserialized_data = data
+
+	if isinstance(args, str):
+		args = frappe._dict(json.loads(args))
 
 	skipped_records = [d for d in deserialized_data if d.get("status") in ("On Hold", "Closed")]
 
@@ -45,6 +48,7 @@ def transaction_processing(data, from_doctype, to_doctype):
 		deserialized_data=deserialized_data,
 		from_doctype=from_doctype,
 		to_doctype=to_doctype,
+		args=args,
 	)
 
 
@@ -93,8 +97,13 @@ def update_log(log_name, status, retried, err=None):
 		frappe.db.set_value("Bulk Transaction Log Detail", log_name, "error_description", err)
 
 
-def job(deserialized_data, from_doctype, to_doctype):
+def job(deserialized_data, from_doctype, to_doctype, args):
 	fail_count = 0
+
+	if args:
+		# currently: flag-based transport to `task`
+		frappe.flags.args = args
+
 	for d in deserialized_data:
 		try:
 			doc_name = d.get("name")
@@ -172,9 +181,12 @@ def task(doc_name, from_doctype, to_doctype):
 	else:
 		obj = mapper[from_doctype][to_doctype](doc_name)
 
-	obj.flags.ignore_validate = True
-	obj.set_title_field()
-	obj.insert(ignore_mandatory=True)
+	if obj:
+		obj.flags.ignore_validate = True
+		obj.set_title_field()
+		obj.insert(ignore_mandatory=True)
+
+	del obj
 	del frappe.flags.bulk_transaction
 
 

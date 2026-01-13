@@ -126,7 +126,7 @@ class Employee(NestedSet):
 			user.gender = self.gender
 
 		if self.image:
-			if not user.user_image:
+			if not user.user_image or self.has_value_changed("image"):
 				user.user_image = self.image
 				try:
 					frappe.get_doc(
@@ -185,7 +185,7 @@ class Employee(NestedSet):
 				throw(_("Please enter relieving date."))
 
 	def validate_for_enabled_user_id(self, enabled):
-		if not self.status == "Active":
+		if self.status != "Active":
 			return
 
 		if enabled is None:
@@ -249,23 +249,17 @@ def validate_employee_role(doc, method=None, ignore_emp_check=False):
 		doc.get("roles").remove(doc.get("roles", {"role": "Employee Self Service"})[0])
 
 
-@deprecated
-def update_user_permissions(doc, method):
-	# formerly called via User hook
-	if "Employee" in [d.role for d in doc.get("roles")]:
-		if not has_permission("User Permission", ptype="write", raise_exception=False):
-			return
-		employee = frappe.get_doc("Employee", {"user_id": doc.name})
-		employee.update_user_permissions()
-
-
 def get_employee_email(employee_doc):
 	return (
 		employee_doc.get("user_id") or employee_doc.get("personal_email") or employee_doc.get("company_email")
 	)
 
 
-def get_holiday_list_for_employee(employee, raise_exception=True):
+def get_holiday_list_for_employee(employee, raise_exception=True, as_on=None):
+	hrms_override = frappe.get_hooks("employee_holiday_list")
+
+	if hrms_override:
+		return frappe.get_attr(hrms_override[-1])(employee, raise_exception, as_on)
 	if employee:
 		holiday_list, company = frappe.get_cached_value("Employee", employee, ["holiday_list", "company"])
 	else:

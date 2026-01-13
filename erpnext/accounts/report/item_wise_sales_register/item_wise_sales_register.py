@@ -4,7 +4,6 @@
 
 import frappe
 from frappe import _
-from frappe.model.meta import get_field_precision
 from frappe.query_builder import functions as fn
 from frappe.utils import flt
 from frappe.utils.nestedset import get_descendants_of
@@ -29,8 +28,10 @@ def _execute(filters=None, additional_table_columns=None, additional_conditions=
 	company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
 
 	item_list = get_items(filters, additional_table_columns, additional_conditions)
-	if item_list:
-		itemised_tax, tax_columns = get_tax_accounts(item_list, columns, company_currency)
+	if not item_list:
+		return columns, [], None, None, None, 0
+
+	itemised_tax, tax_columns = get_tax_accounts(item_list, columns, company_currency)
 
 	mode_of_payments = get_mode_of_payments(set(d.parent for d in item_list))
 	so_dn_map = get_delivery_notes_against_sales_order(item_list)
@@ -88,18 +89,17 @@ def _execute(filters=None, additional_table_columns=None, additional_conditions=
 
 		total_tax = 0
 		total_other_charges = 0
-		for tax in tax_columns:
-			item_tax = itemised_tax.get(d.name, {}).get(tax, {})
+		for tax, details in itemised_tax.get(d.name, {}).items():
 			row.update(
 				{
-					f"{tax}_rate": item_tax.get("tax_rate", 0),
-					f"{tax}_amount": item_tax.get("tax_amount", 0),
+					f"{tax}_rate": details.get("tax_rate", 0),
+					f"{tax}_amount": details.get("tax_amount", 0),
 				}
 			)
-			if item_tax.get("is_other_charges"):
-				total_other_charges += flt(item_tax.get("tax_amount"))
+			if details.get("is_other_charges"):
+				total_other_charges += flt(details.get("tax_amount"))
 			else:
-				total_tax += flt(item_tax.get("tax_amount"))
+				total_tax += flt(details.get("tax_amount"))
 
 		row.update(
 			{
@@ -521,7 +521,7 @@ def get_grand_total(filters, doctype):
 				"docstatus": 1,
 				"posting_date": ("between", [filters.get("from_date"), filters.get("to_date")]),
 			},
-			"sum(base_grand_total)",
+			[{"SUM": "base_grand_total"}],
 		)
 	)
 
@@ -533,130 +533,59 @@ def get_tax_accounts(
 	doctype="Sales Invoice",
 	tax_doctype="Sales Taxes and Charges",
 ):
-	import json
-
-	item_row_map = {}
-	tax_columns = {}
-	invoice_item_row = {}
-	itemised_tax = {}
-	scrubbed_description_map = {}
-	add_deduct_tax = "charge_type"
-
-	tax_amount_precision = (
-		get_field_precision(frappe.get_meta(tax_doctype).get_field("tax_amount"), currency=company_currency)
-		or 2
-	)
-
-	for d in item_list:
-		invoice_item_row.setdefault(d.parent, []).append(d)
-		item_row_map.setdefault(d.parent, {}).setdefault(d.item_code or d.item_name, []).append(d)
-
-	conditions = ""
-	if doctype == "Purchase Invoice":
-		conditions = (
-			" and category in ('Total', 'Valuation and Total') and base_tax_amount_after_discount_amount != 0"
-		)
-		add_deduct_tax = "add_deduct_tax"
-
-	tax_details = frappe.db.sql(
-		f"""
-		select
-			name, parent, description, item_wise_tax_detail, account_head,
-			charge_type, {add_deduct_tax}, base_tax_amount_after_discount_amount
-		from `tab%s`
-		where
-			parenttype = %s and docstatus = 1
-			and (description is not null and description != '')
-			and parent in (%s)
-			%s
-		order by description
-	"""
-		% (tax_doctype, "%s", ", ".join(["%s"] * len(invoice_item_row)), conditions),
-		tuple([doctype, *list(invoice_item_row)]),
-	)
-
-	account_doctype = frappe.qb.DocType("Account")
+	invoice_item_row = [d.name for d in item_list]
+	tax = frappe.qb.DocType("Item Wise Tax Detail")
+	taxes_and_charges = frappe.qb.DocType(tax_doctype)
+	account = frappe.qb.DocType("Account")
 
 	query = (
-		frappe.qb.from_(account_doctype)
-		.select(account_doctype.name)
-		.where(account_doctype.account_type == "Tax")
+		get_tax_details_query(
+			doctype,
+			tax_doctype,
+		)
+		.left_join(account)
+		.on(taxes_and_charges.account_head == account.name)
+		.select(account.account_type)
+		.where(tax.item_row.isin(invoice_item_row))
 	)
 
-	tax_accounts = query.run()
+	if doctype == "Purchase Invoice":
+		query = query.where(
+			(taxes_and_charges.category.isin(["Total", "Valuation and Total"]))
+			& (taxes_and_charges.base_tax_amount_after_discount_amount != 0)
+		)
 
-	for (
-		_name,
-		parent,
-		description,
-		item_wise_tax_detail,
-		account_head,
-		charge_type,
-		add_deduct_tax,
-		tax_amount,
-	) in tax_details:
-		description = handle_html(description)
+	tax_details = query.run(as_dict=True)
+
+	precision = frappe.get_precision(tax_doctype, "tax_amount", currency=company_currency) or 2
+	tax_columns = {}
+	itemised_tax = {}
+	scrubbed_description_map = {}
+
+	for row in tax_details:
+		description = handle_html(row.description) or row.account_head
 		scrubbed_description = scrubbed_description_map.get(description)
 		if not scrubbed_description:
 			scrubbed_description = frappe.scrub(description)
 			scrubbed_description_map[description] = scrubbed_description
 
-		if scrubbed_description not in tax_columns and tax_amount:
+		if scrubbed_description not in tax_columns and row.amount:
 			# as description is text editor earlier and markup can break the column convention in reports
 			tax_columns[scrubbed_description] = description
 
-		if item_wise_tax_detail:
-			try:
-				item_wise_tax_detail = json.loads(item_wise_tax_detail)
+		rate = "NA" if row.rate == 0 else row.rate
+		itemised_tax.setdefault(row.item_row, {}).setdefault(
+			scrubbed_description,
+			frappe._dict(
+				{
+					"tax_rate": rate,
+					"tax_amount": 0,
+					"is_other_charges": 0 if row.account_type == "Tax" else 1,
+				}
+			),
+		)
 
-				for item_code, tax_data in item_wise_tax_detail.items():
-					itemised_tax.setdefault(item_code, frappe._dict())
-
-					if isinstance(tax_data, list):
-						tax_rate, tax_amount = tax_data
-					else:
-						tax_rate = tax_data
-						tax_amount = 0
-
-					if charge_type == "Actual" and not tax_rate:
-						tax_rate = "NA"
-
-					item_net_amount = sum(
-						[flt(d.base_net_amount) for d in item_row_map.get(parent, {}).get(item_code, [])]
-					)
-
-					for d in item_row_map.get(parent, {}).get(item_code, []):
-						item_tax_amount = (
-							flt((tax_amount * d.base_net_amount) / item_net_amount) if item_net_amount else 0
-						)
-						if item_tax_amount:
-							tax_value = flt(item_tax_amount, tax_amount_precision)
-							tax_value = (
-								tax_value * -1
-								if (doctype == "Purchase Invoice" and add_deduct_tax == "Deduct")
-								else tax_value
-							)
-
-							itemised_tax.setdefault(d.name, {})[scrubbed_description] = frappe._dict(
-								{
-									"tax_rate": tax_rate,
-									"tax_amount": tax_value,
-									"is_other_charges": 0 if tuple([account_head]) in tax_accounts else 1,
-								}
-							)
-
-			except ValueError:
-				continue
-		elif charge_type == "Actual" and tax_amount:
-			for d in invoice_item_row.get(parent, []):
-				itemised_tax.setdefault(d.name, {})[scrubbed_description] = frappe._dict(
-					{
-						"tax_rate": "NA",
-						"tax_amount": flt(
-							(tax_amount * d.base_net_amount) / d.base_net_total, tax_amount_precision
-						),
-					}
-				)
+		itemised_tax[row.item_row][scrubbed_description].tax_amount += flt(row.amount, precision)
 
 	tax_columns_list = list(tax_columns.keys())
 	tax_columns_list.sort()
@@ -713,6 +642,30 @@ def get_tax_accounts(
 	]
 
 	return itemised_tax, tax_columns_list
+
+
+def get_tax_details_query(doctype, tax_doctype):
+	tax = frappe.qb.DocType("Item Wise Tax Detail")
+	taxes_and_charges = frappe.qb.DocType(tax_doctype)
+
+	query = (
+		frappe.qb.from_(tax)
+		.left_join(taxes_and_charges)
+		.on(tax.tax_row == taxes_and_charges.name)
+		.select(
+			tax.parent,
+			tax.item_row,
+			tax.rate,
+			tax.amount,
+			tax.taxable_amount,
+			taxes_and_charges.charge_type,
+			taxes_and_charges.account_head,
+			taxes_and_charges.description,
+		)
+		.where(tax.parenttype == doctype)
+	)
+
+	return query
 
 
 def add_total_row(

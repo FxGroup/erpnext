@@ -5,7 +5,7 @@ import json
 
 import frappe
 from frappe.exceptions import ValidationError
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import cint, flt
 from frappe.utils.data import add_to_date, getdate
 
@@ -20,11 +20,11 @@ from erpnext.stock.doctype.serial_and_batch_bundle.test_serial_and_batch_bundle 
 	get_batch_from_bundle,
 )
 from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
-from erpnext.stock.get_item_details import get_item_details
+from erpnext.stock.get_item_details import ItemDetailsCtx, get_item_details
 from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
 
-class TestBatch(FrappeTestCase):
+class TestBatch(IntegrationTestCase):
 	def test_item_has_batch_enabled(self):
 		self.assertRaises(
 			ValidationError,
@@ -45,12 +45,10 @@ class TestBatch(FrappeTestCase):
 		self.make_batch_item("ITEM-BATCH-1")
 
 		receipt = frappe.get_doc(
-			dict(
-				doctype="Purchase Receipt",
-				supplier="_Test Supplier",
-				company="_Test Company",
-				items=[dict(item_code="ITEM-BATCH-1", qty=batch_qty, rate=10, warehouse="Stores - _TC")],
-			)
+			doctype="Purchase Receipt",
+			supplier="_Test Supplier",
+			company="_Test Company",
+			items=[dict(item_code="ITEM-BATCH-1", qty=batch_qty, rate=10, warehouse="Stores - _TC")],
 		).insert()
 		receipt.submit()
 
@@ -66,12 +64,10 @@ class TestBatch(FrappeTestCase):
 		self.make_batch_item("ITEM-BATCH-1")
 
 		receipt = frappe.get_doc(
-			dict(
-				doctype="Purchase Receipt",
-				supplier="_Test Supplier",
-				company="_Test Company",
-				items=[dict(item_code="ITEM-BATCH-1", qty=10, rate=10, warehouse="Stores - _TC")],
-			)
+			doctype="Purchase Receipt",
+			supplier="_Test Supplier",
+			company="_Test Company",
+			items=[dict(item_code="ITEM-BATCH-1", qty=10, rate=10, warehouse="Stores - _TC")],
 		).insert()
 		receipt.submit()
 
@@ -96,20 +92,18 @@ class TestBatch(FrappeTestCase):
 		)
 
 		receipt2 = frappe.get_doc(
-			dict(
-				doctype="Purchase Receipt",
-				supplier="_Test Supplier",
-				company="_Test Company",
-				items=[
-					dict(
-						item_code="ITEM-BATCH-1",
-						qty=20,
-						rate=10,
-						warehouse="_Test Warehouse - _TC",
-						serial_and_batch_bundle=bundle_id,
-					)
-				],
-			)
+			doctype="Purchase Receipt",
+			supplier="_Test Supplier",
+			company="_Test Company",
+			items=[
+				dict(
+					item_code="ITEM-BATCH-1",
+					qty=20,
+					rate=10,
+					warehouse="_Test Warehouse - _TC",
+					serial_and_batch_bundle=bundle_id,
+				)
+			],
 		).insert()
 		receipt2.submit()
 
@@ -135,20 +129,18 @@ class TestBatch(FrappeTestCase):
 		self.make_batch_item("ITEM-BATCH-1")
 
 		stock_entry = frappe.get_doc(
-			dict(
-				doctype="Stock Entry",
-				purpose="Material Receipt",
-				company="_Test Company",
-				items=[
-					dict(
-						item_code="ITEM-BATCH-1",
-						qty=90,
-						t_warehouse="_Test Warehouse - _TC",
-						cost_center="Main - _TC",
-						rate=10,
-					)
-				],
-			)
+			doctype="Stock Entry",
+			purpose="Material Receipt",
+			company="_Test Company",
+			items=[
+				dict(
+					item_code="ITEM-BATCH-1",
+					qty=90,
+					t_warehouse="_Test Warehouse - _TC",
+					cost_center="Main - _TC",
+					rate=10,
+				)
+			],
 		)
 
 		stock_entry.set_stock_entry_type()
@@ -187,20 +179,18 @@ class TestBatch(FrappeTestCase):
 		)
 
 		delivery_note = frappe.get_doc(
-			dict(
-				doctype="Delivery Note",
-				customer="_Test Customer",
-				company=receipt.company,
-				items=[
-					dict(
-						item_code=item_code,
-						qty=batch_qty,
-						rate=10,
-						warehouse=receipt.items[0].warehouse,
-						serial_and_batch_bundle=bundle_id,
-					)
-				],
-			)
+			doctype="Delivery Note",
+			customer="_Test Customer",
+			company=receipt.company,
+			items=[
+				dict(
+					item_code=item_code,
+					qty=batch_qty,
+					rate=10,
+					warehouse=receipt.items[0].warehouse,
+					serial_and_batch_bundle=bundle_id,
+				)
+			],
 		).insert()
 		delivery_note.submit()
 
@@ -261,19 +251,17 @@ class TestBatch(FrappeTestCase):
 		)
 
 		stock_entry = frappe.get_doc(
-			dict(
-				doctype="Stock Entry",
-				purpose="Material Issue",
-				company=receipt.company,
-				items=[
-					dict(
-						item_code=item_code,
-						qty=batch_qty,
-						s_warehouse=receipt.items[0].warehouse,
-						serial_and_batch_bundle=bundle_id,
-					)
-				],
-			)
+			doctype="Stock Entry",
+			purpose="Material Issue",
+			company=receipt.company,
+			items=[
+				dict(
+					item_code=item_code,
+					qty=batch_qty,
+					s_warehouse=receipt.items[0].warehouse,
+					serial_and_batch_bundle=bundle_id,
+				)
+			],
 		)
 
 		stock_entry.set_stock_entry_type()
@@ -373,7 +361,7 @@ class TestBatch(FrappeTestCase):
 		"""Make a new stock entry for given target warehouse and batch name of item"""
 
 		if not frappe.db.exists("Batch", batch_name):
-			batch = frappe.get_doc(dict(doctype="Batch", item=item_name, batch_id=batch_name)).insert(
+			batch = frappe.get_doc(doctype="Batch", item=item_name, batch_id=batch_name).insert(
 				ignore_permissions=True
 			)
 			batch.save()
@@ -393,22 +381,20 @@ class TestBatch(FrappeTestCase):
 		).make_serial_and_batch_bundle()
 
 		stock_entry = frappe.get_doc(
-			dict(
-				doctype="Stock Entry",
-				purpose="Material Receipt",
-				company="_Test Company",
-				items=[
-					dict(
-						item_code=item_name,
-						qty=90,
-						serial_and_batch_bundle=sn_doc.name,
-						t_warehouse=warehouse,
-						cost_center="Main - _TC",
-						rate=10,
-						allow_zero_valuation_rate=1,
-					)
-				],
-			)
+			doctype="Stock Entry",
+			purpose="Material Receipt",
+			company="_Test Company",
+			items=[
+				dict(
+					item_code=item_name,
+					qty=90,
+					serial_and_batch_bundle=sn_doc.name,
+					t_warehouse=warehouse,
+					cost_center="Main - _TC",
+					rate=10,
+					allow_zero_valuation_rate=1,
+				)
+			],
 		)
 
 		stock_entry.set_stock_entry_type()
@@ -471,7 +457,7 @@ class TestBatch(FrappeTestCase):
 		company = "_Test Company with perpetual inventory"
 		currency = frappe.get_cached_value("Company", company, "default_currency")
 
-		args = frappe._dict(
+		ctx = ItemDetailsCtx(
 			{
 				"item_code": "_Test Batch Price Item",
 				"company": company,
@@ -487,18 +473,18 @@ class TestBatch(FrappeTestCase):
 		)
 
 		# test price for batch1
-		args.update({"batch_no": batch1})
-		details = get_item_details(args)
+		ctx.update({"batch_no": batch1})
+		details = get_item_details(ctx)
 		self.assertEqual(details.get("price_list_rate"), 200)
 
 		# test price for batch2
-		args.update({"batch_no": batch2})
-		details = get_item_details(args)
+		ctx.update({"batch_no": batch2})
+		details = get_item_details(ctx)
 		self.assertEqual(details.get("price_list_rate"), 300)
 
 		# test price for batch3
-		args.update({"batch_no": batch3})
-		details = get_item_details(args)
+		ctx.update({"batch_no": batch3})
+		details = get_item_details(ctx)
 		self.assertEqual(details.get("price_list_rate"), 400)
 
 	def test_basic_batch_wise_valuation(self, batch_qty=100):

@@ -11,6 +11,7 @@
   "customer_group",
   "column_break_4",
   "territory",
+  "item_price_tab",
   "item_price_settings_section",
   "selling_price_list",
   "maintain_same_rate_action",
@@ -22,6 +23,7 @@
   "validate_selling_price",
   "editable_bundle_item_rates",
   "allow_negative_rates_for_items",
+  "transaction_tab",
   "sales_transactions_settings_section",
   "so_required",
   "dn_required",
@@ -34,8 +36,16 @@
   "dont_reserve_sales_order_qty_on_sales_return",
   "hide_tax_id",
   "enable_discount_accounting",
+  "enable_cutoff_date_on_bulk_delivery_note_creation",
   "allow_zero_qty_in_quotation",
-  "allow_zero_qty_in_sales_order"
+  "allow_zero_qty_in_sales_order",
+  "experimental_section",
+  "use_legacy_js_reactivity",
+  "subcontracting_inward_tab",
+  "section_break_zwh6",
+  "allow_delivery_of_overproduced_qty",
+  "column_break_mla9",
+  "deliver_scrap_items"
  ],
  "fields": [
   {
@@ -84,7 +94,7 @@
    "options": "No\nYes"
   },
   {
-   "default": "Each Transaction",
+   "default": "Daily",
    "description": "How often should Project and Company be updated based on Sales Transactions?",
    "fieldname": "sales_update_frequency",
    "fieldtype": "Select",
@@ -206,6 +216,17 @@
   },
   {
    "default": "0",
+   "fieldname": "enable_cutoff_date_on_bulk_delivery_note_creation",
+   "fieldtype": "Check",
+   "label": "Enable Cut-Off Date on Bulk Delivery Note Creation"
+  },
+  {
+   "fieldname": "experimental_section",
+   "fieldtype": "Section Break",
+   "label": "Experimental"
+  },
+  {
+   "default": "0",
    "description": "Allows users to submit Sales Orders with zero quantity. Useful when rates are fixed but the quantities are not. Eg. Rate Contracts.",
    "fieldname": "allow_zero_qty_in_sales_order",
    "fieldtype": "Check",
@@ -219,19 +240,64 @@
    "label": "Allow Quotation with Zero Quantity"
   },
   {
+   "fieldname": "section_break_zwh6",
+   "fieldtype": "Section Break",
+   "label": "Subcontracting Inward Settings"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, system will allow user to deliver the entire quantity of the finished goods produced against the Subcontracting Inward Order. If disabled, system will allow delivery of only the ordered quantity.",
+   "fieldname": "allow_delivery_of_overproduced_qty",
+   "fieldtype": "Check",
+   "label": "Allow Delivery of Overproduced Qty"
+  },
+  {
+   "fieldname": "column_break_mla9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, the Scrap Item generated against a Finished Good will also be added in the Stock Entry when delivering that Finished Good.",
+   "fieldname": "deliver_scrap_items",
+   "fieldtype": "Check",
+   "label": "Deliver Scrap Items"
+  },
+  {
+   "fieldname": "item_price_tab",
+   "fieldtype": "Tab Break",
+   "label": "Item Price"
+  },
+  {
+   "fieldname": "transaction_tab",
+   "fieldtype": "Tab Break",
+   "label": "Transaction"
+  },
+  {
+   "fieldname": "subcontracting_inward_tab",
+   "fieldtype": "Tab Break",
+   "label": "Subcontracting Inward"
+  },
+  {
    "default": "0",
    "fieldname": "fallback_to_default_price_list",
    "fieldtype": "Check",
    "label": "Use Prices from Default Price List as Fallback"
+  },
+  {
+   "default": "0",
+   "fieldname": "use_legacy_js_reactivity",
+   "fieldtype": "Check",
+   "label": "Use Legacy (Client side) Reactivity"
   }
  ],
  "grid_page_length": 50,
+ "hide_toolbar": 1,
  "icon": "fa fa-cog",
  "idx": 1,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-09-23 21:10:14.826653",
+ "modified": "2026-01-02 18:17:05.734945",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Selling Settings",
@@ -256,7 +322,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

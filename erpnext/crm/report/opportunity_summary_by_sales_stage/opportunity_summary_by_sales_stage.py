@@ -36,9 +36,9 @@ class OpportunitySummaryBySalesStage:
 			self.columns.append(
 				{
 					"label": _("Source"),
-					"fieldname": "source",
+					"fieldname": "utm_source",
 					"fieldtype": "Link",
-					"options": "Lead Source",
+					"options": "UTM Source",
 					"width": 200,
 				}
 			)
@@ -69,12 +69,12 @@ class OpportunitySummaryBySalesStage:
 
 		based_on = {
 			"Opportunity Owner": "_assign",
-			"Source": "source",
+			"Source": "utm_source",
 			"Opportunity Type": "opportunity_type",
 		}[self.filters.get("based_on")]
 
 		data_based_on = {
-			"Number": "count(name) as count",
+			"Number": {"COUNT": "*", "as": "count"},
 			"Amount": "opportunity_amount as amount",
 		}[self.filters.get("data_based_on")]
 
@@ -128,7 +128,7 @@ class OpportunitySummaryBySalesStage:
 		for based_on, data in self.formatted_data.items():
 			row_based_on = {
 				"Opportunity Owner": "opportunity_owner",
-				"Source": "source",
+				"Source": "utm_source",
 				"Opportunity Type": "opportunity_type",
 			}[self.filters.get("based_on")]
 
@@ -148,20 +148,19 @@ class OpportunitySummaryBySalesStage:
 
 			based_on = {
 				"Opportunity Owner": "_assign",
-				"Source": "source",
+				"Source": "utm_source",
 				"Opportunity Type": "opportunity_type",
 			}[self.filters.get("based_on")]
 
 			if self.filters.get("based_on") == "Opportunity Owner":
-				if (
-					d.get(based_on) == "[]"
-					or d.get(based_on) is None
-					or d.get(based_on) == "Not Assigned"
-					or d.get(based_on) == ""
-				):
+				value = d.get(based_on)
+				if not value or value in ["[]", "null", "Not Assigned"]:
 					assignments = ["Not Assigned"]
 				else:
-					assignments = json.loads(d.get(based_on))
+					try:
+						assignments = json.loads(value)
+					except json.JSONDecodeError:
+						assignments = ["Not Assigned"]
 
 				sales_stage = d.get("sales_stage")
 				count = d.get(data_based_on)
@@ -193,7 +192,7 @@ class OpportunitySummaryBySalesStage:
 			filters.append({"opportunity_type": self.filters.get("opportunity_type")})
 
 		if self.filters.get("opportunity_source"):
-			filters.append({"source": self.filters.get("opportunity_source")})
+			filters.append({"utm_source": self.filters.get("opportunity_source")})
 
 		if self.filters.get("status"):
 			filters.append({"status": ("in", self.filters.get("status"))})

@@ -42,6 +42,7 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Company",
    "options": "Company",
    "reqd": 1
@@ -261,7 +262,7 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

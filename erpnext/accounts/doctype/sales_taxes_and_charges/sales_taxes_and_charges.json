@@ -13,6 +13,8 @@
   "description",
   "included_in_print_rate",
   "included_in_paid_amount",
+  "set_by_item_tax_template",
+  "is_tax_withholding_account",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
@@ -21,14 +23,15 @@
   "rate",
   "section_break_9",
   "account_currency",
+  "net_amount",
   "tax_amount",
   "total",
   "tax_amount_after_discount_amount",
   "column_break_13",
+  "base_net_amount",
   "base_tax_amount",
   "base_total",
   "base_tax_amount_after_discount_amount",
-  "item_wise_tax_detail",
   "dont_recompute_tax"
  ],
  "fields": [
@@ -172,15 +175,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "item_wise_tax_detail",
-   "fieldtype": "Code",
-   "hidden": 1,
-   "label": "Item Wise Tax Detail",
-   "oldfieldname": "item_wise_tax_detail",
-   "oldfieldtype": "Small Text",
-   "read_only": 1
-  },
-  {
    "fieldname": "accounting_dimensions_section",
    "fieldtype": "Section Break",
    "label": "Accounting Dimensions"
@@ -209,7 +203,7 @@
    "fieldname": "dont_recompute_tax",
    "fieldtype": "Check",
    "hidden": 1,
-   "label": "Dont Recompute tax",
+   "label": "Don't Recompute Tax",
    "print_hide": 1,
    "read_only": 1
   },
@@ -220,19 +214,55 @@
    "label": "Account Currency",
    "options": "Currency",
    "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Net Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "base_net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount (Company Currency)",
+   "oldfieldname": "tax_amount",
+   "oldfieldtype": "Currency",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "set_by_item_tax_template",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Set by Item Tax Template",
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_tax_withholding_account",
+   "fieldtype": "Check",
+   "label": "Is Tax Withholding Account",
+   "read_only": 1
   }
  ],
  "idx": 1,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2024-01-14 10:08:17.776528",
+ "modified": "2025-07-24 15:08:34.381704",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Sales Taxes and Charges",
  "owner": "Administrator",
  "permissions": [],
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "ASC",
  "states": []
 }

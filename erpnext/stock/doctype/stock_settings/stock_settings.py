@@ -39,6 +39,7 @@ class StockSettings(Document):
 		auto_indent: DF.Check
 		auto_insert_price_list_rate_if_missing: DF.Check
 		auto_reserve_serial_and_batch: DF.Check
+		auto_reserve_stock: DF.Check
 		auto_reserve_stock_for_sales_order_on_purchase: DF.Check
 		clean_description_html: DF.Check
 		default_warehouse: DF.Link | None
@@ -150,7 +151,7 @@ class StockSettings(Document):
 			# changed to text
 			frappe.enqueue(
 				"erpnext.stock.doctype.stock_settings.stock_settings.clean_all_descriptions",
-				now=frappe.flags.in_test,
+				now=frappe.in_test,
 				enqueue_after_commit=True,
 			)
 
@@ -161,8 +162,11 @@ class StockSettings(Document):
 	def validate_stock_reservation(self):
 		"""Raises an exception if the user tries to enable/disable `Stock Reservation` with `Negative Stock` or `Open Stock Reservation Entries`."""
 
+		if not self.enable_stock_reservation and self.auto_reserve_stock:
+			self.auto_reserve_stock = 0
+
 		# Skip validation for tests
-		if frappe.flags.in_test:
+		if frappe.in_test:
 			return
 
 		# Change in value of `Allow Negative Stock`

@@ -8,6 +8,7 @@ frappe.listview_settings["Purchase Order"] = {
 		"per_received",
 		"per_billed",
 		"status",
+		"advance_payment_status",
 	],
 	get_indicator: function (doc) {
 		// Please do not add precision in the flt function
@@ -17,6 +18,8 @@ frappe.listview_settings["Purchase Order"] = {
 			return [__("On Hold"), "orange", "status,=,On Hold"];
 		} else if (doc.status === "Delivered") {
 			return [__("Delivered"), "green", "status,=,Closed"];
+		} else if (doc.advance_payment_status == "Initiated") {
+			return [__("To Pay"), "gray", "advance_payment_status,=,Initiated"];
 		} else if (flt(doc.per_received) < 100 && doc.status !== "Closed") {
 			if (flt(doc.per_billed) < 100) {
 				return [
@@ -48,11 +51,11 @@ frappe.listview_settings["Purchase Order"] = {
 	onload: function (listview) {
 		var method = "erpnext.buying.doctype.purchase_order.purchase_order.close_or_unclose_purchase_orders";
 
-		listview.page.add_menu_item(__("Close"), function () {
+		listview.page.add_action_item(__("Close"), function () {
 			listview.call_for_selected_items(method, { status: "Closed" });
 		});
 
-		listview.page.add_menu_item(__("Reopen"), function () {
+		listview.page.add_action_item(__("Reopen"), function () {
 			listview.call_for_selected_items(method, { status: "Submitted" });
 		});
 

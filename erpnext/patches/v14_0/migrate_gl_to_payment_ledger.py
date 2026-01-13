@@ -189,4 +189,4 @@ def execute():
 						raise err
 				else:
 					break
-			print(f"{processed} records have been sucessfully migrated")
+			print(f"{processed} records have been successfully migrated")

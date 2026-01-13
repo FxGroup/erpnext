@@ -81,6 +81,7 @@
   "disable_rounded_total",
   "tax_breakup",
   "other_charges_calculation",
+  "item_wise_tax_details",
   "pricing_rule_details",
   "pricing_rules",
   "address_and_contact_tab",
@@ -229,7 +230,7 @@
   },
   {
    "fieldname": "address_display",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Address",
    "read_only": 1
   },
@@ -861,12 +862,12 @@
    "print_hide": 1
   },
   {
-    "fieldname": "column_break_zjaq",
-    "fieldtype": "Column Break"
+   "fieldname": "column_break_zjaq",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "shipping_address_display",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Shipping Address Details",
    "print_hide": 1,
    "read_only": 1
@@ -898,7 +899,7 @@
   },
   {
    "fieldname": "billing_address_display",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Billing Address Details",
    "read_only": 1
   },
@@ -930,6 +931,14 @@
    "hidden": 1,
    "label": "Has Unit Price Items",
    "no_copy": 1
+  },
+  {
+   "fieldname": "item_wise_tax_details",
+   "fieldtype": "Table",
+   "hidden": 1,
+   "label": "Item Wise Tax Details",
+   "no_copy": 1,
+   "options": "Item Wise Tax Detail"
   }
  ],
  "grid_page_length": 50,
@@ -938,7 +947,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-03-03 17:39:38.459977",
+ "modified": "2025-07-23 02:22:43.526822",
  "modified_by": "Administrator",
  "module": "Buying",
  "name": "Supplier Quotation",
@@ -1002,7 +1011,7 @@
  "row_format": "Dynamic",
  "search_fields": "status, transaction_date, supplier,grand_total",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "timeline_field": "supplier",

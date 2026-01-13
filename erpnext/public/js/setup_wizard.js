@@ -31,7 +31,6 @@ erpnext.setup.slides_settings = [
 				fieldtype: "Data",
 				reqd: 1,
 			},
-			{ fieldtype: "Column Break" },
 			{
 				fieldname: "company_abbr",
 				label: __("Company Abbreviation"),
@@ -265,6 +264,5 @@ erpnext.setup.fiscal_years = {
 	Pakistan: ["07-01", "06-30"],
 	Singapore: ["04-01", "03-31"],
 	"South Africa": ["03-01", "02-28"],
-	Thailand: ["10-01", "09-30"],
 	"United Kingdom": ["04-01", "03-31"],
 };

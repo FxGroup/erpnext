@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import cstr
 
 from erpnext.assets.doctype.asset.test_asset import create_asset
@@ -11,9 +11,10 @@ from erpnext.assets.doctype.asset_depreciation_schedule.asset_depreciation_sched
 )
 
 
-class TestAssetShiftAllocation(FrappeTestCase):
+class TestAssetShiftAllocation(IntegrationTestCase):
 	@classmethod
 	def setUpClass(cls):
+		super().setUpClass()
 		create_asset_shift_factors()
 
 	@classmethod
@@ -25,7 +26,7 @@ class TestAssetShiftAllocation(FrappeTestCase):
 			calculate_depreciation=1,
 			available_for_use_date="2023-01-01",
 			purchase_date="2023-01-01",
-			gross_purchase_amount=120000,
+			net_purchase_amount=120000,
 			depreciation_start_date="2023-01-31",
 			total_number_of_depreciations=12,
 			frequency_of_depreciation=1,

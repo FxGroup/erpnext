@@ -16,11 +16,11 @@ frappe.ui.form.on("Item", {
 				let msg = __(
 					"Changing the valuation method to Moving Average will affect new transactions. If backdated entries are added, earlier FIFO-based entries will be reposted, which may change closing balances."
 				);
-				msg += "<br>";
+				msg += "<br><br>";
 				msg += __(
 					"Also you can't switch back to FIFO after setting the valuation method to Moving Average for this item."
 				);
-				msg += "<br>";
+				msg += "<br><br>";
 				msg += __("Do you want to change valuation method?");
 
 				frappe.confirm(
@@ -129,7 +129,7 @@ frappe.ui.form.on("Item", {
 		if (frm.doc.has_variants) {
 			frm.set_intro(
 				__(
-					"This Item is a Template and cannot be used in transactions. Item attributes will be copied over into the variants unless 'No Copy' is set"
+					"This Item is a Template and cannot be used in transactions.<br>All fields present in the 'Copy Fields to Variant' table in Item Variant Settings will be copied to its variant items."
 				),
 				true
 			);
@@ -221,7 +221,13 @@ frappe.ui.form.on("Item", {
 
 		const stock_exists = frm.doc.__onload && frm.doc.__onload.stock_exists ? 1 : 0;
 
-		["is_stock_item", "has_serial_no", "has_batch_no", "has_variants"].forEach((fieldname) => {
+		[
+			"is_stock_item",
+			"is_customer_provided_item",
+			"has_serial_no",
+			"has_batch_no",
+			"has_variants",
+		].forEach((fieldname) => {
 			frm.set_df_property(fieldname, "read_only", stock_exists);
 		});
 		frm.set_df_property("is_fixed_asset", "read_only", frm.doc.__onload?.asset_exists ? 1 : 0);
@@ -302,6 +308,14 @@ frappe.ui.form.on("Item Reorder", {
 		var type = frm.doc.default_material_request_type;
 		row.material_request_type = type == "Material Transfer" ? "Transfer" : type;
 	},
+
+	warehouse_group(frm, cdt, cdn) {
+		let row = locals[cdt][cdn];
+
+		if (!row.warehouse_group) {
+			frappe.throw(__("Please select the Warehouse first"));
+		}
+	},
 });
 
 frappe.ui.form.on("Item Customer Detail", {
@@ -356,6 +370,17 @@ $.extend(erpnext.item, {
 			return {
 				query: "erpnext.controllers.queries.get_income_account",
 				filters: { company: row.company },
+			};
+		};
+
+		frm.fields_dict["item_defaults"].grid.get_field("default_inventory_account").get_query = function (
+			doc,
+			cdt,
+			cdn
+		) {
+			const row = locals[cdt][cdn];
+			return {
+				filters: { company: row.company, account_type: "Stock", is_group: 0 },
 			};
 		};
 
@@ -464,8 +489,12 @@ $.extend(erpnext.item, {
 			cdt,
 			cdn
 		) {
+			let row = locals[cdt][cdn];
 			return {
-				filters: { is_group: 1 },
+				query: "erpnext.stock.doctype.warehouse.warehouse.get_warehouses_for_reorder",
+				filters: {
+					warehouse: row.warehouse,
+				},
 			};
 		};
 
@@ -495,6 +524,32 @@ $.extend(erpnext.item, {
 				},
 			};
 		});
+
+		let fields = ["purchase_expense_account", "purchase_expense_contra_account", "default_cogs_account"];
+
+		fields.forEach((field) => {
+			frm.set_query(field, "item_defaults", (doc, cdt, cdn) => {
+				let row = locals[cdt][cdn];
+				return {
+					filters: {
+						company: row.company,
+						root_type: "Expense",
+						is_group: 0,
+					},
+				};
+			});
+		});
+
+		frm.set_query("default_inventory_account", "item_defaults", (doc, cdt, cdn) => {
+			let row = locals[cdt][cdn];
+			return {
+				filters: {
+					is_group: 0,
+					company: row.company,
+					account_type: "Stock",
+				},
+			};
+		});
 	},
 
 	make_dashboard: function (frm) {
@@ -521,6 +576,16 @@ $.extend(erpnext.item, {
 			__("Add / Edit Prices"),
 			function () {
 				frappe.set_route("List", "Item Price", { item_code: frm.doc.name });
+			},
+			__("Actions")
+		);
+
+		frm.add_custom_button(
+			__("Make Lead Time"),
+			function () {
+				frm.make_new("Item Lead Time", {
+					item_code: frm.doc.name,
+				});
 			},
 			__("Actions")
 		);
@@ -581,11 +646,30 @@ $.extend(erpnext.item, {
 
 		function make_fields_from_attribute_values(attr_dict) {
 			let fields = [];
-			Object.keys(attr_dict).forEach((name, i) => {
+			let att_key = frm.doc.attributes.map((idx) => idx.attribute);
+			att_key.forEach((name, i) => {
 				if (i % 3 === 0) {
 					fields.push({ fieldtype: "Section Break" });
 				}
 				fields.push({ fieldtype: "Column Break", label: name });
+				fields.push({
+					fieldtype: "Data",
+					placeholder: "Search",
+					fieldname: `search_${frappe.scrub(name)}`,
+					onchange: function (e) {
+						let value = e.target.value;
+						let result = attr_dict[name].filter((attr_value) =>
+							attr_value.toString().toLowerCase().includes(value.toLowerCase())
+						);
+						attr_dict[name].forEach((attr_value) => {
+							if (result.includes(attr_value)) {
+								me.multiple_variant_dialog.set_df_property(attr_value, "hidden", 0);
+							} else {
+								me.multiple_variant_dialog.set_df_property(attr_value, "hidden", 1);
+							}
+						});
+					},
+				});
 				attr_dict[name].forEach((value) => {
 					fields.push({
 						fieldtype: "Check",
@@ -679,6 +763,10 @@ $.extend(erpnext.item, {
 			me.multiple_variant_dialog.disable_primary_action();
 			me.multiple_variant_dialog.clear();
 			me.multiple_variant_dialog.show();
+			me.multiple_variant_dialog.$wrapper
+				.find("div[data-fieldname^='search_']")
+				.find(".clearfix")
+				.hide();
 		}
 
 		function get_selected_attributes() {
@@ -752,13 +840,11 @@ $.extend(erpnext.item, {
 			if (!row.disabled) {
 				if (row.numeric_values) {
 					fieldtype = "Float";
-					desc =
-						"Min Value: " +
-						row.from_range +
-						" , Max Value: " +
-						row.to_range +
-						", in Increments of: " +
-						row.increment;
+					desc = __("Min Value: {0}, Max Value: {1}, in Increments of: {2}", [
+						frappe.format(row.from_range, { fieldtype: "Float" }, { always_show_decimals: true }),
+						frappe.format(row.to_range, { fieldtype: "Float" }, { always_show_decimals: true }),
+						frappe.format(row.increment, { fieldtype: "Float" }, { always_show_decimals: true }),
+					]);
 				} else {
 					fieldtype = "Data";
 					desc = "";
@@ -1003,9 +1089,9 @@ function open_form(frm, doctype, child_doctype, parentfield) {
 		let new_child_doc = frappe.model.add_child(new_doc, child_doctype, parentfield);
 		new_child_doc.item_code = frm.doc.name;
 		new_child_doc.item_name = frm.doc.item_name;
-		if (in_list(SALES_DOCTYPES, doctype) && frm.doc.sales_uom) {
+		if (SALES_DOCTYPES.includes(doctype) && frm.doc.sales_uom) {
 			new_child_doc.uom = frm.doc.sales_uom;
-		} else if (in_list(PURCHASE_DOCTYPES, doctype) && frm.doc.purchase_uom) {
+		} else if (PURCHASE_DOCTYPES.includes(doctype) && frm.doc.purchase_uom) {
 			new_child_doc.uom = frm.doc.purchase_uom;
 		} else {
 			new_child_doc.uom = frm.doc.stock_uom;

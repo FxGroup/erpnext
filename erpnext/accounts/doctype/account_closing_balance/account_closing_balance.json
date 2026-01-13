@@ -11,6 +11,9 @@
   "cost_center",
   "debit",
   "credit",
+  "reporting_currency_exchange_rate",
+  "debit_in_reporting_currency",
+  "credit_in_reporting_currency",
   "account_currency",
   "debit_in_account_currency",
   "credit_in_account_currency",
@@ -124,12 +127,30 @@
    "fieldname": "is_period_closing_voucher_entry",
    "fieldtype": "Check",
    "label": "Is Period Closing Voucher Entry"
+  },
+  {
+   "fieldname": "debit_in_reporting_currency",
+   "fieldtype": "Currency",
+   "label": "Debit Amount in Reporting Currency",
+   "options": "Company:company:reporting_currency"
+  },
+  {
+   "fieldname": "credit_in_reporting_currency",
+   "fieldtype": "Currency",
+   "label": "Credit Amount in Reporting Currency",
+   "options": "Company:company:reporting_currency"
+  },
+  {
+   "fieldname": "reporting_currency_exchange_rate",
+   "fieldtype": "Float",
+   "label": "Reporting Currency Exchange Rate",
+   "precision": "9"
   }
  ],
  "icon": "fa fa-list",
  "in_create": 1,
  "links": [],
- "modified": "2023-03-06 08:56:36.393237",
+ "modified": "2025-08-22 19:13:50.400404",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Account Closing Balance",
@@ -158,7 +179,8 @@
    "role": "Auditor"
   }
  ],
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

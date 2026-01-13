@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import getdate, today
 
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
@@ -7,7 +7,7 @@ from erpnext.accounts.report.sales_register.sales_register import execute
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
 
 
-class TestItemWiseSalesRegister(AccountsTestMixin, FrappeTestCase):
+class TestItemWiseSalesRegister(AccountsTestMixin, IntegrationTestCase):
 	def setUp(self):
 		self.create_company()
 		self.create_customer()
@@ -59,7 +59,7 @@ class TestItemWiseSalesRegister(AccountsTestMixin, FrappeTestCase):
 		filters = frappe._dict({"from_date": today(), "to_date": today(), "company": self.company})
 		report = execute(filters)
 
-		res = [x for x in report[1] if x.get("voucher_no") == si.name]
+		self.assertEqual(len(report[1]), 1)
 
 		expected_result = {
 			"voucher_type": si.doctype,
@@ -72,7 +72,7 @@ class TestItemWiseSalesRegister(AccountsTestMixin, FrappeTestCase):
 			"debit": 98.0,
 		}
 
-		report_output = {k: v for k, v in res[0].items() if k in expected_result}
+		report_output = {k: v for k, v in report[1][0].items() if k in expected_result}
 		self.assertDictEqual(report_output, expected_result)
 
 	def test_journal_with_cost_center_filter(self):

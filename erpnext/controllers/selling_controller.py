@@ -12,7 +12,7 @@ from erpnext.controllers.sales_and_purchase_return import get_rate_for_return
 from erpnext.controllers.stock_controller import StockController
 from erpnext.stock.doctype.item.item import set_item_default
 from erpnext.stock.get_item_details import get_bin_details, get_conversion_factor
-from erpnext.stock.utils import get_incoming_rate, get_valuation_method
+from erpnext.stock.utils import get_combine_datetime, get_incoming_rate, get_valuation_method
 
 
 class SellingController(StockController):
@@ -21,7 +21,11 @@ class SellingController(StockController):
 
 	def onload(self):
 		super().onload()
-		if self.doctype in ("Sales Order", "Delivery Note", "Sales Invoice", "Quotation"):
+		if (
+			self.doctype in ("Sales Order", "Delivery Note", "Sales Invoice", "Quotation")
+			and self.docstatus.is_draft()
+			and not hasattr(self, "_action")
+		):
 			for item in self.get("items") + (self.get("packed_items") or []):
 				company = self.company
 
@@ -34,10 +38,23 @@ class SellingController(StockController):
 		if self.docstatus == 1 and self.doctype in ["Delivery Note", "Sales Invoice"]:
 			self.set_onload(
 				"allow_to_make_qc_after_submission",
-				frappe.db.get_single_value(
+				frappe.get_single_value(
 					"Stock Settings", "allow_to_make_quality_inspection_after_purchase_or_delivery"
 				),
 			)
+
+		if (
+			self.get("company")
+			and (
+				default_selling_terms := frappe.get_value(
+					"Company", self.get("company"), "default_selling_terms"
+				)
+			)
+			and not self.get("tc_name")
+			and not self.get("terms")
+		):
+			self.tc_name = default_selling_terms
+			self.terms = frappe.get_value("Terms and Conditions", self.get("tc_name"), "terms")
 
 	def validate(self):
 		super().validate()
@@ -160,7 +177,7 @@ class SellingController(StockController):
 
 	def remove_shipping_charge(self):
 		if self.shipping_rule:
-			shipping_rule = frappe.get_doc("Shipping Rule", self.shipping_rule)
+			shipping_rule = frappe.get_last_doc("Shipping Rule", self.shipping_rule)
 			existing_shipping_charge = self.get(
 				"taxes",
 				{
@@ -261,7 +278,7 @@ class SellingController(StockController):
 					frappe.throw(_("Maximum discount for Item {0} is {1}%").format(d.item_code, discount))
 
 	def set_qty_as_per_stock_uom(self):
-		allow_to_edit_stock_qty = frappe.db.get_single_value(
+		allow_to_edit_stock_qty = frappe.get_single_value(
 			"Stock Settings", "allow_to_edit_stock_uom_qty_for_sales"
 		)
 
@@ -292,9 +309,7 @@ class SellingController(StockController):
 				title=_("Invalid Selling Price"),
 			)
 
-		if self.get("is_return") or not frappe.db.get_single_value(
-			"Selling Settings", "validate_selling_price"
-		):
+		if self.get("is_return") or not frappe.get_single_value("Selling Settings", "validate_selling_price"):
 			return
 
 		is_internal_customer = self.get("is_internal_customer")
@@ -502,7 +517,7 @@ class SellingController(StockController):
 
 		for so, so_item_rows in so_map.items():
 			if so and so_item_rows:
-				sales_order = frappe.get_doc("Sales Order", so)
+				sales_order = frappe.get_lazy_doc("Sales Order", so)
 
 				if (sales_order.status == "Closed" and not self.is_return) or sales_order.status in [
 					"Cancelled"
@@ -531,7 +546,7 @@ class SellingController(StockController):
 			)
 
 			if not self.get("return_against") or (
-				get_valuation_method(d.item_code) == "Moving Average"
+				get_valuation_method(d.item_code, self.company) == "Moving Average"
 				and self.get("is_return")
 				and not item_details.has_serial_no
 				and not item_details.has_batch_no
@@ -542,7 +557,10 @@ class SellingController(StockController):
 				if (
 					not d.incoming_rate
 					or self.is_internal_transfer()
-					or (get_valuation_method(d.item_code) == "Moving Average" and self.get("is_return"))
+					or (
+						get_valuation_method(d.item_code, self.company) == "Moving Average"
+						and self.get("is_return")
+					)
 				):
 					d.incoming_rate = get_incoming_rate(
 						{
@@ -567,7 +585,7 @@ class SellingController(StockController):
 					not d.incoming_rate
 					and self.get("return_against")
 					and self.get("is_return")
-					and get_valuation_method(d.item_code) == "Moving Average"
+					and get_valuation_method(d.item_code, self.company) == "Moving Average"
 				):
 					d.incoming_rate = get_rate_for_return(
 						self.doctype, self.name, d.item_code, self.return_against, item_row=d
@@ -770,7 +788,7 @@ class SellingController(StockController):
 
 	def validate_for_duplicate_items(self):
 		check_list, chk_dupl_itm = [], []
-		if cint(frappe.db.get_single_value("Selling Settings", "allow_multiple_items")):
+		if cint(frappe.get_single_value("Selling Settings", "allow_multiple_items")):
 			return
 		if self.doctype == "Sales Invoice" and self.is_consolidated:
 			return
@@ -857,9 +875,6 @@ class SellingController(StockController):
 	def update_stock_reservation_entries(self) -> None:
 		"""Updates Delivered Qty in Stock Reservation Entries."""
 
-		if not frappe.db.get_single_value("Stock Settings", "enable_stock_reservation"):
-			return
-
 		# Don't update Delivered Qty on Return.
 		if self.is_return:
 			return
@@ -872,18 +887,21 @@ class SellingController(StockController):
 				if not item.get(so_field) or not item.so_detail:
 					continue
 
-				sre_list = frappe.db.get_all(
-					"Stock Reservation Entry",
-					{
-						"docstatus": 1,
-						"voucher_type": "Sales Order",
-						"voucher_no": item.get(so_field),
-						"voucher_detail_no": item.so_detail,
-						"warehouse": item.warehouse,
-						"status": ["not in", ["Delivered", "Cancelled"]],
-					},
-					order_by="creation",
+				table = frappe.qb.DocType("Stock Reservation Entry")
+				query = (
+					frappe.qb.from_(table)
+					.select(table.name)
+					.where(
+						(table.docstatus == 1)
+						& (table.voucher_type == "Sales Order")
+						& (table.voucher_no == item.get(so_field))
+						& (table.voucher_detail_no == item.so_detail)
+						& (table.warehouse == item.warehouse)
+						& (table.delivered_qty < table.reserved_qty)
+					)
+					.orderby(table.creation)
 				)
+				sre_list = query.run(pluck="name")
 
 				# Skip if no Stock Reservation Entries.
 				if not sre_list:
@@ -897,7 +915,7 @@ class SellingController(StockController):
 					sre_doc = frappe.get_doc("Stock Reservation Entry", sre)
 
 					qty_can_be_deliver = 0
-					if sre_doc.reservation_based_on == "Serial and Batch" and item.serial_and_batch_bundle:
+					if sre_doc.reservation_based_on == "Serial and Batch":
 						sbb = frappe.get_doc("Serial and Batch Bundle", item.serial_and_batch_bundle)
 						if sre_doc.has_serial_no:
 							delivered_serial_nos = [d.serial_no for d in sbb.entries]
@@ -949,7 +967,7 @@ class SellingController(StockController):
 						"voucher_no": item.get(so_field),
 						"voucher_detail_no": item.so_detail,
 						"warehouse": item.warehouse,
-						"status": ["in", ["Partially Delivered", "Delivered"]],
+						"status": ["in", ["Partially Delivered", "Delivered", "Partially Used", "Closed"]],
 					},
 					order_by="creation",
 				)
@@ -966,7 +984,7 @@ class SellingController(StockController):
 					sre_doc = frappe.get_doc("Stock Reservation Entry", sre)
 
 					qty_can_be_undelivered = 0
-					if sre_doc.reservation_based_on == "Serial and Batch" and item.serial_and_batch_bundle:
+					if sre_doc.reservation_based_on == "Serial and Batch":
 						sbb = frappe.get_doc("Serial and Batch Bundle", item.serial_and_batch_bundle)
 						if sre_doc.has_serial_no:
 							serial_nos_to_undelivered = [d.serial_no for d in sbb.entries]
@@ -1004,10 +1022,19 @@ class SellingController(StockController):
 
 
 def set_default_income_account_for_item(obj):
-	for d in obj.get("items"):
-		if d.item_code:
-			if getattr(d, "income_account", None):
-				set_item_default(d.item_code, obj.company, "income_account", d.income_account)
+	"""Set income account as default for items in the transaction.
+
+	Updates the item default income account for each item in the transaction
+	if it differs from the company's default income account.
+
+	Args:
+	    obj: Transaction document containing items table with income_account field
+	"""
+	company_default = frappe.get_cached_value("Company", obj.company, "default_income_account")
+	for d in obj.get("items", default=[]):
+		income_account = getattr(d, "income_account", None)
+		if d.item_code and income_account and income_account != company_default:
+			set_item_default(d.item_code, obj.company, "income_account", income_account)
 
 
 def get_serial_and_batch_bundle(child, parent, delivery_note_child=None):
@@ -1019,7 +1046,7 @@ def get_serial_and_batch_bundle(child, parent, delivery_note_child=None):
 	if child.get("use_serial_batch_fields"):
 		return
 
-	if not frappe.db.get_single_value("Stock Settings", "auto_create_serial_and_batch_bundle_for_outward"):
+	if not frappe.get_single_value("Stock Settings", "auto_create_serial_and_batch_bundle_for_outward"):
 		return
 
 	item_details = frappe.db.get_value("Item", child.item_code, ["has_serial_no", "has_batch_no"], as_dict=1)
@@ -1034,8 +1061,7 @@ def get_serial_and_batch_bundle(child, parent, delivery_note_child=None):
 			"voucher_type": parent.doctype,
 			"voucher_no": parent.name if parent.docstatus < 2 else None,
 			"voucher_detail_no": delivery_note_child.name if delivery_note_child else child.name,
-			"posting_date": parent.posting_date,
-			"posting_time": parent.posting_time,
+			"posting_datetime": get_combine_datetime(parent.posting_date, parent.posting_time),
 			"qty": child.qty,
 			"type_of_transaction": "Outward" if child.qty > 0 and parent.docstatus < 2 else "Inward",
 			"company": parent.company,

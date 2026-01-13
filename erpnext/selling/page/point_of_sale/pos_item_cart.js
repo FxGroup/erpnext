@@ -171,6 +171,12 @@ erpnext.PointOfSale.ItemCart = class {
 
 			me.toggle_item_highlight(this);
 
+			const numpad_section_hidden = !me.$numpad_section.is(":visible");
+			if (numpad_section_hidden) {
+				const scrollTop = $cart_item.offset().top - me.$cart_items_wrapper.offset().top;
+				me.$cart_items_wrapper.animate({ scrollTop });
+			}
+
 			const payment_section_hidden = !me.$totals_section.find(".edit-cart-btn").is(":visible");
 			if (!payment_section_hidden) {
 				// payment section is visible
@@ -184,7 +190,7 @@ erpnext.PointOfSale.ItemCart = class {
 		});
 
 		this.$component.on("click", ".checkout-btn", async function () {
-			if ($(this).attr("style").indexOf("--blue-500") == -1) return;
+			if ($(this).attr("style").indexOf("--btn-primary") == -1) return;
 
 			await me.events.checkout();
 			me.toggle_checkout_btn(false);
@@ -206,6 +212,11 @@ erpnext.PointOfSale.ItemCart = class {
 		});
 
 		frappe.ui.form.on("POS Invoice", "paid_amount", (frm) => {
+			// called when discount is applied
+			this.update_totals_section(frm);
+		});
+
+		frappe.ui.form.on("Sales Invoice", "paid_amount", (frm) => {
 			// called when discount is applied
 			this.update_totals_section(frm);
 		});
@@ -280,7 +291,7 @@ erpnext.PointOfSale.ItemCart = class {
 
 	toggle_item_highlight(item) {
 		const $cart_item = $(item);
-		const item_is_highlighted = $cart_item.attr("style") == "background-color:var(--gray-50);";
+		const item_is_highlighted = $cart_item.attr("style") == "background-color: var(--control-bg);";
 
 		if (!item || item_is_highlighted) {
 			this.item_is_selected = false;
@@ -547,14 +558,8 @@ erpnext.PointOfSale.ItemCart = class {
 			const taxes_html = taxes
 				.map((t) => {
 					if (t.tax_amount_after_discount_amount == 0.0) return;
-					// if tax rate is 0, don't print it.
-					const description = /[0-9]+/.test(t.description)
-						? t.description
-						: t.rate != 0
-						? `${t.description} @ ${t.rate}%`
-						: t.description;
 					return `<div class="tax-row">
-					<div class="tax-label">${description}</div>
+					<div class="tax-label">${t.description}</div>
 					<div class="tax-value">${format_currency(t.tax_amount_after_discount_amount, currency)}</div>
 				</div>`;
 				})
@@ -729,12 +734,14 @@ erpnext.PointOfSale.ItemCart = class {
 		if (toggle) {
 			this.$add_discount_elem.css("display", "flex");
 			this.$cart_container.find(".checkout-btn").css({
-				"background-color": "var(--blue-500)",
+				"background-color": "var(--btn-primary)",
+				color: "var(--neutral)",
 			});
 		} else {
 			this.$add_discount_elem.css("display", "none");
 			this.$cart_container.find(".checkout-btn").css({
-				"background-color": "var(--blue-200)",
+				"background-color": "var(--control-bg)",
+				color: "",
 			});
 		}
 	}
@@ -996,13 +1003,13 @@ erpnext.PointOfSale.ItemCart = class {
 	}
 
 	fetch_customer_transactions() {
-		frappe.db
-			.get_list("POS Invoice", {
-				filters: { customer: this.customer_info.customer, docstatus: 1 },
-				fields: ["name", "grand_total", "status", "posting_date", "posting_time", "currency"],
-				limit: 20,
+		frappe
+			.call({
+				method: "erpnext.selling.page.point_of_sale.point_of_sale.get_customer_recent_transactions",
+				args: { customer: this.customer_info.customer },
 			})
 			.then((res) => {
+				res = res.message;
 				const transaction_container = this.$customer_section.find(".customer-transactions");
 
 				if (!res.length) {
@@ -1026,6 +1033,10 @@ erpnext.PointOfSale.ItemCart = class {
 						Draft: "red",
 						Return: "gray",
 						Consolidated: "blue",
+						"Credit Note Issued": "gray",
+						"Partly Paid": "yellow",
+						Overdue: "yellow",
+						Unpaid: "red",
 					};
 
 					transaction_container.append(

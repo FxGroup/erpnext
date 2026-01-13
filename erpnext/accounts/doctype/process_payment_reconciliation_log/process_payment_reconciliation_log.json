@@ -142,7 +142,7 @@
   }
  ],
  "search_fields": "allocated, reconciled, total_allocations, reconciled_entries",
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

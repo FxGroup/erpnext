@@ -82,12 +82,14 @@
    "read_only": 1
   }
  ],
+ "grid_page_length": 50,
+ "hide_toolbar": 1,
  "icon": "fa fa-cog",
  "idx": 1,
  "in_create": 1,
  "issingle": 1,
  "links": [],
- "modified": "2023-07-01 19:45:00.323953",
+ "modified": "2026-01-02 18:13:13.421866",
  "modified_by": "Administrator",
  "module": "Setup",
  "name": "Global Defaults",
@@ -102,7 +104,8 @@
   }
  ],
  "read_only": 1,
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

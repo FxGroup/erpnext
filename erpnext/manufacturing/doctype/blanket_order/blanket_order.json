@@ -171,7 +171,8 @@
  ],
  "quick_entry": 1,
  "search_fields": "blanket_order_type, to_date",
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
+ "states": [],
  "track_changes": 1
 }

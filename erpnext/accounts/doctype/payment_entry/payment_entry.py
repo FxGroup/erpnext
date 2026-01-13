@@ -30,9 +30,7 @@ from erpnext.accounts.doctype.repost_accounting_ledger.repost_accounting_ledger 
 	validate_docs_for_deferred_accounting,
 	validate_docs_for_voucher_types,
 )
-from erpnext.accounts.doctype.tax_withholding_category.tax_withholding_category import (
-	get_party_tax_withholding_details,
-)
+from erpnext.accounts.doctype.tax_withholding_entry.tax_withholding_entry import PaymentTaxWithholding
 from erpnext.accounts.general_ledger import (
 	make_gl_entries,
 	make_reverse_gl_entries,
@@ -47,7 +45,6 @@ from erpnext.accounts.utils import (
 	cancel_exchange_gain_loss_journal,
 	get_account_currency,
 	get_advance_payment_doctypes,
-	get_balance_on,
 	get_outstanding_invoices,
 	get_reconciliation_effect_date,
 )
@@ -64,6 +61,94 @@ class InvalidPaymentEntry(ValidationError):
 
 
 class PaymentEntry(AccountsController):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.advance_taxes_and_charges.advance_taxes_and_charges import (
+			AdvanceTaxesandCharges,
+		)
+		from erpnext.accounts.doctype.payment_entry_deduction.payment_entry_deduction import (
+			PaymentEntryDeduction,
+		)
+		from erpnext.accounts.doctype.payment_entry_reference.payment_entry_reference import (
+			PaymentEntryReference,
+		)
+		from erpnext.accounts.doctype.tax_withholding_entry.tax_withholding_entry import TaxWithholdingEntry
+
+		amended_from: DF.Link | None
+		apply_tds: DF.Check
+		auto_repeat: DF.Link | None
+		bank: DF.ReadOnly | None
+		bank_account: DF.Link | None
+		bank_account_no: DF.ReadOnly | None
+		base_in_words: DF.SmallText | None
+		base_paid_amount: DF.Currency
+		base_paid_amount_after_tax: DF.Currency
+		base_received_amount: DF.Currency
+		base_received_amount_after_tax: DF.Currency
+		base_total_allocated_amount: DF.Currency
+		base_total_taxes_and_charges: DF.Currency
+		book_advance_payments_in_separate_party_account: DF.Check
+		clearance_date: DF.Date | None
+		company: DF.Link
+		contact_email: DF.Data | None
+		contact_person: DF.Link | None
+		cost_center: DF.Link | None
+		custom_remarks: DF.Check
+		deductions: DF.Table[PaymentEntryDeduction]
+		difference_amount: DF.Currency
+		ignore_tax_withholding_threshold: DF.Check
+		in_words: DF.SmallText | None
+		is_opening: DF.Literal["No", "Yes"]
+		letter_head: DF.Link | None
+		mode_of_payment: DF.Link | None
+		naming_series: DF.Literal["ACC-PAY-.YYYY.-"]
+		override_tax_withholding_entries: DF.Check
+		paid_amount: DF.Currency
+		paid_amount_after_tax: DF.Currency
+		paid_from: DF.Link
+		paid_from_account_currency: DF.Link
+		paid_from_account_type: DF.Data | None
+		paid_to: DF.Link
+		paid_to_account_currency: DF.Link
+		paid_to_account_type: DF.Data | None
+		party: DF.DynamicLink | None
+		party_bank_account: DF.Link | None
+		party_name: DF.Data | None
+		party_type: DF.Link | None
+		payment_order: DF.Link | None
+		payment_order_status: DF.Literal["Initiated", "Payment Ordered"]
+		payment_type: DF.Literal["Receive", "Pay", "Internal Transfer"]
+		posting_date: DF.Date
+		print_heading: DF.Link | None
+		project: DF.Link | None
+		purchase_taxes_and_charges_template: DF.Link | None
+		received_amount: DF.Currency
+		received_amount_after_tax: DF.Currency
+		reconcile_on_advance_payment_date: DF.Check
+		reference_date: DF.Date | None
+		reference_no: DF.Data | None
+		references: DF.Table[PaymentEntryReference]
+		remarks: DF.SmallText | None
+		sales_taxes_and_charges_template: DF.Link | None
+		source_exchange_rate: DF.Float
+		status: DF.Literal["", "Draft", "Submitted", "Cancelled"]
+		target_exchange_rate: DF.Float
+		tax_withholding_category: DF.Link | None
+		tax_withholding_entries: DF.Table[TaxWithholdingEntry]
+		tax_withholding_group: DF.Link | None
+		taxes: DF.Table[AdvanceTaxesandCharges]
+		title: DF.Data | None
+		total_allocated_amount: DF.Currency
+		total_taxes_and_charges: DF.Currency
+		unallocated_amount: DF.Currency
+	# end: auto-generated types
+
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		if not self.is_new():
@@ -107,7 +192,7 @@ class PaymentEntry(AccountsController):
 		self.validate_allocated_amount()
 		self.validate_paid_invoices()
 		self.ensure_supplier_is_not_blocked()
-		self.set_tax_withholding()
+		PaymentTaxWithholding(self).on_validate()
 		self.set_status()
 		self.set_total_in_words()
 
@@ -117,6 +202,7 @@ class PaymentEntry(AccountsController):
 	def on_submit(self):
 		if self.difference_amount:
 			frappe.throw(_("Difference Amount must be zero"))
+		PaymentTaxWithholding(self).on_submit()
 		self.update_payment_requests()
 		self.update_payment_schedule()
 		self.make_gl_entries()
@@ -218,8 +304,10 @@ class PaymentEntry(AccountsController):
 			"Unreconcile Payment",
 			"Unreconcile Payment Entries",
 			"Advance Payment Ledger Entry",
+			"Tax Withholding Entry",
 		)
 		super().on_cancel()
+		PaymentTaxWithholding(self).on_cancel()
 		self.update_payment_requests(cancel=True)
 		self.update_payment_schedule(cancel=1)
 		self.make_gl_entries(cancel=1)
@@ -414,14 +502,13 @@ class PaymentEntry(AccountsController):
 	def delink_advance_entry_references(self):
 		for reference in self.references:
 			if reference.reference_doctype in ("Sales Invoice", "Purchase Invoice"):
-				doc = frappe.get_doc(reference.reference_doctype, reference.reference_name)
+				doc = frappe.get_lazy_doc(reference.reference_doctype, reference.reference_name)
 				doc.delink_advance_entries(self.name)
 
 	def set_missing_values(self):
 		if self.payment_type == "Internal Transfer":
 			for field in (
 				"party",
-				"party_balance",
 				"total_allocated_amount",
 				"base_total_allocated_amount",
 				"unallocated_amount",
@@ -449,34 +536,20 @@ class PaymentEntry(AccountsController):
 				self.contact_person = get_default_contact(self.party_type, self.party)
 
 			complete_contact_details(self)
-			if not self.party_balance and frappe.get_single_value("Accounts Settings", "show_party_balance"):
-				self.party_balance = get_balance_on(
-					party_type=self.party_type, party=self.party, date=self.posting_date, company=self.company
-				)
 
 			if not self.party_account:
 				party_account = get_party_account(self.party_type, self.party, self.company)
 				self.set(self.party_account_field, party_account)
 				self.party_account = party_account
 
-		if self.paid_from and (
-			not self.paid_from_account_currency
-			or not self.paid_from_account_balance
-			or not self.paid_from_account_type
-		):
+		if self.paid_from and (not self.paid_from_account_currency or not self.paid_from_account_type):
 			acc = get_account_details(self.paid_from, self.posting_date, self.cost_center)
 			self.paid_from_account_currency = acc.account_currency
-			self.paid_from_account_balance = acc.account_balance
 			self.paid_from_account_type = acc.account_type
 
-		if self.paid_to and (
-			not self.paid_to_account_currency
-			or not self.paid_to_account_balance
-			or not self.paid_to_account_type
-		):
+		if self.paid_to and (not self.paid_to_account_currency or not self.paid_to_account_type):
 			acc = get_account_details(self.paid_to, self.posting_date, self.cost_center)
 			self.paid_to_account_currency = acc.account_currency
-			self.paid_to_account_balance = acc.account_balance
 			self.paid_to_account_type = acc.account_type
 
 		self.party_account_currency = (
@@ -495,8 +568,9 @@ class PaymentEntry(AccountsController):
 			if not d.allocated_amount:
 				continue
 
-			if update_ref_details_only_for and (
-				(d.reference_doctype, d.reference_name) not in update_ref_details_only_for
+			if (
+				update_ref_details_only_for
+				and (d.reference_doctype, d.reference_name) not in update_ref_details_only_for
 			):
 				continue
 
@@ -525,7 +599,10 @@ class PaymentEntry(AccountsController):
 					continue
 
 				if field == "exchange_rate" or not d.get(field) or force:
-					d.db_set(field, value)
+					if self.get("_action") in ("submit", "cancel"):
+						d.db_set(field, value)
+					else:
+						d.set(field, value)
 
 	def validate_payment_type(self):
 		if self.payment_type not in ("Receive", "Pay", "Internal Transfer"):
@@ -588,7 +665,7 @@ class PaymentEntry(AccountsController):
 				if not frappe.db.exists(d.reference_doctype, d.reference_name):
 					frappe.throw(_("{0} {1} does not exist").format(d.reference_doctype, d.reference_name))
 
-				ref_doc = frappe.get_doc(d.reference_doctype, d.reference_name)
+				ref_doc = frappe.get_lazy_doc(d.reference_doctype, d.reference_name)
 
 				if d.reference_doctype != "Journal Entry":
 					if self.party != ref_doc.get(scrub(self.party_type)):
@@ -866,93 +943,6 @@ class PaymentEntry(AccountsController):
 		self.base_in_words = money_in_words(base_amount, self.company_currency)
 		self.in_words = money_in_words(amount, currency)
 
-	def set_tax_withholding(self):
-		if not self.party_type == "Supplier":
-			return
-
-		if not self.apply_tax_withholding_amount:
-			return
-
-		net_total = self.calculate_tax_withholding_net_total()
-
-		# Adding args as purchase invoice to get TDS amount
-		args = frappe._dict(
-			{
-				"company": self.company,
-				"doctype": "Payment Entry",
-				"supplier": self.party,
-				"posting_date": self.posting_date,
-				"net_total": net_total,
-			}
-		)
-
-		tax_withholding_details = get_party_tax_withholding_details(args, self.tax_withholding_category)
-
-		if not tax_withholding_details:
-			return
-
-		tax_withholding_details.update(
-			{"cost_center": self.cost_center or erpnext.get_default_cost_center(self.company)}
-		)
-
-		accounts = []
-		for d in self.taxes:
-			if d.account_head == tax_withholding_details.get("account_head"):
-				# Preserve user updated included in paid amount
-				if d.included_in_paid_amount:
-					tax_withholding_details.update({"included_in_paid_amount": d.included_in_paid_amount})
-
-				d.update(tax_withholding_details)
-			accounts.append(d.account_head)
-
-		if not accounts or tax_withholding_details.get("account_head") not in accounts:
-			self.append("taxes", tax_withholding_details)
-
-		to_remove = [
-			d
-			for d in self.taxes
-			if not d.tax_amount and d.account_head == tax_withholding_details.get("account_head")
-		]
-
-		for d in to_remove:
-			self.remove(d)
-
-	def calculate_tax_withholding_net_total(self):
-		net_total = 0
-		order_details = self.get_order_wise_tax_withholding_net_total()
-
-		for d in self.references:
-			tax_withholding_net_total = order_details.get(d.reference_name)
-			if not tax_withholding_net_total:
-				continue
-
-			net_taxable_outstanding = max(
-				0, d.outstanding_amount - (d.total_amount - tax_withholding_net_total)
-			)
-
-			net_total += min(net_taxable_outstanding, d.allocated_amount)
-
-		net_total += self.unallocated_amount
-
-		return net_total
-
-	def get_order_wise_tax_withholding_net_total(self):
-		if self.party_type == "Supplier":
-			doctype = "Purchase Order"
-		else:
-			doctype = "Sales Order"
-
-		docnames = [d.reference_name for d in self.references if d.reference_doctype == doctype]
-
-		return frappe._dict(
-			frappe.db.get_all(
-				doctype,
-				filters={"name": ["in", docnames]},
-				fields=["name", "base_tax_withholding_net_total"],
-				as_list=True,
-			)
-		)
-
 	def apply_taxes(self):
 		self.initialize_taxes()
 		self.determine_exclusive_rate()
@@ -978,7 +968,7 @@ class PaymentEntry(AccountsController):
 		self.base_received_amount = self.base_paid_amount
 		if (
 			self.paid_from_account_currency == self.paid_to_account_currency
-			and not self.payment_type == "Internal Transfer"
+			and self.payment_type != "Internal Transfer"
 		):
 			self.received_amount = self.paid_amount
 
@@ -1232,9 +1222,11 @@ class PaymentEntry(AccountsController):
 		else:
 			remarks = [
 				_("Amount {0} {1} {2} {3}").format(
-					_(self.party_account_currency),
+					_(self.paid_to_account_currency)
+					if self.payment_type == "Receive"
+					else _(self.paid_from_account_currency),
 					self.paid_amount if self.payment_type == "Receive" else self.received_amount,
-					_("received from") if self.payment_type == "Receive" else _("to"),
+					_("received from") if self.payment_type == "Receive" else _("paid to"),
 					self.party,
 				)
 			]
@@ -1293,8 +1285,11 @@ class PaymentEntry(AccountsController):
 
 	def make_gl_entries(self, cancel=0, adv_adj=0):
 		gl_entries = self.build_gl_map()
-		gl_entries = process_gl_map(gl_entries)
-		make_gl_entries(gl_entries, cancel=cancel, adv_adj=adv_adj)
+
+		merge_entries = frappe.get_single_value("Accounts Settings", "merge_similar_account_heads")
+
+		gl_entries = process_gl_map(gl_entries, merge_entries=merge_entries)
+		make_gl_entries(gl_entries, cancel=cancel, adv_adj=adv_adj, merge_entries=merge_entries)
 		if cancel:
 			cancel_exchange_gain_loss_journal(frappe._dict(doctype=self.doctype, name=self.name))
 		else:
@@ -1364,6 +1359,7 @@ class PaymentEntry(AccountsController):
 						else allocated_amount_in_company_currency / self.transaction_exchange_rate,
 						"advance_voucher_type": d.advance_voucher_type,
 						"advance_voucher_no": d.advance_voucher_no,
+						"transaction_exchange_rate": self.target_exchange_rate,
 					},
 					item=self,
 				)
@@ -2492,7 +2488,7 @@ def get_split_invoice_rows(invoice: dict, payment_term_template: str, exc_rates:
 		"Payment Schedule", filters={"parent": invoice.voucher_no}, fields=["*"], order_by="due_date"
 	)
 	for payment_term in payment_schedule:
-		if not payment_term.outstanding > 0.1:
+		if payment_term.outstanding <= 0.1:
 			continue
 
 		doc_details = exc_rates.get(payment_term.parent, None)
@@ -2684,18 +2680,9 @@ def get_party_details(company, party_type, party, date, cost_center=None):
 
 	party_account = get_party_account(party_type, party, company)
 	account_currency = get_account_currency(party_account)
-	account_balance = (
-		get_balance_on(party_account, date, cost_center=cost_center)
-		if frappe.get_single_value("Accounts Settings", "show_account_balance")
-		else 0
-	)
 	_party_name = "title" if party_type == "Shareholder" else party_type.lower() + "_name"
 	party_name = frappe.db.get_value(party_type, party, _party_name)
-	party_balance = (
-		get_balance_on(party_type=party_type, party=party, company=company, cost_center=cost_center)
-		if frappe.get_single_value("Accounts Settings", "show_party_balance")
-		else 0
-	)
+
 	if party_type in ["Customer", "Supplier"]:
 		party_bank_account = get_party_bank_account(party_type, party)
 		bank_account = get_default_company_bank_account(company, party_type, party)
@@ -2704,8 +2691,6 @@ def get_party_details(company, party_type, party, date, cost_center=None):
 		"party_account": party_account,
 		"party_name": party_name,
 		"party_account_currency": account_currency,
-		"party_balance": party_balance,
-		"account_balance": account_balance,
 		"party_bank_account": party_bank_account,
 		"bank_account": bank_account,
 	}
@@ -2723,16 +2708,9 @@ def get_account_details(account, date, cost_center=None):
 	if not account_list:
 		frappe.throw(_("Account: {0} is not permitted under Payment Entry").format(account))
 
-	account_balance = (
-		get_balance_on(account, date, cost_center=cost_center, ignore_account_permission=True)
-		if frappe.get_single_value("Accounts Settings", "show_account_balance")
-		else 0
-	)
-
 	return frappe._dict(
 		{
 			"account_currency": get_account_currency(account),
-			"account_balance": account_balance,
 			"account_type": frappe.get_cached_value("Account", account, "account_type"),
 		}
 	)
@@ -2782,7 +2760,7 @@ def get_reference_details(
 ):
 	total_amount = outstanding_amount = exchange_rate = account = None
 
-	ref_doc = frappe.get_doc(reference_doctype, reference_name)
+	ref_doc = frappe.get_lazy_doc(reference_doctype, reference_name)
 	company_currency = ref_doc.get("company_currency") or erpnext.get_company_currency(ref_doc.company)
 
 	# Only applies for Reverse Payment Entries
@@ -2877,11 +2855,10 @@ def get_payment_entry(
 	party_type=None,
 	payment_type=None,
 	reference_date=None,
-	ignore_permissions=False,
 	created_from_payment_request=False,
 ):
 	doc = frappe.get_doc(dt, dn)
-	over_billing_allowance = frappe.db.get_single_value("Accounts Settings", "over_billing_allowance")
+	over_billing_allowance = frappe.get_single_value("Accounts Settings", "over_billing_allowance")
 	if dt in ("Sales Order", "Purchase Order") and flt(doc.per_billed, 2) >= (100.0 + over_billing_allowance):
 		frappe.throw(_("Can only make payment against unbilled {0}").format(_(dt)))
 
@@ -3021,7 +2998,7 @@ def get_payment_entry(
 	if party_account and bank:
 		if discount_amount:
 			base_total_discount_loss = 0
-			if frappe.db.get_single_value("Accounts Settings", "book_tax_discount_loss"):
+			if frappe.get_single_value("Accounts Settings", "book_tax_discount_loss"):
 				base_total_discount_loss = split_early_payment_discount_loss(pe, doc, valid_discounts)
 
 			set_pending_discount_loss(
@@ -3219,12 +3196,20 @@ def update_accounting_dimensions(pe, doc):
 
 def get_bank_cash_account(doc, bank_account):
 	bank = get_default_bank_cash_account(
-		doc.company, "Bank", mode_of_payment=doc.get("mode_of_payment"), account=bank_account
+		doc.company,
+		"Bank",
+		mode_of_payment=doc.get("mode_of_payment"),
+		account=bank_account,
+		fetch_balance=False,
 	)
 
 	if not bank:
 		bank = get_default_bank_cash_account(
-			doc.company, "Cash", mode_of_payment=doc.get("mode_of_payment"), account=bank_account
+			doc.company,
+			"Cash",
+			mode_of_payment=doc.get("mode_of_payment"),
+			account=bank_account,
+			fetch_balance=False,
 		)
 
 	return bank
@@ -3372,7 +3357,7 @@ def set_pending_discount_loss(pe, doc, discount_amount, base_total_discount_loss
 
 		# If tax loss booking is enabled, pending loss will be rounding loss.
 		# Otherwise it will be the total discount loss.
-		book_tax_loss = frappe.db.get_single_value("Accounts Settings", "book_tax_discount_loss")
+		book_tax_loss = frappe.get_single_value("Accounts Settings", "book_tax_discount_loss")
 		account_type = "round_off_account" if book_tax_loss else "default_discount_account"
 
 		pe.append(
@@ -3533,26 +3518,6 @@ def get_paid_amount(dt, dn, party_type, party, account, due_date):
 	)
 
 	return paid_amount[0][0] if paid_amount else 0
-
-
-@frappe.whitelist()
-def get_party_and_account_balance(
-	company, date, paid_from=None, paid_to=None, ptype=None, pty=None, cost_center=None
-):
-	show_account_balance = frappe.get_single_value("Accounts Settings", "show_account_balance")
-	return frappe._dict(
-		{
-			"party_balance": get_balance_on(party_type=ptype, party=pty, cost_center=cost_center)
-			if frappe.get_single_value("Accounts Settings", "show_party_balance")
-			else 0,
-			"paid_from_account_balance": get_balance_on(paid_from, date, cost_center=cost_center)
-			if show_account_balance
-			else 0,
-			"paid_to_account_balance": get_balance_on(paid_to, date=date, cost_center=cost_center)
-			if show_account_balance
-			else 0,
-		}
-	)
 
 
 @frappe.whitelist()

@@ -1,6 +1,6 @@
 import frappe
 from frappe import qb
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, flt, getdate, today
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
@@ -10,7 +10,7 @@ from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
 from erpnext.selling.doctype.sales_order.test_sales_order import make_sales_order
 
 
-class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
+class TestAccountsReceivable(AccountsTestMixin, IntegrationTestCase):
 	def setUp(self):
 		self.create_company()
 		self.create_customer()
@@ -199,7 +199,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		row = report[1]
 		self.assertTrue(len(row) == 0)
 
-	@change_settings(
+	@IntegrationTestCase.change_settings(
 		"Accounts Settings",
 		{"allow_multi_currency_invoices_against_single_party_account": 1},
 	)
@@ -448,7 +448,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			],
 		)
 
-	@change_settings(
+	@IntegrationTestCase.change_settings(
 		"Accounts Settings",
 		{"allow_multi_currency_invoices_against_single_party_account": 1, "allow_stale": 0},
 	)
@@ -787,7 +787,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 
 		si2 = self.create_sales_invoice(do_not_submit=True)
 		si2.posting_date = add_days(today(), -1)
-		si2.customer = self.customer2
+		si2.customer = self.customer2.name
 		si2.currency = "USD"
 		si2.conversion_rate = 80
 		si2.debit_to = self.debtors_usd
@@ -1010,7 +1010,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 
 		si = self.create_sales_invoice(do_not_submit=True)
 		si.posting_date = add_days(today(), -1)
-		si.customer = self.customer2
+		si.customer = self.customer2.name
 		si.currency = "USD"
 		si.conversion_rate = 80
 		si.debit_to = self.debtors_usd

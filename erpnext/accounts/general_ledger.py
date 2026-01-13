@@ -8,10 +8,16 @@ import frappe
 from frappe import _
 from frappe.model.meta import get_field_precision
 from frappe.utils import cint, flt, formatdate, get_link_to_form, getdate, now
+from frappe.utils.caching import request_cache
+from frappe.utils.dashboard import cache_source
 
 import erpnext
 from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 	get_accounting_dimensions,
+	get_checks_for_pl_and_bs_accounts,
+)
+from erpnext.accounts.doctype.accounting_dimension_filter.accounting_dimension_filter import (
+	get_dimension_filter_map,
 )
 from erpnext.accounts.doctype.accounting_dimension_filter.accounting_dimension_filter import (
 	get_dimension_filter_map,
@@ -19,6 +25,7 @@ from erpnext.accounts.doctype.accounting_dimension_filter.accounting_dimension_f
 from erpnext.accounts.doctype.accounting_period.accounting_period import ClosedAccountingPeriod
 from erpnext.accounts.doctype.budget.budget import validate_expense_against_budget
 from erpnext.accounts.utils import create_payment_ledger_entry, is_immutable_ledger_enabled
+from erpnext.controllers.budget_controller import BudgetValidation
 from erpnext.exceptions import InvalidAccountDimensionError, MandatoryAccountDimensionError
 
 
@@ -31,6 +38,13 @@ def make_gl_entries(
 	from_repost=False,
 ):
 	if gl_map:
+		if (
+			not cint(frappe.get_single_value("Accounts Settings", "use_legacy_budget_controller"))
+			and gl_map[0].voucher_type != "Period Closing Voucher"
+		):
+			bud_val = BudgetValidation(gl_map=gl_map)
+			bud_val.validate()
+
 		if not cancel:
 			make_acc_dimensions_offsetting_entry(gl_map)
 			validate_accounting_period(gl_map)
@@ -46,7 +60,7 @@ def make_gl_entries(
 						from_repost=from_repost,
 					)
 				save_entries(gl_map, adv_adj, update_outstanding, from_repost)
-			# Post GL Map proccess there may no be any GL Entries
+			# Post GL Map process there may no be any GL Entries
 			elif gl_map:
 				frappe.throw(
 					_(
@@ -143,12 +157,13 @@ def validate_disabled_accounts(gl_map):
 def validate_accounting_period(gl_map):
 	accounting_periods = frappe.db.sql(
 		""" SELECT
-			ap.name as name
+			ap.name as name, ap.exempted_role as exempted_role
 		FROM
 			`tabAccounting Period` ap, `tabClosed Document` cd
 		WHERE
 			ap.name = cd.parent
 			AND ap.company = %(company)s
+			AND ap.disabled = 0
 			AND cd.closed = 1
 			AND cd.document_type = %(voucher_type)s
 			AND %(date)s between ap.start_date and ap.end_date
@@ -162,6 +177,10 @@ def validate_accounting_period(gl_map):
 	)
 
 	if accounting_periods:
+		if accounting_periods[0].exempted_role:
+			exempted_roles = accounting_periods[0].exempted_role
+			if exempted_roles in frappe.get_roles():
+				return
 		frappe.throw(
 			_(
 				"You cannot create or cancel any accounting entries with in the closed Accounting Period {0}"
@@ -228,6 +247,7 @@ def distribute_gl_based_on_cost_center_allocation(gl_map, precision=None, from_r
 	return new_gl_map
 
 
+@request_cache
 def get_cost_center_allocation_data(company, posting_date, cost_center):
 	cost_center_allocation = frappe.db.get_value(
 		"Cost Center Allocation",
@@ -237,7 +257,7 @@ def get_cost_center_allocation_data(company, posting_date, cost_center):
 			"valid_from": ("<=", posting_date),
 			"main_cost_center": cost_center,
 		},
-		pluck="name",
+		pluck=True,
 		order_by="valid_from desc",
 	)
 
@@ -395,7 +415,7 @@ def save_entries(gl_map, adv_adj, update_outstanding, from_repost=False):
 
 	dimension_filter_map = get_dimension_filter_map()
 	if gl_map:
-		check_freezing_date(gl_map[0]["posting_date"], adv_adj)
+		check_freezing_date(gl_map[0]["posting_date"], gl_map[0]["company"], adv_adj)
 		is_opening = any(d.get("is_opening") == "Yes" for d in gl_map)
 		if gl_map[0]["voucher_type"] != "Period Closing Voucher":
 			validate_against_pcv(is_opening, gl_map[0]["posting_date"], gl_map[0]["company"])
@@ -612,6 +632,18 @@ def update_accounting_dimensions(round_off_gle):
 
 		for dimension in dimensions:
 			round_off_gle[dimension] = dimension_values.get(dimension)
+	else:
+		report_type = frappe.get_cached_value("Account", round_off_gle.account, "report_type")
+		for dimension in get_checks_for_pl_and_bs_accounts():
+			if (
+				round_off_gle.company == dimension.company
+				and (
+					(report_type == "Profit and Loss" and dimension.mandatory_for_pl)
+					or (report_type == "Balance Sheet" and dimension.mandatory_for_bs)
+				)
+				and dimension.default_dimension
+			):
+				round_off_gle[dimension.fieldname] = dimension.default_dimension
 
 
 def get_round_off_account_and_cost_center(company, voucher_type, voucher_no, use_company_default=False):
@@ -760,7 +792,7 @@ def make_reverse_gl_entries(
 				make_entry(new_gle, adv_adj, "Yes")
 
 
-def check_freezing_date(posting_date, adv_adj=False):
+def check_freezing_date(posting_date, company, adv_adj=False):
 	"""
 	Nobody can do GL Entries where posting date is before freezing date
 	except authorized person
@@ -769,17 +801,17 @@ def check_freezing_date(posting_date, adv_adj=False):
 	Hence stop admin to bypass if accounts are freezed
 	"""
 	if not adv_adj:
-		acc_frozen_upto = frappe.db.get_value("Accounts Settings", None, "acc_frozen_upto")
-		if acc_frozen_upto:
+		acc_frozen_till_date = frappe.db.get_value("Company", company, "accounts_frozen_till_date")
+		if acc_frozen_till_date:
 			frozen_accounts_modifier = frappe.db.get_value(
-				"Accounts Settings", None, "frozen_accounts_modifier"
+				"Company", company, "role_allowed_for_frozen_entries"
 			)
-			if getdate(posting_date) <= getdate(acc_frozen_upto) and (
+			if getdate(posting_date) <= getdate(acc_frozen_till_date) and (
 				frozen_accounts_modifier not in frappe.get_roles() or frappe.session.user == "Administrator"
 			):
 				frappe.throw(
 					_("You are not authorized to add or update entries before {0}").format(
-						formatdate(acc_frozen_upto)
+						formatdate(acc_frozen_till_date)
 					)
 				)
 
@@ -792,7 +824,7 @@ def validate_against_pcv(is_opening, posting_date, company):
 		)
 
 	last_pcv_date = frappe.db.get_value(
-		"Period Closing Voucher", {"docstatus": 1, "company": company}, "max(period_end_date)"
+		"Period Closing Voucher", {"docstatus": 1, "company": company}, [{"MAX": "period_end_date"}]
 	)
 
 	if last_pcv_date and getdate(posting_date) <= getdate(last_pcv_date):

@@ -23,6 +23,7 @@ class Quotation(SellingController):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		from erpnext.accounts.doctype.item_wise_tax_detail.item_wise_tax_detail import ItemWiseTaxDetail
 		from erpnext.accounts.doctype.payment_schedule.payment_schedule import PaymentSchedule
 		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
 		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
@@ -36,7 +37,7 @@ class Quotation(SellingController):
 		from erpnext.stock.doctype.packed_item.packed_item import PackedItem
 
 		additional_discount_percentage: DF.Float
-		address_display: DF.SmallText | None
+		address_display: DF.TextEditor | None
 		amended_from: DF.Link | None
 		apply_discount_on: DF.Literal["", "Grand Total", "Net Total"]
 		auto_repeat: DF.Link | None
@@ -48,10 +49,9 @@ class Quotation(SellingController):
 		base_rounding_adjustment: DF.Currency
 		base_total: DF.Currency
 		base_total_taxes_and_charges: DF.Currency
-		campaign: DF.Link | None
 		company: DF.Link
 		company_address: DF.Link | None
-		company_address_display: DF.SmallText | None
+		company_address_display: DF.TextEditor | None
 		company_contact_person: DF.Link | None
 		competitors: DF.TableMultiSelect[CompetitorDetail]
 		contact_display: DF.SmallText | None
@@ -73,8 +73,9 @@ class Quotation(SellingController):
 		ignore_pricing_rule: DF.Check
 		in_words: DF.Data | None
 		incoterm: DF.Link | None
+		item_wise_tax_details: DF.Table[ItemWiseTaxDetail]
 		items: DF.Table[QuotationItem]
-		language: DF.Data | None
+		language: DF.Link | None
 		letter_head: DF.Link | None
 		lost_reasons: DF.TableMultiSelect[QuotationLostReasonDetail]
 		named_place: DF.Data | None
@@ -98,10 +99,9 @@ class Quotation(SellingController):
 		scan_barcode: DF.Data | None
 		select_print_heading: DF.Link | None
 		selling_price_list: DF.Link
-		shipping_address: DF.SmallText | None
+		shipping_address: DF.TextEditor | None
 		shipping_address_name: DF.Link | None
 		shipping_rule: DF.Link | None
-		source: DF.Link | None
 		status: DF.Literal[
 			"Draft", "Open", "Replied", "Partially Ordered", "Ordered", "Lost", "Cancelled", "Expired"
 		]
@@ -112,12 +112,15 @@ class Quotation(SellingController):
 		tc_name: DF.Link | None
 		terms: DF.TextEditor | None
 		territory: DF.Link | None
-		title: DF.Data | None
 		total: DF.Currency
 		total_net_weight: DF.Float
 		total_qty: DF.Float
 		total_taxes_and_charges: DF.Currency
 		transaction_date: DF.Date
+		utm_campaign: DF.Link | None
+		utm_content: DF.Data | None
+		utm_medium: DF.Link | None
+		utm_source: DF.Link | None
 		valid_till: DF.Date | None
 	# end: auto-generated types
 
@@ -168,7 +171,7 @@ class Quotation(SellingController):
 		"""
 		If permitted in settings and any item has 0 qty, the SO has unit price items.
 		"""
-		if not frappe.db.get_single_value("Selling Settings", "allow_zero_qty_in_quotation"):
+		if not frappe.get_single_value("Selling Settings", "allow_zero_qty_in_quotation"):
 			return
 
 		self.has_unit_price_items = any(
@@ -285,7 +288,7 @@ class Quotation(SellingController):
 
 	def on_submit(self):
 		# Check for Approving Authority
-		frappe.get_doc("Authorization Control").validate_approving_authority(
+		frappe.get_cached_doc("Authorization Control").validate_approving_authority(
 			self.doctype, self.company, self.base_grand_total, self
 		)
 
@@ -342,6 +345,7 @@ def get_list_context(context=None):
 			"show_search": True,
 			"no_breadcrumbs": True,
 			"title": _("Quotations"),
+			"list_template": "templates/includes/list/list.html",
 		}
 	)
 
@@ -609,6 +613,7 @@ def handle_mandatory_error(e, customer, lead_name):
 	frappe.throw(message, title=_("Mandatory Missing"))
 
 
+@frappe.whitelist()
 def get_ordered_items(quotation: str):
 	"""
 	Returns a dict of ordered items with their total qty based on quotation row name.
@@ -627,7 +632,7 @@ def get_ordered_items(quotation: str):
 		frappe.get_all(
 			"Sales Order Item",
 			filters={"prevdoc_docname": quotation, "docstatus": 1},
-			fields=["quotation_item", "sum(qty)"],
+			fields=["quotation_item", {"SUM": "qty"}],
 			group_by="quotation_item",
 			as_list=1,
 		)

@@ -1,7 +1,7 @@
 <div style="padding: 15px;">
 	<div class="row mb-5">
 		<div class="col-md-5" style="max-height: 500px">
-			{% if data.image %}
+			{% if data.image && (data.image).replace("''", "").length %}
 				<div class="border image-field " style="overflow: hidden;border-color:#e6e6e6">
 					<img class="responsive" style="width: 100%;" src={{ data.image }}>
 				</div>
@@ -12,7 +12,10 @@
 				{{ __("Description") }}
 			</h4>
 			<div style="padding-top: 10px;">
-				{{ data.description }}
+				{% if data.is_phantom_item %}
+					<p><b>{{ __("Phantom Item") }}</b></p>
+				{% endif %}
+				<p>{{ data.description }}</p>
 			</div>
 			<hr style="margin: 15px -15px;">
 			<p>

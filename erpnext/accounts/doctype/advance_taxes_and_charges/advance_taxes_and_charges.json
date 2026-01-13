@@ -13,6 +13,8 @@
   "col_break_1",
   "description",
   "included_in_paid_amount",
+  "set_by_item_tax_template",
+  "is_tax_withholding_account",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
@@ -21,11 +23,12 @@
   "rate",
   "section_break_9",
   "currency",
+  "net_amount",
   "tax_amount",
   "total",
-  "allocated_amount",
   "column_break_13",
   "base_tax_amount",
+  "base_net_amount",
   "base_total"
  ],
  "fields": [
@@ -94,11 +97,11 @@
    "fieldtype": "Column Break"
   },
   {
-    "allow_on_submit": 1,
-    "fieldname": "project",
-    "fieldtype": "Link",
-    "label": "Project",
-    "options": "Project"
+   "allow_on_submit": 1,
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "label": "Project",
+   "options": "Project"
   },
   {
    "fieldname": "section_break_8",
@@ -170,29 +173,60 @@
    "label": "Considered In Paid Amount"
   },
   {
-   "fieldname": "allocated_amount",
-   "fieldtype": "Currency",
-   "label": "Allocated Amount",
-   "options": "currency"
-  },
-  {
    "fetch_from": "account_head.account_currency",
    "fieldname": "currency",
    "fieldtype": "Link",
    "label": "Account Currency",
    "options": "Currency",
    "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Net Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "base_net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount (Company Currency)",
+   "oldfieldname": "tax_amount",
+   "oldfieldtype": "Currency",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "set_by_item_tax_template",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Set by Item Tax Template",
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_tax_withholding_account",
+   "fieldtype": "Check",
+   "label": "Is Tax Withholding Account",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2021-11-25 11:10:10.945027",
+ "modified": "2025-12-15 06:42:18.707671",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Advance Taxes and Charges",
  "owner": "Administrator",
  "permissions": [],
- "sort_field": "modified",
- "sort_order": "ASC"
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
 }

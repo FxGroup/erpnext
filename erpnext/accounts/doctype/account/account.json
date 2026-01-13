@@ -3,6 +3,7 @@
  "allow_copy": 1,
  "allow_import": 1,
  "creation": "2013-01-30 12:49:46",
+ "default_view": "Tree",
  "description": "Heads (or groups) against which Accounting Entries are made and balances are maintained.",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -20,6 +21,7 @@
   "account_currency",
   "column_break1",
   "parent_account",
+  "account_category",
   "account_type",
   "tax_rate",
   "freeze_account",
@@ -64,6 +66,8 @@
    "label": "Is Group"
   },
   {
+   "fetch_from": "parent_account.company",
+   "fetch_if_empty": 1,
    "fieldname": "company",
    "fieldtype": "Link",
    "in_standard_filter": 1,
@@ -106,6 +110,7 @@
    "fieldname": "parent_account",
    "fieldtype": "Link",
    "ignore_user_permissions": 1,
+   "in_preview": 1,
    "label": "Parent Account",
    "oldfieldname": "parent_account",
    "oldfieldtype": "Link",
@@ -185,13 +190,20 @@
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disable"
+  },
+  {
+   "description": "Used with Financial Report Template",
+   "fieldname": "account_category",
+   "fieldtype": "Link",
+   "label": "Account Category",
+   "options": "Account Category"
   }
  ],
  "icon": "fa fa-money",
  "idx": 1,
  "is_tree": 1,
  "links": [],
- "modified": "2024-08-19 15:19:11.095045",
+ "modified": "2025-08-02 06:26:44.657146",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Account",
@@ -246,9 +258,11 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "account_number",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "show_preview_popup": 1,
+ "sort_field": "creation",
  "sort_order": "ASC",
  "states": [],
  "track_changes": 1

@@ -42,6 +42,7 @@
   "language",
   "column_break_45",
   "customer_details",
+  "supplier_numbers",
   "dashboard_tab",
   "contact_and_address_tab",
   "address_contacts",
@@ -61,9 +62,10 @@
   "tax_tab",
   "taxation_section",
   "tax_id",
-  "column_break_21",
   "tax_category",
+  "column_break_21",
   "tax_withholding_category",
+  "tax_withholding_group",
   "accounting_tab",
   "credit_limit_section",
   "payment_terms",
@@ -597,6 +599,19 @@
    "fieldtype": "Read Only",
    "hidden": 1,
    "label": "Last Name"
+  },
+  {
+   "description": "Supplier numbers assigned by the customer",
+   "fieldname": "supplier_numbers",
+   "fieldtype": "Table",
+   "label": "Supplier Numbers",
+   "options": "Supplier Number At Customer"
+  },
+  {
+   "fieldname": "tax_withholding_group",
+   "fieldtype": "Link",
+   "label": "Tax Withholding Group",
+   "options": "Tax Withholding Group"
   }
  ],
  "icon": "fa fa-user",
@@ -691,7 +706,7 @@
  "row_format": "Dynamic",
  "search_fields": "customer_group,territory, mobile_no,primary_address",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "title_field": "customer_name",

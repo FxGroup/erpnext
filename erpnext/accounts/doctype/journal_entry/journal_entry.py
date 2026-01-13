@@ -18,9 +18,7 @@ from erpnext.accounts.doctype.repost_accounting_ledger.repost_accounting_ledger 
 	validate_docs_for_deferred_accounting,
 	validate_docs_for_voucher_types,
 )
-from erpnext.accounts.doctype.tax_withholding_category.tax_withholding_category import (
-	get_party_tax_withholding_details,
-)
+from erpnext.accounts.doctype.tax_withholding_entry.tax_withholding_entry import JournalTaxWithholding
 from erpnext.accounts.party import get_party_account
 from erpnext.accounts.utils import (
 	cancel_exchange_gain_loss_journal,
@@ -51,6 +49,7 @@ class JournalEntry(AccountsController):
 		from frappe.types import DF
 
 		from erpnext.accounts.doctype.journal_entry_account.journal_entry_account import JournalEntryAccount
+		from erpnext.accounts.doctype.tax_withholding_entry.tax_withholding_entry import TaxWithholdingEntry
 
 		accounts: DF.Table[JournalEntryAccount]
 		amended_from: DF.Link | None
@@ -65,7 +64,9 @@ class JournalEntry(AccountsController):
 		difference: DF.Currency
 		due_date: DF.Date | None
 		finance_book: DF.Link | None
+		for_all_stock_asset_accounts: DF.Check
 		from_template: DF.Link | None
+		ignore_tax_withholding_threshold: DF.Check
 		inter_company_journal_entry_reference: DF.Link | None
 		is_opening: DF.Literal["No", "Yes"]
 		is_system_generated: DF.Check
@@ -73,17 +74,21 @@ class JournalEntry(AccountsController):
 		mode_of_payment: DF.Link | None
 		multi_currency: DF.Check
 		naming_series: DF.Literal["ACC-JV-.YYYY.-"]
-		paid_loan: DF.Data | None
 		party_not_required: DF.Check
+		override_tax_withholding_entries: DF.Check
 		pay_to_recd_from: DF.Data | None
 		payment_order: DF.Link | None
+		periodic_entry_difference_account: DF.Link | None
 		posting_date: DF.Date
 		process_deferred_accounting: DF.Link | None
 		remark: DF.SmallText | None
 		reversal_of: DF.Link | None
 		select_print_heading: DF.Link | None
+		stock_asset_account: DF.Link | None
 		stock_entry: DF.Link | None
 		tax_withholding_category: DF.Link | None
+		tax_withholding_entries: DF.Table[TaxWithholdingEntry]
+		tax_withholding_group: DF.Link | None
 		title: DF.Data | None
 		total_amount: DF.Currency
 		total_amount_currency: DF.Link | None
@@ -104,6 +109,8 @@ class JournalEntry(AccountsController):
 			"Write Off Entry",
 			"Opening Entry",
 			"Depreciation Entry",
+			"Asset Disposal",
+			"Periodic Accounting Entry",
 			"Exchange Rate Revaluation",
 			"Exchange Gain Or Loss",
 			"Deferred Revenue",
@@ -144,12 +151,12 @@ class JournalEntry(AccountsController):
 		self.validate_credit_debit_note()
 		self.validate_empty_accounts_table()
 		self.validate_inter_company_accounts()
-		self.validate_depr_entry_voucher_type()
+		self.validate_depr_account_and_depr_entry_voucher_type()
 		self.validate_company_in_accounting_dimension()
 		self.validate_advance_accounts()
 
-		if self.docstatus == 0:
-			self.apply_tax_withholding()
+		JournalTaxWithholding(self).on_validate()
+
 		if self.is_new() or not self.title:
 			self.title = self.get_title()
 
@@ -195,7 +202,77 @@ class JournalEntry(AccountsController):
 		self.update_asset_value()
 		self.update_inter_company_jv()
 		self.update_invoice_discounting()
-		self.update_booked_depreciation()
+		JournalTaxWithholding(self).on_submit()
+
+	@frappe.whitelist()
+	def get_balance_for_periodic_accounting(self):
+		self.validate_company_for_periodic_accounting()
+
+		stock_accounts = self.get_stock_accounts_for_periodic_accounting()
+		self.set("accounts", [])
+		for account in stock_accounts:
+			account_bal, stock_bal, warehouse_list = get_stock_and_account_balance(
+				account, self.posting_date, self.company
+			)
+
+			difference_value = flt(stock_bal - account_bal, self.precision("difference"))
+
+			if difference_value == 0:
+				frappe.msgprint(
+					_("No difference found for stock account {0}").format(frappe.bold(account)),
+					alert=True,
+				)
+				continue
+
+			self.append(
+				"accounts",
+				{
+					"account": account,
+					"debit_in_account_currency": difference_value if difference_value > 0 else 0,
+					"credit_in_account_currency": abs(difference_value) if difference_value < 0 else 0,
+				},
+			)
+
+			self.append(
+				"accounts",
+				{
+					"account": self.periodic_entry_difference_account,
+					"credit_in_account_currency": difference_value if difference_value > 0 else 0,
+					"debit_in_account_currency": abs(difference_value) if difference_value < 0 else 0,
+				},
+			)
+
+	def validate_company_for_periodic_accounting(self):
+		if erpnext.is_perpetual_inventory_enabled(self.company):
+			frappe.throw(
+				_(
+					"Periodic Accounting Entry is not allowed for company {0} with perpetual inventory enabled"
+				).format(self.company)
+			)
+
+		if not self.periodic_entry_difference_account:
+			frappe.throw(_("Please select Periodic Accounting Entry Difference Account"))
+
+	def get_stock_accounts_for_periodic_accounting(self):
+		if self.voucher_type != "Periodic Accounting Entry":
+			return []
+
+		if self.for_all_stock_asset_accounts:
+			return frappe.get_all(
+				"Account",
+				filters={
+					"company": self.company,
+					"account_type": "Stock",
+					"root_type": "Asset",
+					"is_group": 0,
+				},
+				pluck="name",
+			)
+
+		if not self.stock_asset_account:
+			frappe.throw(_("Please select Stock Asset Account"))
+
+		return [self.stock_asset_account]
 
 	def on_update_after_submit(self):
 		# Flag will be set on Reconciliation
@@ -209,6 +286,8 @@ class JournalEntry(AccountsController):
 			self.repost_accounting_entries()
 
 	def on_cancel(self):
+		# Cancel tax withholding entries
+
 		# References for this Journal are removed on the `on_cancel` event in accounts_controller
 		super().on_cancel()
 		self.ignore_linked_doctypes = (
@@ -222,8 +301,10 @@ class JournalEntry(AccountsController):
 			"Unreconcile Payment",
 			"Unreconcile Payment Entries",
 			"Advance Payment Ledger Entry",
+			"Tax Withholding Entry",
 		)
 		self.make_gl_entries(1)
+		JournalTaxWithholding(self).on_cancel()
 		self.unlink_advance_entry_reference()
 		self.unlink_asset_reference()
 		self.unlink_inter_company_jv()
@@ -252,14 +333,22 @@ class JournalEntry(AccountsController):
 				):
 					frappe.throw(_("Total Credit/ Debit Amount should be same as linked Journal Entry"))
 
-	def validate_depr_entry_voucher_type(self):
-		if (
-			any(d.account_type == "Depreciation" for d in self.get("accounts"))
-			and self.voucher_type != "Depreciation Entry"
-		):
-			frappe.throw(_("Journal Entry type should be set as Depreciation Entry for asset depreciation"))
+	def validate_depr_account_and_depr_entry_voucher_type(self):
+		for d in self.get("accounts"):
+			if d.account_type == "Depreciation":
+				if self.voucher_type != "Depreciation Entry":
+					frappe.throw(
+						_("Journal Entry type should be set as Depreciation Entry for asset depreciation")
+					)
+
+				if frappe.get_cached_value("Account", d.account, "root_type") != "Expense":
+					frappe.throw(_("Account {0} should be of type Expense").format(d.account))
 
 	def validate_stock_accounts(self):
+		if self.voucher_type == "Periodic Accounting Entry":
+			# Skip validation for periodic accounting entry
+			return
+
 		stock_accounts = get_stock_accounts(self.company, accounts=self.accounts)
 		for account in stock_accounts:
 			account_bal, stock_bal, warehouse_list = get_stock_and_account_balance(
@@ -272,36 +361,74 @@ class JournalEntry(AccountsController):
 					StockAccountInvalidTransaction,
 				)
 
-	def apply_tax_withholding(self):
-		JournalEntryTaxWithholding(self).apply()
-
 	def update_asset_value(self):
-		if self.flags.planned_depr_entry or self.voucher_type != "Depreciation Entry":
+		self.update_asset_on_depreciation()
+		self.update_asset_on_disposal()
+
+	def update_asset_on_depreciation(self):
+		if self.voucher_type != "Depreciation Entry":
 			return
 
 		for d in self.get("accounts"):
 			if (
 				d.reference_type == "Asset"
 				and d.reference_name
-				and d.account_type == "Depreciation"
+				and frappe.get_cached_value("Account", d.account, "root_type") == "Expense"
 				and d.debit
 			):
-				asset = frappe.get_doc("Asset", d.reference_name)
+				asset = frappe.get_cached_doc("Asset", d.reference_name)
 
 				if asset.calculate_depreciation:
-					fb_idx = 1
-					if self.finance_book:
-						for fb_row in asset.get("finance_books"):
-							if fb_row.finance_book == self.finance_book:
-								fb_idx = fb_row.idx
-								break
-					fb_row = asset.get("finance_books")[fb_idx - 1]
-					fb_row.value_after_depreciation -= d.debit
-					fb_row.db_update()
-				else:
-					asset.db_set("value_after_depreciation", asset.value_after_depreciation - d.debit)
+					self.update_journal_entry_link_on_depr_schedule(asset, d)
+					self.update_value_after_depreciation(asset, d.debit)
 
+				asset.db_set("value_after_depreciation", asset.value_after_depreciation - d.debit)
 				asset.set_status()
+				asset.set_total_booked_depreciations()
+
+	def update_value_after_depreciation(self, asset, depr_amount):
+		fb_idx = 1
+		if self.finance_book:
+			for fb_row in asset.get("finance_books"):
+				if fb_row.finance_book == self.finance_book:
+					fb_idx = fb_row.idx
+					break
+		fb_row = asset.get("finance_books")[fb_idx - 1]
+		fb_row.value_after_depreciation -= depr_amount
+		frappe.db.set_value(
+			"Asset Finance Book", fb_row.name, "value_after_depreciation", fb_row.value_after_depreciation
+		)
+
+	def update_journal_entry_link_on_depr_schedule(self, asset, je_row):
+		depr_schedule = get_depr_schedule(asset.name, "Active", self.finance_book)
+		for d in depr_schedule or []:
+			if (
+				d.schedule_date == self.posting_date
+				and not d.journal_entry
+				and d.depreciation_amount == flt(je_row.debit)
+			):
+				frappe.db.set_value("Depreciation Schedule", d.name, "journal_entry", self.name)
+
+	def update_asset_on_disposal(self):
+		if self.voucher_type == "Asset Disposal":
+			disposed_assets = []
+			for d in self.get("accounts"):
+				if (
+					d.reference_type == "Asset"
+					and d.reference_name
+					and d.reference_name not in disposed_assets
+				):
+					frappe.db.set_value(
+						"Asset",
+						d.reference_name,
+						{
+							"disposal_date": self.posting_date,
+							"journal_entry_for_scrap": self.name,
+						},
+					)
+					asset_doc = frappe.get_doc("Asset", d.reference_name)
+					asset_doc.set_status()
+					disposed_assets.append(d.reference_name)
 
 	def update_inter_company_jv(self):
 		if self.voucher_type == "Inter Company Journal Entry" and self.inter_company_journal_entry_reference:
@@ -424,9 +551,9 @@ class JournalEntry(AccountsController):
 						fb_row = asset.get("finance_books")[fb_idx - 1]
 						fb_row.value_after_depreciation += d.debit
 						fb_row.db_update()
-				else:
-					asset.db_set("value_after_depreciation", asset.value_after_depreciation + d.debit)
+				asset.db_set("value_after_depreciation", asset.value_after_depreciation + d.debit)
 				asset.set_status()
+				asset.set_total_booked_depreciations()
 			elif self.voucher_type == "Journal Entry" and d.reference_type == "Asset" and d.reference_name:
 				journal_entry_for_scrap = frappe.db.get_value(
 					"Asset", d.reference_name, "journal_entry_for_scrap"
@@ -753,14 +880,13 @@ class JournalEntry(AccountsController):
 				"Debit Note",
 				"Credit Note",
 			]:
-				invoice = frappe.db.get_value(
-					reference_type, reference_name, ["docstatus", "outstanding_amount"], as_dict=1
-				)
+				invoice = frappe.get_doc(reference_type, reference_name)
 
 				if invoice.docstatus != 1:
 					frappe.throw(_("{0} {1} is not submitted").format(reference_type, reference_name))
 
-				if total and flt(invoice.outstanding_amount) < total:
+				precision = invoice.precision("outstanding_amount")
+				if total and flt(invoice.outstanding_amount, precision) < flt(total, precision):
 					frappe.throw(
 						_("Payment against {0} {1} cannot be greater than Outstanding Amount {2}").format(
 							reference_type, reference_name, invoice.outstanding_amount
@@ -1070,7 +1196,7 @@ class JournalEntry(AccountsController):
 	def make_gl_entries(self, cancel=0, adv_adj=0):
 		from erpnext.accounts.general_ledger import make_gl_entries
 
-		merge_entries = frappe.db.get_single_value("Accounts Settings", "merge_similar_account_heads")
+		merge_entries = frappe.get_single_value("Accounts Settings", "merge_similar_account_heads")
 
 		gl_map = self.build_gl_map()
 		if self.voucher_type in ("Deferred Revenue", "Deferred Expense"):
@@ -1195,232 +1321,10 @@ class JournalEntry(AccountsController):
 			frappe.throw(_("Accounts table cannot be blank."))
 
 
-class JournalEntryTaxWithholding:
-	def __init__(self, journal_entry):
-		self.doc: JournalEntry = journal_entry
-		self.party = None
-		self.party_type = None
-		self.party_account = None
-		self.party_row = None
-		self.existing_tds_rows = []
-		self.precision = None
-		self.has_multiple_parties = False
-
-		# Direction fields based on party type
-		self.party_field = None  # "credit" for Supplier, "debit" for Customer
-		self.reverse_field = None  # opposite of party_field
-
-	def apply(self):
-		if not self._set_party_info():
-			return
-
-		self._setup_direction_fields()
-		self._reset_existing_tds()
-
-		if not self._should_apply_tds():
-			self._cleanup_duplicate_tds_rows(None)
-			return
-
-		if self.has_multiple_parties:
-			frappe.throw(_("Cannot apply TDS against multiple parties in one entry"))
-
-		net_total = self._calculate_net_total()
-		if net_total <= 0:
-			return
-
-		tds_details = self._get_tds_details(net_total)
-		if not tds_details or not tds_details.get("tax_amount"):
-			return
-
-		self._create_or_update_tds_row(tds_details)
-		self._update_party_amount(tds_details.get("tax_amount"), is_reversal=False)
-
-		self._recalculate_totals()
-
-	def _should_apply_tds(self):
-		return self.doc.apply_tds and self.doc.voucher_type in ("Debit Note", "Credit Note")
-
-	def _set_party_info(self):
-		for row in self.doc.get("accounts"):
-			if row.party_type in ("Customer", "Supplier") and row.party:
-				if self.party and row.party != self.party:
-					self.has_multiple_parties = True
-
-				if not self.party:
-					self.party = row.party
-					self.party_type = row.party_type
-					self.party_account = row.account
-					self.party_row = row
-
-			if row.get("is_tax_withholding_account"):
-				self.existing_tds_rows.append(row)
-
-		return bool(self.party)
-
-	def _setup_direction_fields(self):
-		"""
-		For Supplier (TDS): party has credit, TDS reduces credit
-		For Customer (TCS): party has debit, TCS increases debit
-		"""
-		if self.party_type == "Supplier":
-			self.party_field = "credit"
-			self.reverse_field = "debit"
-		else:  # Customer
-			self.party_field = "debit"
-			self.reverse_field = "credit"
-
-		self.precision = self.doc.precision(self.party_field, self.party_row)
-
-	def _reset_existing_tds(self):
-		for row in self.existing_tds_rows:
-			# TDS amount is always in credit (liability to government)
-			tds_amount = flt(row.get("credit") - row.get("debit"), self.precision)
-			if not tds_amount:
-				continue
-
-			self._update_party_amount(tds_amount, is_reversal=True)
-
-			# zero_out_tds_row
-			row.update(
-				{
-					"credit": 0,
-					"credit_in_account_currency": 0,
-					"debit": 0,
-					"debit_in_account_currency": 0,
-				}
-			)
-
-	def _update_party_amount(self, amount, is_reversal=False):
-		amount = flt(amount, self.precision)
-		amount_in_party_currency = flt(amount / self.party_row.get("exchange_rate", 1), self.precision)
-
-		# Determine which field the party amount is in
-		active_field = self.party_field if self.party_row.get(self.party_field) else self.reverse_field
-
-		# If amount is in reverse field, flip the signs
-		if active_field == self.reverse_field:
-			amount = -amount
-			amount_in_party_currency = -amount_in_party_currency
-
-		# Direction multiplier based on party type:
-		# Customer (TCS): +1 (add to debit)
-		# Supplier (TDS): -1 (subtract from credit)
-		direction = 1 if self.party_type == "Customer" else -1
-
-		# Reversal inverts the direction
-		if is_reversal:
-			direction = -direction
-
-		adjustment = amount * direction
-		adjustment_in_party_currency = amount_in_party_currency * direction
-
-		active_field_account_currency = f"{active_field}_in_account_currency"
-
-		self.party_row.update(
-			{
-				active_field: flt(self.party_row.get(active_field) + adjustment, self.precision),
-				active_field_account_currency: flt(
-					self.party_row.get(active_field_account_currency) + adjustment_in_party_currency,
-					self.precision,
-				),
-			}
-		)
-
-	def _calculate_net_total(self):
-		from erpnext.accounts.report.general_ledger.general_ledger import get_account_type_map
-
-		account_type_map = get_account_type_map(self.doc.company)
-
-		return flt(
-			sum(
-				d.get(self.reverse_field) - d.get(self.party_field)
-				for d in self.doc.get("accounts")
-				if account_type_map.get(d.account) not in ("Tax", "Chargeable")
-				and d.account != self.party_account
-				and not d.get("is_tax_withholding_account")
-			),
-			self.precision,
-		)
-
-	def _get_tds_details(self, net_total):
-		return get_party_tax_withholding_details(
-			frappe._dict(
-				{
-					"party_type": self.party_type,
-					"party": self.party,
-					"doctype": self.doc.doctype,
-					"company": self.doc.company,
-					"posting_date": self.doc.posting_date,
-					"tax_withholding_net_total": net_total,
-					"base_tax_withholding_net_total": net_total,
-					"grand_total": net_total,
-				}
-			),
-			self.doc.tax_withholding_category,
-		)
-
-	def _create_or_update_tds_row(self, tds_details):
-		tax_account = tds_details.get("account_head")
-		account_currency = get_account_currency(tax_account)
-		company_currency = frappe.get_cached_value("Company", self.doc.company, "default_currency")
-		exchange_rate = _get_exchange_rate(account_currency, company_currency, self.doc.posting_date)
-
-		tax_amount = flt(tds_details.get("tax_amount"), self.precision)
-		tax_amount_in_account_currency = flt(tax_amount / exchange_rate, self.precision)
-
-		# Find existing TDS row for this account
-		tax_row = None
-		for row in self.doc.get("accounts"):
-			if row.account == tax_account and row.get("is_tax_withholding_account"):
-				tax_row = row
-				break
-
-		if not tax_row:
-			tax_row = self.doc.append(
-				"accounts",
-				{
-					"account": tax_account,
-					"account_currency": account_currency,
-					"exchange_rate": exchange_rate,
-					"cost_center": tds_details.get("cost_center"),
-					"credit": 0,
-					"credit_in_account_currency": 0,
-					"debit": 0,
-					"debit_in_account_currency": 0,
-					"is_tax_withholding_account": 1,
-				},
-			)
-
-		# TDS/TCS is always credited (liability to government)
-		tax_row.update(
-			{
-				"credit": tax_amount,
-				"credit_in_account_currency": tax_amount_in_account_currency,
-				"debit": 0,
-				"debit_in_account_currency": 0,
-			}
-		)
-
-		self._cleanup_duplicate_tds_rows(tax_row)
-
-	def _cleanup_duplicate_tds_rows(self, current_tax_row):
-		rows_to_remove = [
-			row
-			for row in self.doc.get("accounts")
-			if row.get("is_tax_withholding_account") and row != current_tax_row
-		]
-
-		for row in rows_to_remove:
-			self.doc.remove(row)
-
-	def _recalculate_totals(self):
-		self.doc.set_amounts_in_company_currency()
-		self.doc.set_total_debit_credit()
-		self.doc.set_against_account()
-
-
 @frappe.whitelist()
-def get_default_bank_cash_account(company, account_type=None, mode_of_payment=None, account=None):
+def get_default_bank_cash_account(
+	company, account_type=None, mode_of_payment=None, account=None, *, fetch_balance=True
+):
 	from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_bank_cash_account
 
 	if mode_of_payment:
@@ -1454,15 +1358,14 @@ def get_default_bank_cash_account(company, account_type=None, mode_of_payment=No
 		account_details = frappe.get_cached_value(
 			"Account", account, ["account_currency", "account_type"], as_dict=1
 		)
-
-		return frappe._dict(
-			{
-				"account": account,
-				"balance": get_balance_on(account),
-				"account_currency": account_details.account_currency,
-				"account_type": account_details.account_type,
-			}
-		)
+		result = {
+			"account": account,
+			"account_currency": account_details.account_currency,
+			"account_type": account_details.account_type,
+		}
+		if fetch_balance:
+			result["balance"] = get_balance_on(account)
+		return frappe._dict(result)
 	else:
 		return frappe._dict()
 
@@ -1755,6 +1658,9 @@ def get_account_details_and_party_type(account, date, company, debit=None, credi
 		"party_type": party_type,
 		"account_type": account_details.account_type,
 		"account_currency": account_details.account_currency or company_currency,
+		"bank_account": (
+			frappe.db.get_value("Bank Account", {"account": account, "company": company}) or None
+		),
 		# The date used to retreive the exchange rate here is the date passed in
 		# as an argument to this function. It is assumed to be the date on which the balance is sought
 		"exchange_rate": get_exchange_rate(
@@ -1840,6 +1746,14 @@ def make_inter_company_journal_entry(name, voucher_type, company):
 
 @frappe.whitelist()
 def make_reverse_journal_entry(source_name, target_doc=None):
+	existing_reverse = frappe.db.exists("Journal Entry", {"reversal_of": source_name, "docstatus": 1})
+	if existing_reverse:
+		frappe.throw(
+			_("A Reverse Journal Entry {0} already exists for this Journal Entry.").format(
+				get_link_to_form("Journal Entry", existing_reverse)
+			)
+		)
+
 	from frappe.model.mapper import get_mapped_doc
 
 	def post_process(source, target):

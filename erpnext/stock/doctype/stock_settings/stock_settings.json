@@ -55,6 +55,7 @@
   "naming_series_prefix",
   "stock_reservation_tab",
   "enable_stock_reservation",
+  "auto_reserve_stock",
   "column_break_rx3e",
   "allow_partial_reservation",
   "auto_reserve_stock_for_sales_order_on_purchase",
@@ -193,7 +194,7 @@
    "description": "No stock transactions can be created or modified before this date.",
    "fieldname": "stock_frozen_upto",
    "fieldtype": "Date",
-   "label": "Stock Frozen Upto"
+   "label": "Stock Frozen Up To"
   },
   {
    "description": "Stock transactions that are older than the mentioned days cannot be modified.",
@@ -479,6 +480,13 @@
    "label": "Allow existing Serial No to be Manufactured/Received again"
   },
   {
+   "default": "0",
+   "description": "Upon submission of the Sales Order, Work Order, or Production Plan, the system will automatically reserve the stock.",
+   "fieldname": "auto_reserve_stock",
+   "fieldtype": "Check",
+   "label": "Auto Reserve Stock"
+  },
+  {
    "fieldname": "serial_and_batch_bundle_section",
    "fieldtype": "Section Break",
    "label": "Serial and Batch Bundle"
@@ -540,12 +548,13 @@
    "label": "Validate Material Transfer Warehouses"
   }
  ],
+ "hide_toolbar": 1,
  "icon": "icon-cog",
  "idx": 1,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-11-11 11:35:39.864923",
+ "modified": "2026-01-02 18:19:59.034785",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Stock Settings",

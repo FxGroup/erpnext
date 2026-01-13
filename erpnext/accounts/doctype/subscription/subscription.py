@@ -25,7 +25,6 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 	get_accounting_dimensions,
 )
 from erpnext.accounts.doctype.subscription_plan.subscription_plan import get_plan_rate
-from erpnext.accounts.party import get_party_account_currency
 
 
 class InvoiceCancelled(frappe.ValidationError):
@@ -77,7 +76,7 @@ class Subscription(Document):
 		purchase_tax_template: DF.Link | None
 		sales_tax_template: DF.Link | None
 		start_date: DF.Date | None
-		status: DF.Literal["", "Trialling", "Active", "Past Due Date", "Cancelled", "Unpaid", "Completed"]
+		status: DF.Literal["", "Trialing", "Active", "Grace Period", "Cancelled", "Unpaid", "Completed"]
 		submit_invoice: DF.Check
 		trial_period_end: DF.Date | None
 		trial_period_start: DF.Date | None
@@ -222,14 +221,18 @@ class Subscription(Document):
 		Sets the status of the `Subscription`
 		"""
 		if self.is_trialling():
-			self.status = "Trialling"
-		elif self.status == "Active" and self.end_date and getdate(posting_date) > getdate(self.end_date):
+			self.status = "Trialing"
+		elif (
+			not self.has_outstanding_invoice()
+			and self.end_date
+			and getdate(posting_date) > getdate(self.end_date)
+		):
 			self.status = "Completed"
 		elif self.is_past_grace_period():
 			self.status = self.get_status_for_past_grace_period()
 			self.cancelation_date = getdate(posting_date) if self.status == "Cancelled" else None
 		elif self.current_invoice_is_past_due() and not self.is_past_grace_period():
-			self.status = "Past Due Date"
+			self.status = "Grace Period"
 		elif not self.has_outstanding_invoice():
 			self.status = "Active"
 
@@ -411,7 +414,10 @@ class Subscription(Document):
 			invoice.customer = self.party
 		else:
 			invoice.supplier = self.party
-			if frappe.db.get_value("Supplier", self.party, "tax_withholding_category"):
+			tax_withholding_category, tax_withholding_group = frappe.get_cached_value(
+				"Supplier", self.party, ["tax_withholding_category", "tax_withholding_group"]
+			)
+			if tax_withholding_category or tax_withholding_group:
 				invoice.apply_tds = 1
 
 		# Add currency to invoice
@@ -429,7 +435,6 @@ class Subscription(Document):
 		items_list = self.get_items_from_plans(self.plans, is_prorate())
 
 		for item in items_list:
-			item["cost_center"] = self.cost_center
 			invoice.append("items", item)
 
 		# Taxes
@@ -561,6 +566,17 @@ class Subscription(Document):
 			self.current_invoice_start, self.current_invoice_end
 		) and self.can_generate_new_invoice(posting_date):
 			self.generate_invoice(posting_date=posting_date)
+			if self.end_date:
+				next_start = add_days(self.current_invoice_end, 1)
+
+				if getdate(next_start) > getdate(self.end_date):
+					if self.cancel_at_period_end:
+						self.cancel_subscription()
+					else:
+						self.set_subscription_status(posting_date=posting_date)
+
+					self.save()
+					return
 			self.update_subscription_period(add_days(self.current_invoice_end, 1))
 		elif posting_date and getdate(posting_date) > getdate(self.current_invoice_end):
 			self.update_subscription_period()
@@ -681,7 +697,7 @@ class Subscription(Document):
 		to_generate_invoice = (
 			True
 			if self.status == "Active"
-			and not self.generate_invoice_at == "Beginning of the current subscription period"
+			and self.generate_invoice_at != "Beginning of the current subscription period"
 			else False
 		)
 		self.status = "Cancelled"
@@ -699,7 +715,7 @@ class Subscription(Document):
 		subscription and the `Subscription` will lose all the history of generated invoices
 		it has.
 		"""
-		if not self.status == "Cancelled":
+		if self.status != "Cancelled":
 			frappe.throw(_("You cannot restart a Subscription that is not cancelled."), InvoiceNotCancelled)
 
 		self.status = "Active"

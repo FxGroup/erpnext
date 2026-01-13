@@ -13,6 +13,8 @@
   "end_time",
   "limits_dont_apply_on",
   "item_based_reposting",
+  "enable_parallel_reposting",
+  "no_of_parallel_reposting",
   "errors_notification_section",
   "notify_reposting_error_to_role"
  ],
@@ -65,12 +67,27 @@
    "fieldname": "errors_notification_section",
    "fieldtype": "Section Break",
    "label": "Errors Notification"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.item_based_reposting",
+   "fieldname": "enable_parallel_reposting",
+   "fieldtype": "Check",
+   "label": "Enable Parallel Reposting"
+  },
+  {
+   "default": "4",
+   "depends_on": "eval: doc.item_based_reposting === 1 && doc.enable_parallel_reposting === 1",
+   "fieldname": "no_of_parallel_reposting",
+   "fieldtype": "Int",
+   "label": "No of Parallel Reposting (Per Item)"
   }
  ],
+ "hide_toolbar": 1,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-07-08 11:27:46.659056",
+ "modified": "2026-01-02 18:18:57.115176",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Stock Reposting Settings",
@@ -87,7 +104,8 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

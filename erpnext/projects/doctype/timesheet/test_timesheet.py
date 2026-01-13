@@ -1,21 +1,76 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
-
 import datetime
 import unittest
 
 import frappe
-from frappe.tests.utils import change_settings
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_to_date, now_datetime, nowdate
 
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
+from erpnext.projects.doctype.task.test_task import create_task
 from erpnext.projects.doctype.timesheet.timesheet import OverlapError, make_sales_invoice
 from erpnext.setup.doctype.employee.test_employee import make_employee
+from erpnext.tests.utils import ERPNextTestSuite
 
 
-class TestTimesheet(unittest.TestCase):
+class TestTimesheet(ERPNextTestSuite):
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.make_projects()
+
 	def setUp(self):
 		frappe.db.delete("Timesheet")
+
+	def test_timesheet_post_update(self):
+		frappe.get_doc(
+			{
+				"doctype": "Property Setter",
+				"doctype_or_field": "DocField",
+				"doc_type": "Timesheet",
+				"field_name": "time_logs",
+				"property": "allow_on_submit",
+				"property_type": "Check",
+				"value": "1",
+			}
+		).insert(ignore_permissions=True)
+
+		task = create_task("Test Task 1")
+
+		timesheet = frappe.new_doc("Timesheet")
+		timesheet.append(
+			"time_logs",
+			{
+				"task": task.name,
+				"from_time": now_datetime(),
+				"to_time": now_datetime() + datetime.timedelta(hours=1),
+				"company": "_Test Company",
+			},
+		)
+
+		timesheet.save()
+		timesheet.submit()
+		task.reload()
+		self.assertEqual(task.actual_time, 1)
+		timesheet.append(
+			"time_logs",
+			{
+				"task": task.name,
+				"from_time": now_datetime(),
+				"to_time": now_datetime() + datetime.timedelta(hours=2),
+				"hours": 2,
+			},
+		)
+
+		timesheet.save()
+		task.reload()
+		self.assertEqual(task.actual_time, 3)
+
+		frappe.db.delete(
+			"Property Setter",
+			{"doc_type": "Timesheet", "field_name": "time_logs", "property": "allow_on_submit"},
+		)
 
 	def test_timesheet_base_amount(self):
 		emp = make_employee("test_employee_6@salary.com")
@@ -63,7 +118,7 @@ class TestTimesheet(unittest.TestCase):
 		self.assertEqual(item.qty, 2.00)
 		self.assertEqual(item.rate, 50.00)
 
-	@change_settings("Projects Settings", {"fetch_timesheet_in_sales_invoice": 1})
+	@IntegrationTestCase.change_settings("Projects Settings", {"fetch_timesheet_in_sales_invoice": 1})
 	def test_timesheet_billing_based_on_project(self):
 		emp = make_employee("test_employee_6@salary.com")
 		project = frappe.get_value("Project", {"project_name": "_Test Project"})
@@ -117,6 +172,21 @@ class TestTimesheet(unittest.TestCase):
 		settings.ignore_employee_time_overlap = 1
 		settings.save()
 		timesheet.save()  # should not throw an error
+		timesheet.submit()  # should not throw an error
+		settings.ignore_employee_time_overlap = 0
+		settings.save()
+
+		timesheet.append(
+			"time_logs",
+			{
+				"billable": 1,
+				"activity_type": "_Test Activity Type",
+				"from_time": now_datetime(),
+				"to_time": now_datetime() + datetime.timedelta(hours=3),
+				"company": "_Test Company",
+			},
+		)
+		self.assertRaises(frappe.ValidationError, timesheet.submit)
 
 		settings.ignore_employee_time_overlap = initial_setting
 		settings.save()
@@ -211,11 +281,14 @@ def make_timesheet(
 	project=None,
 	task=None,
 	company=None,
+	currency=None,
+	exchange_rate=None,
 ):
 	update_activity_type(activity_type)
 	timesheet = frappe.new_doc("Timesheet")
 	timesheet.employee = employee
 	timesheet.company = company or "_Test Company"
+	timesheet.exchange_rate = exchange_rate
 	timesheet_detail = timesheet.append("time_logs", {})
 	timesheet_detail.is_billable = is_billable
 	timesheet_detail.activity_type = activity_type
@@ -224,6 +297,7 @@ def make_timesheet(
 	timesheet_detail.to_time = timesheet_detail.from_time + datetime.timedelta(hours=timesheet_detail.hours)
 	timesheet_detail.project = project
 	timesheet_detail.task = task
+	timesheet_detail.currency = currency
 
 	for data in timesheet.get("time_logs"):
 		if simulate:

@@ -5,7 +5,7 @@
 import copy
 
 import frappe
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, cint, flt, nowtime, today
 
 import erpnext
@@ -43,7 +43,7 @@ from erpnext.subcontracting.doctype.subcontracting_receipt.subcontracting_receip
 )
 
 
-class TestSubcontractingReceipt(FrappeTestCase):
+class TestSubcontractingReceipt(IntegrationTestCase):
 	def setUp(self):
 		make_subcontracted_items()
 		make_raw_materials()
@@ -375,7 +375,6 @@ class TestSubcontractingReceipt(FrappeTestCase):
 		self.assertTrue(get_gl_entries("Subcontracting Receipt", scr.name))
 		frappe.db.set_single_value("Stock Settings", "use_serial_batch_fields", 1)
 
-	@change_settings("Stock Settings", {"use_serial_batch_fields": 0})
 	def test_subcontracting_receipt_gl_entry_with_different_rm_expense_accounts(self):
 		service_items = [
 			{
@@ -498,7 +497,7 @@ class TestSubcontractingReceipt(FrappeTestCase):
 			self.assertEqual(expected_values[gle.account][0], gle.debit)
 			self.assertEqual(expected_values[gle.account][1], gle.credit)
 
-	@change_settings("Stock Settings", {"use_serial_batch_fields": 0})
+	@IntegrationTestCase.change_settings("Stock Settings", {"use_serial_batch_fields": 0})
 	def test_subcontracting_receipt_with_zero_service_cost(self):
 		warehouse = "Stores - TCP1"
 		service_items = [
@@ -601,7 +600,22 @@ class TestSubcontractingReceipt(FrappeTestCase):
 		scr.save()
 
 		# consumed_qty should be (accepted_qty * qty_consumed_per_unit) = (6 * 1) = 6
-		self.assertEqual(scr.supplied_items[0].consumed_qty, 6)
+		self.assertEqual(scr.supplied_items[0].consumed_qty, 10)
+
+		# Do not transfer materials to the supplier warehouse and check whether system allows to consumed directly from the supplier's warehouse
+		sco = get_subcontracting_order(service_items=service_items)
+
+		# Transfer RM's
+		rm_items = get_rm_items(sco.supplied_items)
+		itemwise_details = make_stock_in_entry(rm_items=rm_items, warehouse="_Test Warehouse 1 - _TC")
+
+		# Create Subcontracting Receipt
+		scr = make_subcontracting_receipt(sco.name)
+		scr.submit()
+		self.assertEqual(scr.docstatus, 1)
+
+		for item in scr.supplied_items:
+			self.assertFalse(item.available_qty_for_consumption)
 
 		# Do not transfer materials to the supplier warehouse and check whether system allows to consumed directly from the supplier's warehouse
 		sco = get_subcontracting_order(service_items=service_items)
@@ -1329,7 +1343,7 @@ class TestSubcontractingReceipt(FrappeTestCase):
 		sr.reload()
 		self.assertEqual(sr.items[0].rejected_qty, 2)  # Should remain the same
 
-	@change_settings("Buying Settings", {"auto_create_purchase_receipt": 1})
+	@IntegrationTestCase.change_settings("Buying Settings", {"auto_create_purchase_receipt": 1})
 	def test_auto_create_purchase_receipt(self):
 		from erpnext.buying.doctype.purchase_order.test_purchase_order import create_purchase_order
 
@@ -1393,7 +1407,7 @@ class TestSubcontractingReceipt(FrappeTestCase):
 
 		self.assertEqual(pr_details[0]["total_taxes_and_charges"], 60)
 
-	@change_settings("Buying Settings", {"auto_create_purchase_receipt": 1})
+	@IntegrationTestCase.change_settings("Buying Settings", {"auto_create_purchase_receipt": 1})
 	def test_auto_create_purchase_receipt_with_no_reference_of_po_item(self):
 		from erpnext.buying.doctype.purchase_order.test_purchase_order import create_purchase_order
 
@@ -1890,6 +1904,36 @@ class TestSubcontractingReceipt(FrappeTestCase):
 		scr.save()
 
 		self.assertRaises(BOMQuantityError, scr.submit)
+
+	@IntegrationTestCase.change_settings("Buying Settings", {"over_transfer_allowance": 20})
+	@IntegrationTestCase.change_settings("Stock Settings", {"over_delivery_receipt_allowance": 20})
+	def test_over_receipt(self):
+		from erpnext.controllers.subcontracting_controller import make_rm_stock_entry
+
+		set_backflush_based_on("BOM")
+
+		sco = get_subcontracting_order()
+		rm_items = get_rm_items(sco.supplied_items)
+		itemwise_details = make_stock_in_entry(rm_items=rm_items)
+		make_stock_transfer_entry(
+			sco_no=sco.name,
+			rm_items=rm_items,
+			itemwise_details=copy.deepcopy(itemwise_details),
+		)
+
+		rm_items[0]["qty"] = 2
+		itemwise_details = make_stock_in_entry(rm_items=rm_items)
+		ste_dict = make_rm_stock_entry(sco.name)
+		doc = frappe.get_doc(ste_dict)
+		self.assertEqual(doc.items[0].qty, 0)
+		doc.items[0].qty = 2
+		doc.submit()
+
+		frappe.flags["args"] = {"items": [{"name": sco.items[0].name, "qty": 2}]}
+		scr = make_subcontracting_receipt(sco.name)
+		self.assertEqual(scr.items[0].qty, 2)
+		scr.submit()
+		frappe.flags["args"].pop("items", None)
 
 
 def make_return_subcontracting_receipt(**args):

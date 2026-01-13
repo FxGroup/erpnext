@@ -66,6 +66,21 @@ class PickList(TransactionBase):
 		work_order: DF.Link | None
 	# end: auto-generated types
 
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.status_updater = [
+			{
+				"source_dt": "Pick List Item",
+				"target_dt": "Material Request Item",
+				"target_field": "picked_qty",
+				"target_parent_dt": "Material Request",
+				"target_parent_field": "",
+				"join_field": "material_request_item",
+				"target_ref_field": "stock_qty",
+				"source_field": "stock_qty",
+			}
+		]
+
 	def onload(self) -> None:
 		if frappe.get_cached_value("Stock Settings", None, "enable_stock_reservation"):
 			if self.has_unreserved_stock():
@@ -228,6 +243,64 @@ class PickList(TransactionBase):
 		self.update_bundle_picked_qty()
 		self.update_reference_qty()
 		self.update_sales_order_picking_status()
+		self.update_prevdoc_status()
+
+	def validate_expired_batches(self):
+		batches = []
+		for row in self.get("locations"):
+			if row.get("batch_no") and row.get("picked_qty"):
+				batches.append(row.batch_no)
+
+		if batches:
+			batch = frappe.qb.DocType("Batch")
+			query = (
+				frappe.qb.from_(batch)
+				.select(batch.name)
+				.where(
+					(batch.name.isin(batches))
+					& (batch.expiry_date <= frappe.utils.nowdate())
+					& (batch.expiry_date.isnotnull())
+				)
+			)
+
+			expired_batches = query.run(as_dict=True)
+			if expired_batches:
+				msg = "<ul>" + "".join(f"<li>{batch.name}</li>" for batch in expired_batches) + "</ul>"
+
+				frappe.throw(
+					_("The following batches are expired, please restock them: <br> {0}").format(msg),
+					title=_("Expired Batches"),
+				)
+
+	def make_bundle_using_old_serial_batch_fields(self):
+		from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+
+		for row in self.locations:
+			if not row.serial_no and not row.batch_no:
+				continue
+
+			if not row.use_serial_batch_fields and (row.serial_no or row.batch_no):
+				frappe.throw(_("Please enable Use Old Serial / Batch Fields to make_bundle"))
+
+			if row.use_serial_batch_fields and (not row.serial_and_batch_bundle):
+				sn_doc = SerialBatchCreation(
+					{
+						"item_code": row.item_code,
+						"warehouse": row.warehouse,
+						"voucher_type": self.doctype,
+						"voucher_no": self.name,
+						"voucher_detail_no": row.name,
+						"qty": row.stock_qty,
+						"type_of_transaction": "Outward",
+						"company": self.company,
+						"serial_nos": get_serial_nos(row.serial_no) if row.serial_no else None,
+						"batches": frappe._dict({row.batch_no: row.stock_qty}) if row.batch_no else None,
+						"batch_no": row.batch_no,
+					}
+				).make_serial_and_batch_bundle()
+
+				row.serial_and_batch_bundle = sn_doc.name
+				row.db_set("serial_and_batch_bundle", sn_doc.name)
 
 	def validate_expired_batches(self):
 		batches = []
@@ -305,6 +378,7 @@ class PickList(TransactionBase):
 		self.update_reference_qty()
 		self.update_sales_order_picking_status()
 		self.delink_serial_and_batch_bundle()
+		self.update_prevdoc_status()
 
 	def delink_serial_and_batch_bundle(self):
 		for row in self.locations:
@@ -349,10 +423,22 @@ class PickList(TransactionBase):
 					doc.submit()
 
 	def update_status(self, status=None, update_modified=True):
+		if not status:
+			status = self.get_status().get("status")
+
 		if status:
 			self.db_set("status", status, update_modified=update_modified)
 		else:
 			self.set_status(update=True)
+
+	def stock_entry_exists(self):
+		if self.docstatus != 1:
+			return False
+
+		if self.purpose == "Delivery":
+			return False
+
+		return stock_entry_exists(self.name)
 
 	def stock_entry_exists(self):
 		if self.docstatus != 1:
@@ -383,7 +469,7 @@ class PickList(TransactionBase):
 		picked_items = get_picked_items_qty(packed_items, contains_packed_items=True)
 		self.validate_picked_qty(picked_items)
 
-		doc_updates = {}
+		doc_updates = {item: {"picked_qty": 0} for item in set(packed_items)}
 		for d in picked_items:
 			doc_updates[d.product_bundle_item] = {"picked_qty": flt(d.picked_qty)}
 
@@ -394,7 +480,7 @@ class PickList(TransactionBase):
 		picked_items = get_picked_items_qty(so_items)
 		self.validate_picked_qty(picked_items)
 
-		doc_updates = {}
+		doc_updates = {item: {"picked_qty": 0} for item in set(so_items)}
 		for d in picked_items:
 			doc_updates[d.sales_order_item] = {"picked_qty": flt(d.picked_qty)}
 
@@ -451,7 +537,7 @@ class PickList(TransactionBase):
 
 	def validate_picked_qty(self, data):
 		over_delivery_receipt_allowance = 100 + flt(
-			frappe.db.get_single_value("Stock Settings", "over_delivery_receipt_allowance")
+			frappe.get_single_value("Stock Settings", "over_delivery_receipt_allowance")
 		)
 
 		for row in data:
@@ -562,6 +648,13 @@ class PickList(TransactionBase):
 		item_map = OrderedDict()
 		for item in locations:
 			if item.picked_qty:
+				continue
+
+			if not item.item_code:
+				frappe.throw(f"Row #{item.idx}: Item Code is Mandatory")
+			if not cint(
+				frappe.get_cached_value("Item", item.item_code, "is_stock_item")
+			) and not frappe.db.exists("Product Bundle", {"new_item_code": item.item_code, "disabled": 0}):
 				continue
 
 			if not item.item_code:
@@ -1138,7 +1231,7 @@ def get_available_item_locations_for_batched_item(
 			{
 				"item_code": item_code,
 				"warehouse": from_warehouses,
-				"based_on": frappe.db.get_single_value("Stock Settings", "pick_serial_and_batch_based_on"),
+				"based_on": frappe.get_single_value("Stock Settings", "pick_serial_and_batch_based_on"),
 			}
 		)
 	)
@@ -1206,29 +1299,48 @@ def create_delivery_note(source_name, target_doc=None):
 	validate_item_locations(pick_list)
 	sales_dict = dict()
 	sales_orders = []
-	delivery_note = None
+	delivery_notes = []
 	for location in pick_list.locations:
 		if location.sales_order:
 			sales_orders.append(
 				frappe.db.get_value(
-					"Sales Order", location.sales_order, ["customer", "name as sales_order"], as_dict=True
+					"Sales Order",
+					location.sales_order,
+					[
+						"customer",
+						"name as sales_order",
+						"company_address",
+						"dispatch_address_name",
+						"shipping_address_name",
+						"customer_address",
+					],
+					as_dict=True,
 				)
 			)
 
-	group_key = lambda so: so["customer"]  # noqa
-	for customer, rows in groupby(sorted(sales_orders, key=group_key), key=group_key):
-		sales_dict[customer] = {row.sales_order for row in rows}
+	group_key = lambda so: (  # noqa
+		so["customer"],
+		so["company_address"] or "",
+		so["dispatch_address_name"] or "",
+		so["shipping_address_name"] or "",
+		so["customer_address"] or "",
+	)
+	for key, rows in groupby(sorted(sales_orders, key=group_key), key=group_key):
+		sales_dict[key] = {row.sales_order for row in rows}
 
 	if sales_dict:
-		delivery_note = create_dn_with_so(sales_dict, pick_list)
+		delivery_notes.extend(create_dn_with_so(sales_dict, pick_list))
 
 	if not all(item.sales_order for item in pick_list.locations):
-		delivery_note = create_dn_wo_so(pick_list)
-		delivery_note.flags.ignore_mandatory = True
-		delivery_note.save()
+		delivery_notes.append(create_dn_wo_so(pick_list))
 
-	frappe.msgprint(_("Delivery Note(s) created for the Pick List"))
-	return delivery_note
+	if len(delivery_notes) == 1:
+		return delivery_notes[0]
+	else:
+		from frappe.utils import comma_and
+
+		doc_list = [get_link_to_form("Delivery Note", p.name) for p in delivery_notes]
+		frappe.msgprint(_("{0} created").format(comma_and(doc_list)))
 
 
 def create_dn_wo_so(pick_list, delivery_note=None):
@@ -1246,6 +1358,8 @@ def create_dn_wo_so(pick_list, delivery_note=None):
 		},
 	}
 	map_pl_locations(pick_list, item_table_mapper_without_so, delivery_note)
+	delivery_note.flags.ignore_mandatory = True
+	delivery_note.save()
 
 	return delivery_note
 
@@ -1289,7 +1403,28 @@ def create_dn_for_pick_lists(source_name, target_doc=None, kwargs=None):
 
 def create_dn_with_so(sales_dict, pick_list):
 	"""Create Delivery Note for each customer (based on SO) in a Pick List."""
-	delivery_note = None
+	delivery_notes = []
+
+	for key in sales_dict:
+		delivery_note = create_dn_from_so(pick_list, sales_dict[key], None)
+		if delivery_note:
+			delivery_note.flags.ignore_mandatory = True
+			# updates packed_items on save
+			# save as multiple customers are possible
+			delivery_note.save()
+			delivery_notes.append(delivery_note)
+
+	return delivery_notes
+
+
+def create_dn_from_so(pick_list, sales_order_list, delivery_note=None, kwargs=None):
+	if not sales_order_list:
+		return delivery_note
+
+	def select_item(d):
+		filtered_items = kwargs.get("filtered_children", [])
+		child_filter = d.name in filtered_items if filtered_items else True
+		return child_filter
 
 	for customer in sales_dict:
 		delivery_note = create_dn_from_so(pick_list, sales_dict[customer], None)

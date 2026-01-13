@@ -21,6 +21,7 @@ class SellingSettings(Document):
 		from frappe.types import DF
 
 		allow_against_multiple_purchase_orders: DF.Check
+		allow_delivery_of_overproduced_qty: DF.Check
 		allow_multiple_items: DF.Check
 		allow_negative_rates_for_items: DF.Check
 		allow_sales_order_creation_for_expired_quotation: DF.Check
@@ -29,10 +30,12 @@ class SellingSettings(Document):
 		blanket_order_allowance: DF.Float
 		cust_master_name: DF.Literal["Customer Name", "Naming Series", "Auto Name"]
 		customer_group: DF.Link | None
+		deliver_scrap_items: DF.Check
 		dn_required: DF.Literal["No", "Yes"]
 		dont_reserve_sales_order_qty_on_sales_return: DF.Check
 		editable_bundle_item_rates: DF.Check
 		editable_price_list_rate: DF.Check
+		enable_cutoff_date_on_bulk_delivery_note_creation: DF.Check
 		enable_discount_accounting: DF.Check
 		fallback_to_default_price_list: DF.Check
 		hide_tax_id: DF.Check
@@ -43,6 +46,7 @@ class SellingSettings(Document):
 		selling_price_list: DF.Link | None
 		so_required: DF.Literal["No", "Yes"]
 		territory: DF.Link | None
+		use_legacy_js_reactivity: DF.Check
 		validate_selling_price: DF.Check
 	# end: auto-generated types
 

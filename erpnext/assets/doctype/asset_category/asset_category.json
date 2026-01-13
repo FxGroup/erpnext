@@ -120,7 +120,8 @@
  ],
  "row_format": "Dynamic",
  "show_name_in_global_search": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
+ "states": [],
  "track_changes": 1
 }

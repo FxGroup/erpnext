@@ -24,7 +24,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 	def run(self, args):
 		self.account_type = args.get("account_type")
 		self.party_type = get_party_types_from_account_type(self.account_type)
-		self.party_naming_by = frappe.db.get_value(args.get("naming_by")[0], None, args.get("naming_by")[1])
+		self.party_naming_by = frappe.db.get_single_value(args.get("naming_by")[0], args.get("naming_by")[1])
 		self.get_columns()
 		self.get_data(args)
 		return self.columns, self.data
@@ -208,9 +208,9 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 
 def get_gl_balance(report_date, company, account_type):
 	if account_type == "Payable":
-		balance_calc_fields = ["party", "SUM(credit - debit) AS balance"]
+		balance_calc_fields = ["party", {"SUM": [{"SUB": ["credit", "debit"]}], "as": "balance"}]
 	else:
-		balance_calc_fields = ["party", "SUM(debit - credit) AS balance"]
+		balance_calc_fields = ["party", {"SUM": [{"SUB": ["debit", "credit"]}], "as": "balance"}]
 	return frappe._dict(
 		frappe.db.get_all(
 			"GL Entry",
