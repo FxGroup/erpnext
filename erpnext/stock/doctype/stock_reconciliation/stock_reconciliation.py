@@ -1267,8 +1267,9 @@ def get_batch_qty_for_stock_reco(
 
 
 @frappe.whitelist()
-def get_items(warehouse, posting_date, posting_time, company, item_code=None, ignore_empty_stock=False):
+def get_items(warehouse, posting_date, posting_time, company, item_code=None, ignore_empty_stock=False, ignore_disabled_items=False):
 	ignore_empty_stock = cint(ignore_empty_stock)
+	ignore_disabled_items = cint(ignore_disabled_items)
 	items = []
 	if item_code and warehouse:
 		items = get_item_and_warehouses(item_code, warehouse)
@@ -1280,6 +1281,11 @@ def get_items(warehouse, posting_date, posting_time, company, item_code=None, ig
 	itemwise_batch_data = get_itemwise_batch(warehouse, posting_date, company, item_code)
 
 	for d in items:
+		if ignore_disabled_items:
+			is_disabled = frappe.db.get_value("Item", d.item_code, "disabled")
+			if is_disabled:
+				continue
+
 		if (d.item_code, d.warehouse) in itemwise_batch_data:
 			valuation_rate = get_stock_balance(
 				d.item_code, d.warehouse, posting_date, posting_time, with_valuation_rate=True
