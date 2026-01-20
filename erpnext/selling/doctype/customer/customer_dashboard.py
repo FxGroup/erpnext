@@ -78,5 +78,12 @@ def get_data():
 			'label': 'RN Education',
 			'items': ['Enrolment']
 		})
-		
+	
+	if company == "NaturalMeds":
+		dashboardData["transactions"].append({
+			'label': 'Integration Documents',
+			'items': ['Email Subscription']
+		})
+		dashboardData['non_standard_fieldnames']['Email Subscription'] = "party"
+
 	return dashboardData
