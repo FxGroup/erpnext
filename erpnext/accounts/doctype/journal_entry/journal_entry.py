@@ -6,6 +6,7 @@ import json
 
 import frappe
 from frappe import _, msgprint, scrub
+from frappe.core.doctype.submission_queue.submission_queue import queue_submission
 from frappe.utils import comma_and, cstr, flt, fmt_money, formatdate, get_link_to_form, nowdate
 
 import erpnext
@@ -171,16 +172,14 @@ class JournalEntry(AccountsController):
 		validate_docs_for_deferred_accounting([self.name], [])
 
 	def submit(self):
-		if len(self.accounts) > 100 and frappe.conf.production_site:
-			msgprint(_("The task has been enqueued as a background job."), alert=True)
-			self.queue_action("submit", timeout=4600)
+		if len(self.accounts) > 100:
+			queue_submission(self, "_submit")
 		else:
 			return self._submit()
 
 	def cancel(self):
-		if len(self.accounts) > 100 and frappe.conf.production_site:
-			msgprint(_("The task has been enqueued as a background job."), alert=True)
-			self.queue_action("cancel", timeout=4600)
+		if len(self.accounts) > 100:
+			queue_submission(self, "_cancel")
 		else:
 			return self._cancel()
 
