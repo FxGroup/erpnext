@@ -144,6 +144,12 @@ frappe.ui.form.on("Stock Reconciliation", {
 				fieldname: "ignore_empty_stock",
 				fieldtype: "Check",
 			},
+			{
+				label: __("Ignore Disabled Items"),
+				fieldname: "ignore_disabled_items",
+				fieldtype: "Check",
+				default: 1
+			},
 		];
 
 		frappe.prompt(
@@ -158,6 +164,7 @@ frappe.ui.form.on("Stock Reconciliation", {
 						company: frm.doc.company,
 						item_code: data.item_code,
 						ignore_empty_stock: data.ignore_empty_stock,
+						ignore_disabled_items: data.ignore_disabled_items
 					},
 					callback: function (r) {
 						if (r.exc || !r.message || !r.message.length) return;
