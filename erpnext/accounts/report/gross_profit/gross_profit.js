@@ -97,6 +97,12 @@ frappe.query_reports["Gross Profit"] = {
 			fieldtype: "Check",
 			default: 1,
 		},
+		{
+			fieldname: "only_update_stock_invoices",
+			label: __("Only Include Invoices with Update Stock"),
+			fieldtype: "Check",
+			default: 0,
+		},
 	],
 	tree: true,
 	name_field: "parent",

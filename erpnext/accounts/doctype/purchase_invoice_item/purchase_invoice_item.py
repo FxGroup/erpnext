@@ -91,7 +91,7 @@ class PurchaseInvoiceItem(Document):
 		stock_uom: DF.Link | None
 		stock_uom_rate: DF.Currency
 		total_weight: DF.Float
-		uom: DF.Link
+		uom: DF.Link | None
 		use_serial_batch_fields: DF.Check
 		valuation_rate: DF.Currency
 		warehouse: DF.Link | None
