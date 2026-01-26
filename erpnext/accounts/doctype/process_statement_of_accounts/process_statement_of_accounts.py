@@ -223,6 +223,7 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 	filters = get_common_filters(doc)
 
+
 	if doc.ignore_exchange_rate_revaluation_journals:
 		filters.update({"ignore_err": True})
 
@@ -455,7 +456,7 @@ def get_html(doc, filters, entry, col, res, ageing):
 		from frappe.www.printview import get_letter_head
 
 		letter_head = get_letter_head(doc, 0)
-
+		
 	html = frappe.render_template(
 		template_path,
 		{
