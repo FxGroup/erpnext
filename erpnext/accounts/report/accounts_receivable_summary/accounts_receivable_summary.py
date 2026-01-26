@@ -52,7 +52,12 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		)
 
 		if self.filters.show_gl_balance:
-			gl_balance_map = get_gl_balance(self.filters.report_date, self.filters.company, self.account_type)
+			gl_balance_map = get_gl_balance(
+				self.filters.report_date, 
+				self.filters.company, 
+				self.account_type,
+				self.filters.get("finance_book")
+			)
 
 		for party, party_dict in self.party_total.items():
 			if flt(party_dict.outstanding, self.currency_precision) == 0:
@@ -80,8 +85,9 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			row.paid -= row.advance
 
 			if self.filters.show_gl_balance:
-				row.gl_balance = gl_balance_map.get(party).get('balance')
-				row.gl_balance_in_account_currency = gl_balance_map.get(party).get('balance_in_account_currency')
+				party_gl_balance = gl_balance_map.get(party) or {}
+				row.gl_balance = party_gl_balance.get('balance', 0)
+				row.gl_balance_in_account_currency = party_gl_balance.get('balance_in_account_currency', 0)
 				row.diff = flt(row.outstanding) - flt(row.gl_balance)
 				row.diff_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.gl_balance_in_account_currency)
 
@@ -236,7 +242,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			label=_("Currency"), fieldname="currency", fieldtype="Link", options="Currency", width=80
 		)
 
-def get_gl_balance(report_date, company, party_type=None):
+def get_gl_balance(report_date, company, party_type=None, finance_book=None):
 	"""
 	Get GL balance for parties, matching the logic used in General Ledger report.
 	Includes opening entries and handles finance book filtering.
