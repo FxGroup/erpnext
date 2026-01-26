@@ -86,33 +86,11 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			row.paid -= row.advance
 
 			if self.filters.show_gl_balance:
-				row.gl_balance = gl_balance_map.get(party).get('balance')
-				row.gl_balance_in_account_currency = gl_balance_map.get(party).get('balance_in_account_currency')
+				row.gl_balance = gl_balance_map.get(party)
 				row.diff = flt(row.outstanding) - flt(row.gl_balance)
-				row.diff_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.gl_balance_in_account_currency)
 
 			if self.filters.show_future_payments:
 				row.remaining_balance = flt(row.outstanding) - flt(row.future_amount)
-				row.remaining_balance_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.future_amount_in_account_currency)
-
-			# Perform currency conversion if the filter is enabled
-			if self.filters.get("convert_currency") and row.currency != self.company_currency:
-				# Change the fields to the _in_account_currency versions
-				amount_fields = [
-					"invoiced",
-					"paid",
-					"credit_note",
-					"outstanding",
-					"total_due",
-					"not_yet_due",
-					"future_amount",
-					"gl_balance",
-					"diff"
-				]
-				for i in self.range_numbers:
-					amount_fields.append(f"range{i}")
-				for field in amount_fields:
-					row[field] = row.get(f"{field}_in_account_currency", 0.0)
 
 			self.data.append(row)
 
@@ -134,25 +112,16 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		default_dict = {
 			"invoiced": 0.0,
 			"paid": 0.0,
-			"paid_in_account_currency": 0.0,
 			"credit_note": 0.0,
-			"credit_note_in_account_currency": 0.0,
 			"outstanding": 0.0,
-			"outstanding_in_account_currency": 0.0,
 			"total_due": 0.0,
-			"total_due_in_account_currency": 0.0,
-			"not_yet_due": 0.0,
-			"not_yet_due_in_account_currency": 0.0,
 			"future_amount": 0.0,
-			"future_amount_in_account_currency": 0.0,
 			"sales_person": [],
-			"party_type": row.party_type
+			"party_type": row.party_type,
 		}
 		for i in self.range_numbers:
 			range_key = f"range{i}"
-			range_key_in_account_currency = f"range{i}_in_account_currency"
 			default_dict[range_key] = 0.0
-			default_dict[range_key_in_account_currency] = 0.0
 
 		self.party_total.setdefault(
 			row.party,
@@ -162,7 +131,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 	def set_party_details(self, row):
 		self.party_total[row.party].currency = row.currency
 
-		for key in ("territory", "customer_group", "supplier_group", "customer_status"):
+		for key in ("territory", "customer_group", "supplier_group"):
 			if row.get(key):
 				self.party_total[row.party][key] = row.get(key, "")
 		if row.sales_person:
