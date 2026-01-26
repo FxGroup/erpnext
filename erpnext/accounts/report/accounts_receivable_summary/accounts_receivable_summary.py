@@ -52,7 +52,13 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		)
 
 		if self.filters.show_gl_balance:
-			gl_balance_map = get_gl_balance(self.filters.report_date, self.filters.company, self.account_type)
+			gl_balance_map = get_gl_balance(
+				self.filters.report_date, 
+				self.filters.company, 
+				self.account_type,
+				self.filters.get("finance_book")
+			)
+		
 
 		for party, party_dict in self.party_total.items():
 			if flt(party_dict.outstanding, self.currency_precision) == 0:
