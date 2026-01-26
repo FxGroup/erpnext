@@ -739,24 +739,14 @@ def get_product_discount_rule(pricing_rule, item_details, args=None, doc=None):
 		)
 
 	qty = pricing_rule.free_qty or 1
-
-	# Get the purchased quantity to calculate multiple free items
-	purchased_qty = args.get("qty") if args else doc.total_qty
-
 	if pricing_rule.is_recursive:
-		transaction_qty = purchased_qty - pricing_rule.apply_recursion_over
+		transaction_qty = (args.get("qty") if args else doc.total_qty) - pricing_rule.apply_recursion_over
 		if transaction_qty:
 			if flt(pricing_rule.recurse_for) <= 0:
 				pricing_rule.recurse_for = 1
 			qty = flt(transaction_qty) * qty / pricing_rule.recurse_for
 			if pricing_rule.round_free_qty:
 				qty = (flt(transaction_qty) // pricing_rule.recurse_for) * (pricing_rule.free_qty or 1)
-	else:
-		# For non-recursive rules (e.g., "buy 11 get 1 free"), calculate based on min_qty
-		# If 22 items purchased with min_qty=11, should get 2 free items (22 // 11 = 2)
-		if pricing_rule.min_qty and flt(pricing_rule.min_qty) > 0:
-			sets_purchased = flt(purchased_qty) // flt(pricing_rule.min_qty)
-			qty = sets_purchased * (pricing_rule.free_qty or 1)
 
 	if not qty:
 		return
@@ -841,23 +831,9 @@ def apply_pricing_rule_for_free_items(doc, pricing_rule_args):
 			if doc.is_new() or not frappe.get_value(
 				"Pricing Rule", free_item["pricing_rules"], "dont_enforce_free_item_qty"
 			):
-				# Check if this exact free item with this pricing rule already exists
-				free_item_key = (free_item.get("item_code"), free_item.get("pricing_rules"))
-				if free_item_key not in items and free_item.qty != 0:
+				if not items or (args.get("item_code"), args.get("pricing_rules")) not in items and free_item.qty != 0:
 					free_item.use_serial_batch_fields = 1
 					doc.append("items", free_item)
-				elif free_item_key in items:
-					# Update existing free item quantity instead of adding duplicate
-					for existing_item in doc.items:
-						if existing_item.is_free_item and existing_item.item_code == free_item.get("item_code"):
-							try:
-								existing_pricing_rules = json.dumps(json.loads(existing_item.pricing_rules))
-							except ValueError:
-								existing_pricing_rules = f'["{existing_item.pricing_rules}"]'
-
-							if existing_pricing_rules == free_item.get("pricing_rules"):
-								existing_item.qty = free_item.get("qty")
-								break
 
 
 def get_pricing_rule_items(pr_doc, other_items=False) -> list:
