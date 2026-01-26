@@ -58,6 +58,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 				self.account_type,
 				self.filters.get("finance_book")
 			)
+		
 
 		for party, party_dict in self.party_total.items():
 			if flt(party_dict.outstanding, self.currency_precision) == 0:
