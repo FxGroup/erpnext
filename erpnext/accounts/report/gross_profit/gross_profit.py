@@ -954,6 +954,9 @@ class GrossProfitGenerator:
 							and   st.sales_person = %(sales_person)s)
 			"""
 
+		if self.filters.get("only_update_stock_invoices"):
+			conditions += " and `tabSales Invoice`.update_stock = 1"
+
 		if self.filters.group_by == "Sales Person":
 			sales_person_cols = """, sales.sales_person,
 				sales.allocated_percentage * `tabSales Invoice Item`.base_net_amount / 100 as allocated_amount,

@@ -86,9 +86,8 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			row.paid -= row.advance
 
 			if self.filters.show_gl_balance:
-				party_gl_balance = gl_balance_map.get(party) or {}
-				row.gl_balance = party_gl_balance.get('balance', 0)
-				row.gl_balance_in_account_currency = party_gl_balance.get('balance_in_account_currency', 0)
+				row.gl_balance = gl_balance_map.get(party).get('balance')
+				row.gl_balance_in_account_currency = gl_balance_map.get(party).get('balance_in_account_currency')
 				row.diff = flt(row.outstanding) - flt(row.gl_balance)
 				row.diff_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.gl_balance_in_account_currency)
 
@@ -244,7 +243,6 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		)
 
 def get_gl_balance(report_date, company, party_type=None, finance_book=None):
-    
 	"""
 	Get GL balance for parties, matching the logic used in General Ledger report.
 	Includes opening entries and handles finance book filtering.

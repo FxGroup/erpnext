@@ -157,14 +157,9 @@
 
 			{% if not (row.account == "Total") %}
 				<tr>
-				{% if(row.transaction_date or row.posting_date) %}
+				{% if(row.transaction_date) %}
 					<td>
-						{% if(row.transaction_date) %}
-							{{ frappe.format(row.transaction_date, 'Date') }}
-						{% else %}
-							{{ frappe.format(row.posting_date, 'Date') }}
-						{% endif %}
-						
+						{{ frappe.format(row.transaction_date, 'Date') }}
 					</td>
 					<td>
 						{% if row.outstanding_amount and row.outstanding_amount != "" and row.outstanding_amount != 0 and row.due_date %}
@@ -327,11 +322,7 @@
 		{% for row in outstandingDocs|sort(attribute='due_date') %}
 			<tr>
 				<td>
-					{% if(row.transaction_date) %}
-						{{ frappe.format(row.transaction_date, 'Date') }}
-					{% else %}
-						{{ frappe.format(row.posting_date, 'Date') }}
-					{% endif %}
+					{{ frappe.format(row.transaction_date, 'Date') }}
 				</td>
 				<td>
 					{% if row.outstanding and row.outstanding != "" and row.outstanding != 0 and row.due_date %}
