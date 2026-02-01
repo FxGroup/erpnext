@@ -58,8 +58,9 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 						this.dialog.fields_dict.party_type.set_value("Customer")
 					}
 					this.copy_data_to_voucher();
+					this.datatable = null;
 					this.dialog.show();
-					// this.dialog.refresh();
+					setTimeout(() => this.update_options(), 0);
 				}
 			},
 		});
@@ -133,14 +134,6 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				name: __("Remaining"),
 				editable: false,
 				width: 100,
-				// format: (value) => {
-				// 	if (value){
-				// 		return "<div style='text-align:left;'>" + "$ " + value.toFixed(2) + "</div>";
-				// 	}	else {
-				// 		return "<div style='text-align:left;'>" + "$ " + value + "</div>";
-				// 	}
-					
-				// }
 			},
 			{
 				name: __("Reference Number"),
@@ -212,22 +205,6 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				label: __("Filters"),
 				depends_on: "eval:doc.action=='Match Against Voucher'",
 			},
-			// {
-			// 	fieldname: "column_break_5",
-			// 	fieldtype: "Column Break",
-			// },
-			// {
-			// 	fieldtype: "Check",
-			// 	label: "Sales Invoice",
-			// 	fieldname: "sales_invoice",
-			// 	onchange: () => this.update_options(),
-			// },
-			// {
-			// 	fieldtype: "Check",
-			// 	label: "Purchase Invoice",
-			// 	fieldname: "purchase_invoice",
-			// 	onchange: () => this.update_options(),
-			// },
 		];
 
 		frappe.call({
@@ -261,16 +238,6 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 
 	get_voucher_fields() {
 		return [
-			// {
-			// 	fieldtype: "Check",
-			// 	label: "Loan Disbursement",
-			// 	fieldname: "loan_disbursement",
-			// 	onchange: () => this.update_options(),
-			// },
-			// {
-			// 	fieldname: "column_break_5",
-			// 	fieldtype: "Column Break",
-			// },
 			{
 				fieldtype: "Check",
 				label: "Bank Transaction",
@@ -383,7 +350,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					};
 				},
 				onchange: function (values) {
-					if(cur_dialog.fields_dict.second_account.value){
+					if(cur_dialog && cur_dialog.fields_dict.second_account.value){
 						frappe.call({
 							method:"frappe.client.get_value",
 							args: {
@@ -468,7 +435,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				mandatory_depends_on:
 					"eval:doc.action=='Create Voucher' && doc.document_type=='Payment Entry'",
 				onchange: function (values) {
-					if (cur_dialog.fields_dict.action.value == "Create Voucher" && cur_dialog.fields_dict.document_type.value == "Payment Entry" && values.party_type == "Customer" && values.party) {
+					if (cur_dialog && cur_dialog.fields_dict.action.value == "Create Voucher" && cur_dialog.fields_dict.document_type.value == "Payment Entry" && values.party_type == "Customer" && values.party) {
 						frappe.call({
 								method: 'frappe.client.get_value',
 								args: {
