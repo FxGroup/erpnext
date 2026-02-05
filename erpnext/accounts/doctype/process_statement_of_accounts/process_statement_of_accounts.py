@@ -16,6 +16,7 @@ from frappe.utils import add_days, nowdate, add_months, format_date, getdate, to
 from erpnext.accounts.report.general_ledger.general_ledger import execute as get_soa
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import execute as get_ar_soa
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (execute as get_ageing)
+from erpnext.accounts.report.accounts_receivable.accounts_receivable import (execute as get_outstanding)
 
 
 logger = frappe.logger("Process Statement of Account", allow_site=False, file_count=1, max_size=500000000)
@@ -223,7 +224,6 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 	filters = get_common_filters(doc)
 
-
 	if doc.ignore_exchange_rate_revaluation_journals:
 		filters.update({"ignore_err": True})
 
@@ -241,6 +241,17 @@ def get_statement_dict(doc, get_statement_dict=False):
 		ageing = set_ageing(doc,party_list)
 
 	logger.info("[Get Statement Dict] AR Ageing calculation completed")
+
+	outstandingDocs = set_outstanding(doc, party_list)
+	outstanding = []
+	
+	for voucher in outstandingDocs:
+		if not 'due_date' in voucher:
+			voucher['due_date'] = voucher['posting_date']
+		
+		if voucher['posting_date'] < doc.from_date:
+			outstanding.append(voucher)
+
 	logger.info("[Get Statement Dict] Starting GL Data fetch")
 
 	if doc.report == "General Ledger":
@@ -334,7 +345,7 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 		else:
 			return []
-			filters.update(get_ar_filters(doc, entry))
+			filters.update(get_ar_filters(doc, party_list))
 			ar_res = get_ar_soa(filters)
 			col, customer_res = ar_res[0], ar_res[1]
 			if not customer_res:
@@ -347,30 +358,24 @@ def get_statement_dict(doc, get_statement_dict=False):
 				break
 
 		statement_dict[entry.customer] = (
-			[customer_res, customer_ageing] if get_statement_dict else get_html(doc, filters, entry, col, customer_res, customer_ageing)
+			[customer_res, customer_ageing] if get_statement_dict else get_html(doc, filters, entry, col, customer_res, customer_ageing, outstanding)
 		)
 
 	logger.info("[Get Statement Dict] Completed statement dictionary generation. Total statements: {}".format(len(statement_dict)))
 	return statement_dict
 
 
+def set_outstanding(doc, party_list):
+	logger.info("[Set Outstanding] Starting outstanding calculation for {} parties".format(len(party_list)))
+	ar_filters = get_ar_filters(doc, party_list)
+	cols, outstanding, _, chart, _, skip_total_row = get_outstanding(ar_filters)
+	logger.info("[Set Outstanding] Outstanding calculation completed. Records: {}".format(len(outstanding) if outstanding else 0))
+	return outstanding
+
+
 def set_ageing(doc, party_list):
 	logger.info("[Set Ageing] Starting ageing calculation for {} parties".format(len(party_list)))
-	ageing_filters = frappe._dict(
-		{
-			"company": doc.company,
-			"report_date": doc.to_date,
-			"ageing_based_on": doc.ageing_based_on,
-			"calculate_ageing_with": "Report Date",
-			"range": "30, 60, 90, 120",
-			"party_type": "Customer",
-			"party": party_list,
-			"show_gl_balance": 1,
-			"show_future_payments": 1,
-			"convert_currency": 1
-		}
-	)
-
+	ageing_filters = get_ar_filters(doc, party_list)
 	col1, ageing = get_ageing(ageing_filters)
 
 	if ageing:
@@ -392,7 +397,6 @@ def get_common_filters(doc):
 		}
 	)
 
-
 def get_gl_filters(doc):
 	return {
 		"from_date": doc.from_date,
@@ -413,29 +417,24 @@ def get_gl_filters(doc):
 	}
 
 
-def get_ar_filters(doc, entry):
-	return {
-		"report_date": doc.posting_date if doc.posting_date else None,
-		"party_type": "Customer",
-		"party": [entry.customer],
-		"in_party_currency": True,
-		"customer_name": entry.customer_name if entry.customer_name else None,
-		"payment_terms_template": doc.payment_terms_template if doc.payment_terms_template else None,
-		"sales_partner": doc.sales_partner if doc.sales_partner else None,
-		"sales_person": doc.sales_person if doc.sales_person else None,
-		"territory": doc.territory if doc.territory else None,
-		"based_on_payment_terms": doc.based_on_payment_terms,
-		"show_future_payments": doc.show_future_payments,
-		"report_name": "Accounts Receivable",
-		"ageing_based_on": doc.ageing_based_on,
-		"range1": 30,
-		"range2": 60,
-		"range3": 90,
-		"range4": 120,
-	}
+def get_ar_filters(doc, party_list):
+	return frappe._dict(
+		{
+			"company": doc.company,
+			"report_date": doc.to_date,
+			"ageing_based_on": doc.ageing_based_on,
+			"calculate_ageing_with": "Report Date",
+			"range": "30, 60, 90, 120",
+			"party_type": "Customer",
+			"party": party_list,
+			"show_gl_balance": 1,
+			"show_future_payments": 1,
+			"in_party_currency": 1
+		}
+	)
 
 
-def get_html(doc, filters, entry, col, res, ageing):
+def get_html(doc, filters, entry, col, res, ageing, outstanding):
 	logger.info("[Get HTML][{}] Rendering HTML template for this customer".format(entry.customer))
 	base_template_path = "frappe/www/printview.html"
 	template_path = "erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts_accounts_receivable.html"
@@ -456,7 +455,7 @@ def get_html(doc, filters, entry, col, res, ageing):
 		from frappe.www.printview import get_letter_head
 
 		letter_head = get_letter_head(doc, 0)
-		
+
 	html = frappe.render_template(
 		template_path,
 		{
@@ -472,11 +471,6 @@ def get_html(doc, filters, entry, col, res, ageing):
 			if doc.terms_and_conditions
 			else None,
 		},
-	)
-
-	html = frappe.render_template(
-		base_template_path,
-		{"body": html, "css": get_print_style(), "title": "Statement For " + entry.customer},
 	)
 
 	logger.info("[Get HTML][{}] HTML template rendered successfully for this customer.".format(entry.customer))

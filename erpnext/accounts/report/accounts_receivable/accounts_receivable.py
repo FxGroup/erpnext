@@ -644,7 +644,7 @@ class ReceivablePayableReport:
 		party_details = self.get_party_details(row.party) or {}
 		row.update(party_details)
 
-		if self.filters.get("in_party_currency") or self.filters.get("party_account") or self.filters.get('convert_currency'):
+		if self.filters.get("in_party_currency") or self.filters.get("party_account"):
 			row.currency = row.account_currency
 		else:
 			row.currency = self.company_currency

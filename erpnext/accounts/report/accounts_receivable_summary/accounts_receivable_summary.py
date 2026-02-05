@@ -10,6 +10,7 @@ from erpnext.accounts.party import get_partywise_advanced_payment_amount
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
 from erpnext.accounts.utils import get_currency_precision, get_party_types_from_account_type
 
+
 def execute(filters=None):
 	args = {
 		"account_type": "Receivable",
@@ -17,6 +18,7 @@ def execute(filters=None):
 	}
 
 	return AccountsReceivableSummary(filters).run(args)
+
 
 class AccountsReceivableSummary(ReceivablePayableReport):
 	def run(self, args):
@@ -32,7 +34,6 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		self.data = []
 		self.receivables = ReceivablePayableReport(self.filters).run(args)[1]
 		self.currency_precision = get_currency_precision() or 2
-
 		self.get_party_total(args)
 
 		party = None
@@ -51,15 +52,15 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			or {}
 		)
 
-
 		if self.filters.show_gl_balance:
 			gl_balance_map = get_gl_balance(
-				self.filters.report_date, 
-				self.filters.company, 
-				self.account_type,
-				self.filters.get("finance_book")
+				report_date=self.filters.report_date, 
+				company=self.filters.company, 
+				account_type=self.account_type,
+				party_type=self.filters.party_type if self.filters.get("party_type") else None,
+				party=self.filters.party if self.filters.get("party") else None
 			)
-		
+
 		for party, party_dict in self.party_total.items():
 			if flt(party_dict.outstanding, self.currency_precision) == 0:
 				continue
@@ -86,11 +87,36 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			row.paid -= row.advance
 
 			if self.filters.show_gl_balance:
-				row.gl_balance = gl_balance_map.get(party)
+				party_gl_balance = gl_balance_map.get(party) or {}
+				row.gl_balance = party_gl_balance.get('balance', 0)
+				row.gl_balance_in_account_currency = party_gl_balance.get('balance_in_account_currency', 0)
 				row.diff = flt(row.outstanding) - flt(row.gl_balance)
+				row.diff_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.gl_balance_in_account_currency)
 
 			if self.filters.show_future_payments:
 				row.remaining_balance = flt(row.outstanding) - flt(row.future_amount)
+				row.remaining_balance_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.future_amount_in_account_currency)
+
+			# Perform currency conversion if the filter is enabled
+			if self.filters.get("in_party_currency") and row.currency != self.company_currency:
+				# Change the fields to the _in_account_currency versions
+				amount_fields = [
+					"invoiced",
+					"paid",
+					"credit_note",
+					"outstanding",
+					"total_due",
+					"not_yet_due",
+					"future_amount",
+					"gl_balance",
+					"diff"
+				]
+    
+				for i in self.range_numbers:
+					amount_fields.append(f"range{i}")
+     
+				for field in amount_fields:
+					row[field] = row.get(f"{field}_in_account_currency", 0.0)
 
 			self.data.append(row)
 
@@ -112,16 +138,26 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		default_dict = {
 			"invoiced": 0.0,
 			"paid": 0.0,
+			"paid_in_account_currency": 0.0,
 			"credit_note": 0.0,
+			"credit_note_in_account_currency": 0.0,
 			"outstanding": 0.0,
+			"outstanding_in_account_currency": 0.0,
 			"total_due": 0.0,
+			"total_due_in_account_currency": 0.0,
+			"not_yet_due": 0.0,
+			"not_yet_due_in_account_currency": 0.0,
 			"future_amount": 0.0,
+			"future_amount_in_account_currency": 0.0,
 			"sales_person": [],
-			"party_type": row.party_type,
+			"party_type": row.party_type
 		}
+  
 		for i in self.range_numbers:
 			range_key = f"range{i}"
+			range_key_in_account_currency = f"range{i}_in_account_currency"
 			default_dict[range_key] = 0.0
+			default_dict[range_key_in_account_currency] = 0.0
 
 		self.party_total.setdefault(
 			row.party,
@@ -131,7 +167,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 	def set_party_details(self, row):
 		self.party_total[row.party].currency = row.currency
 
-		for key in ("territory", "customer_group", "supplier_group"):
+		for key in ("territory", "customer_group", "supplier_group", "customer_status"):
 			if row.get(key):
 				self.party_total[row.party][key] = row.get(key, "")
 		if row.sales_person:
@@ -211,7 +247,8 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			label=_("Currency"), fieldname="currency", fieldtype="Link", options="Currency", width=80
 		)
 
-def get_gl_balance(report_date, company, party_type=None, finance_book=None):
+
+def get_gl_balance(report_date, company, account_type=None, party_type=None, party=None, finance_book=None):
 	"""
 	Get GL balance for parties, matching the logic used in General Ledger report.
 	Includes opening entries and handles finance book filtering.
@@ -219,41 +256,46 @@ def get_gl_balance(report_date, company, party_type=None, finance_book=None):
 	filters = {
 		"company": company,
 		"is_cancelled": 0,
-		"report_date": report_date
+		"report_date": report_date,
+		"party_type": party_type,
+		"party": party,
 	}
 
 	# Include entries up to report_date OR opening entries
-	date_conditions = "(posting_date <= %(report_date)s OR is_opening = 'Yes')"
+	date_conditions = "AND (posting_date <= %(report_date)s OR is_opening = 'Yes')"
 
-	# Add party type filter if specified
+	if account_type == "Payable":
+		balance_calc_fields = ["party", "SUM(credit - debit) AS balance", "SUM(credit_in_account_currency - debit_in_account_currency) as balance_in_account_currency"]
+	else:
+		balance_calc_fields = ["party", "SUM(debit - credit) AS balance", "SUM(debit_in_account_currency - credit_in_account_currency) as balance_in_account_currency"]
+
 	party_type_condition = ""
 	if party_type:
-		filters["party_type"] = party_type
-		party_type_condition = "AND party_type = %(party_type)s"
+		party_type_condition = " AND party_type = %(party_type)s"
+
+	party_condition = ""
+	if party:
+		party_condition = " AND party IN %(party)s"
 
 	# Handle finance book (similar to General Ledger logic)
 	finance_book_condition = ""
- 
 	if finance_book:
 		finance_book_condition = "AND (finance_book in (%(finance_book)s, '') OR finance_book IS NULL)"
-		
 		filters["finance_book"] = finance_book
-	else:
-		finance_book_condition = "AND (finance_book in ('') OR finance_book IS NULL)"
 
 	result = frappe.db.sql(f"""
 		SELECT
-			party,
-			SUM(debit - credit) as balance,
-			SUM(debit_in_account_currency - credit_in_account_currency) as balance_in_account_currency
+			{", ".join(balance_calc_fields)}
 		FROM `tabGL Entry`
 		WHERE company = %(company)s
 			AND is_cancelled = %(is_cancelled)s
-			AND ({date_conditions})
+			{date_conditions}
 			{party_type_condition}
+			{party_condition}
 			{finance_book_condition}
 			AND party IS NOT NULL
 		GROUP BY party
 	""", filters, as_dict=1)
 
 	return frappe._dict({d.party: {"balance": d.balance, "balance_in_account_currency": d.balance_in_account_currency} for d in result})
+	
