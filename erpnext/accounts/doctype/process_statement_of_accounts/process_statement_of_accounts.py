@@ -465,6 +465,7 @@ def get_html(doc, filters, entry, col, res, ageing, outstanding):
 			"ageing": ageing[0] if (doc.include_ageing and ageing) else None,
 			"letter_head": letter_head if doc.letter_head else None,
 			"entry": entry,
+			"outstanding": outstanding,
 			"terms_and_conditions": frappe.db.get_value(
 				"Terms and Conditions", doc.terms_and_conditions, "terms"
 			)
