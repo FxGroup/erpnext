@@ -304,9 +304,35 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 			# Consolidate duplicate vouchers (payments/invoices split across multiple rows) per customer
 			customer_res = consolidate_vouchers(filtered_res)
-
+			
 			if not customer_res:
-				continue
+				# No transactions during period - check if customer has outstanding balance
+				customer_outstanding = 0
+
+				# Try to get outstanding from ageing data first
+				if ageing:
+					for ag in ageing:
+						if ag.get("party") == entry.customer:
+							customer_outstanding = ag.get("outstanding", 0) or 0
+							break
+
+				# Fallback: calculate from outstanding documents if ageing not available
+				if abs(customer_outstanding) < 0.01 and outstandingDocs:
+					for voucher in outstandingDocs:
+						if voucher.get("party") == entry.customer:
+							customer_outstanding += voucher.get("outstanding", 0) or 0
+
+				# Always produce if outstanding balance, otherwise check flag
+				if abs(customer_outstanding) < 0.01:
+					if not doc.produce_0_statements:
+						continue
+
+				# Create synthetic Opening and Closing rows with the outstanding balance
+				customer_res = [
+					{"account": "Opening", "debit": 0, "credit": 0, "balance": customer_outstanding},
+					{"account": "No transactions during the period", "balance": customer_outstanding},
+					{"account": "Closing", "debit": 0, "credit": 0, "balance": customer_outstanding}
+				]
 
 			for row in customer_res:
 				if row.get("account"):
@@ -318,26 +344,27 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 			new_res = []
 			for item in customer_res:
-				if item.get("debit") == item.get("credit") and item.get("account") not in ["Closing", "Opening"]:
+				if item.get("debit") == item.get("credit") and item.get("account") not in ["Closing", "No transactions during the period", "Opening"]:
 					continue
 				else:
 					new_res.append(item)
 
 			customer_res = new_res
 
-			if len(customer_res) == 2:
-				if customer_res[1]["debit"] == 0 or (customer_res[1]["balance"] > -0.01 and customer_res[1]["balance"] < 0.01):
-					if not doc.produce_0_statements:
-						continue
-  
+			# Skip if no data at all and produce_0_statements is off
 			if len(customer_res) == 0:
 				if not doc.produce_0_statements:
 					continue
 
+			# For non-empty results: always produce if there's an outstanding balance,
+			# only check produce_0_statements flag when closing balance is 0
 			if len(customer_res) >= 1:
-				if customer_res[-1]["balance"] == 0:
+				closing_balance = customer_res[-1]["balance"]
+				# If closing balance is effectively 0, check the flag
+				if abs(closing_balance) < 0.01:
 					if not doc.produce_0_statements:
 						continue
+				# If closing balance is non-zero, always produce statement (no continue)
 
 				if doc.exclude_balances_below:
 					if customer_res[-1]["balance"] < float(doc.exclude_balances_below):
