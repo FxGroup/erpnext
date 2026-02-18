@@ -24,7 +24,11 @@ from erpnext.accounts.doctype.tax_withholding_category.tax_withholding_category 
 )
 from erpnext.accounts.general_ledger import get_round_off_account_and_cost_center
 from erpnext.accounts.party import get_due_date, get_party_account, get_party_details
-from erpnext.accounts.utils import cancel_exchange_gain_loss_journal, get_account_currency
+from erpnext.accounts.utils import (
+	cancel_exchange_gain_loss_journal,
+	get_account_currency,
+	update_voucher_outstanding,
+)
 from erpnext.assets.doctype.asset.depreciation import (
 	depreciate_asset,
 	get_disposal_account_and_cost_center,
@@ -691,7 +695,6 @@ class SalesInvoice(SellingController):
 			self.party_account_currency = frappe.db.get_value(
 				"Account", self.debit_to, "account_currency", cache=True
 			)
-   
 		if not self.due_date and self.customer:
 			self.due_date = get_due_date(
 				self.transaction_date,
@@ -1309,14 +1312,14 @@ class SalesInvoice(SellingController):
 				make_reverse_gl_entries(voucher_type=self.doctype, voucher_no=self.name)
 
 			if update_outstanding == "No":
-				from erpnext.accounts.doctype.gl_entry.gl_entry import update_outstanding_amt
-
-				update_outstanding_amt(
-					self.debit_to,
-					"Customer",
-					self.customer,
-					self.doctype,
-					self.return_against if cint(self.is_return) and self.return_against else self.name,
+				update_voucher_outstanding(
+					voucher_type=self.doctype,
+					voucher_no=self.return_against
+					if cint(self.is_return) and self.return_against
+					else self.name,
+					account=self.debit_to,
+					party_type="Customer",
+					party=self.customer,
 				)
 
 		elif self.docstatus == 2 and cint(self.update_stock) and cint(auto_accounting_for_stock):
@@ -1673,13 +1676,6 @@ class SalesInvoice(SellingController):
 
 	def make_write_off_gl_entry(self, gl_entries):
 		# write off entries, applicable if only pos
-		# if (
-		# 	self.is_pos
-		# 	and self.write_off_account
-		# 	and flt(self.write_off_amount, self.precision("write_off_amount"))
-		# ):
-
-		#Commenting out is_pos to revert to V13 compatability and also its just wrong
 		if (
 			self.write_off_account
 			and flt(self.write_off_amount, self.precision("write_off_amount"))
@@ -2217,7 +2213,9 @@ def make_delivery_note(source_name, target_doc=None):
 					"cost_center": "cost_center",
 				},
 				"postprocess": update_item,
-				"condition": lambda doc: doc.delivered_by_supplier != 1,
+				"condition": lambda doc: doc.delivered_by_supplier != 1
+				and not doc.dn_detail
+				and doc.qty - doc.delivered_qty > 0,
 			},
 			"Sales Taxes and Charges": {"doctype": "Sales Taxes and Charges", "reset_value": True},
 			"Sales Team": {
@@ -2593,6 +2591,7 @@ def set_purchase_references(doc):
 					parent_child_map,
 					warehouse_map,
 				)
+
 
 def update_pi_items(
 	doc,
