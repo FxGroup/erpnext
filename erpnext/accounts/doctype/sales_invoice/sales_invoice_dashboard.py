@@ -44,7 +44,7 @@ def get_data():
 			},
 			{
 				'label': _('Testing'),
-				'items': ['Sample']
+				'items': ['Sample','EndoAxis']
 			},
 			{
 				'label': 'Shipments',
