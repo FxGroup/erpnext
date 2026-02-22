@@ -136,7 +136,6 @@ def set_account_currency(filters):
 
 	return filters
 
-
 def get_result(filters, account_details):
 	accounting_dimensions = []
 	if filters.get("include_dimensions"):
@@ -1000,6 +999,9 @@ def get_columns(filters):
 		},
 	]
 
+	if filters.get("show_remarks"):
+		columns.append({"label": _("Remarks"), "fieldname": "remarks", "width": 400})
+
 	if filters.get("add_values_in_transaction_currency"):
 		columns += [
 			{
@@ -1106,7 +1108,6 @@ def get_columns(filters):
 				"width": 100,
 			},
 			{"label": _("Invoice No"), "fieldname": "bill_no", "fieldtype": "Data", "width": 100},
-			{"label": _("Remarks"), "fieldname": "remarks", "width": 400}
 		]
 	)
 
