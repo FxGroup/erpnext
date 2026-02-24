@@ -643,7 +643,6 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 	qty_required = float(qty_required)
 	doc = json.loads(doc)
 
-	
 	#Get batches and turn into dict
 	def get_batch():
 		batches = get_batches_by_oldest(item_code, warehouse)
@@ -768,6 +767,9 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 		batches_gotten['qty'] = batch_qty
 
 	for item in items_from_table:
+		if item['batch_no'] not in batch_dict:
+			continue
+
 		max_qty = float('inf')
 		min_qty = 0
 		if doc['doctype'] in ["Sales Invoice", "Purchase Invoice"]:
@@ -783,7 +785,7 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 		for i in range(len(results)):
 			result = results[i]
 			if result['name'] != 'new':
-				continue 
+				continue
 			if not item['batch_no'] or batch_dict[item['batch_no']][0]['result_qty'] >= batch_dict[item['batch_no']][0]['org_qty']:
 				if min_qty <= result['qty']:
 					if max_qty >= result['qty']:
