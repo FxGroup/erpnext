@@ -384,8 +384,9 @@ def get_statement_dict(doc, get_statement_dict=False):
 				customer_ageing = [customer]
 				break
 
+		individual_customer_outstanding = [v for v in outstanding if v.get("party") == entry.customer]
 		statement_dict[entry.customer] = (
-			[customer_res, customer_ageing] if get_statement_dict else get_html(doc, filters, entry, col, customer_res, customer_ageing, outstanding)
+			[customer_res, customer_ageing] if get_statement_dict else get_html(doc, filters, entry, col, customer_res, customer_ageing, individual_customer_outstanding)
 		)
 
 	logger.info("[Get Statement Dict] Completed statement dictionary generation. Total statements: {}".format(len(statement_dict)))
@@ -803,7 +804,7 @@ def send_emails(document_name, from_scheduler=False):
 
 			if not frappe.conf.production_site:
 				recipients = "it@fxmed.co.nz"
-    
+
 			enqueue_args = {
 				"queue":"short",
 				"method":frappe.sendmail,
