@@ -256,7 +256,7 @@ def get_bin_details(bin_name):
 	)
 
 
-def update_qty(bin_name, args):
+def update_qty(bin_name, args) -> dict:
 	from erpnext.controllers.stock_controller import future_sle_exists
 
 	bin_details = get_bin_details(bin_name)
@@ -284,19 +284,23 @@ def update_qty(bin_name, args):
 		- flt(bin_details.reserved_qty_for_production_plan)
 	)
 
-	frappe.db.set_value(
-		"Bin",
-		bin_name,
-		{
+	qtys = {
 			"actual_qty": actual_qty,
 			"ordered_qty": ordered_qty,
 			"reserved_qty": reserved_qty,
 			"indented_qty": indented_qty,
 			"planned_qty": planned_qty,
 			"projected_qty": projected_qty,
-		},
+	}
+
+	frappe.db.set_value(
+		"Bin",
+		bin_name,
+		qtys,
 		update_modified=True,
 	)
+
+	return qtys
 
 
 def get_actual_qty(item_code, warehouse):

@@ -26,6 +26,7 @@ import erpnext
 from erpnext.stock.doctype.bin.bin import update_qty as update_bin_qty
 from erpnext.stock.doctype.inventory_dimension.inventory_dimension import get_inventory_dimensions
 from erpnext.stock.doctype.serial_and_batch_bundle.serial_and_batch_bundle import (
+	SerialNoExistsInFutureTransactionError,
 	get_auto_batch_nos,
 )
 from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
@@ -47,6 +48,22 @@ from erpnext.stock.valuation import FIFOValuation, LIFOValuation, round_off_if_n
 class NegativeStockError(frappe.ValidationError):
 	pass
 
+def update_backorders(item_code, warehouse, actual_qty):
+	"""update backorders if any, based on the new actual qty after transaction"""
+
+	values = {"item_code": item_code, "warehouse": warehouse}
+	backorder_names = frappe.db.sql(
+		"""
+		SELECT bi.name FROM `tabBackorder Items` bi
+		JOIN `tabBackorder` bo ON bo.name = bi.parent
+		WHERE bi.item_code=%(item_code)s AND bo.warehouse=%(warehouse)s
+	""",
+		values=values,
+	)
+	backorder_names = [row[0] for row in backorder_names]
+
+	for bon in backorder_names:
+		frappe.db.set_value(dt="Backorder Items", dn=bon, field="actual_qty", val=actual_qty)
 
 def make_sl_entries(sl_entries, allow_negative_stock=False, via_landed_cost_voucher=False):
 	"""Create SL entries from SL entry dicts
@@ -101,7 +118,8 @@ def make_sl_entries(sl_entries, allow_negative_stock=False, via_landed_cost_vouc
 				bin_name = get_or_make_bin(args.get("item_code"), args.get("warehouse"))
 				args.reserved_stock = flt(frappe.db.get_value("Bin", bin_name, "reserved_stock"))
 				repost_current_voucher(args, allow_negative_stock, via_landed_cost_voucher)
-				update_bin_qty(bin_name, args)
+				qtys = update_bin_qty(bin_name, args)
+				update_backorders(args.get("item_code"), args.get("warehouse"), qtys.get("actual_qty"))
 			else:
 				frappe.msgprint(
 					_("Item {0} ignored since it is not a stock item").format(args.get("item_code"))
@@ -175,7 +193,7 @@ def validate_serial_no(sle):
 			msg += "</li></ul>"
 
 			title = "Cannot Submit" if not sle.get("is_cancelled") else "Cannot Cancel"
-			frappe.throw(_(msg), title=_(title), exc=SerialNoExistsInFutureTransaction)
+			frappe.throw(_(msg), title=_(title), exc=SerialNoExistsInFutureTransactionError)
 
 
 def validate_cancellation(kargs):
@@ -1675,9 +1693,7 @@ class update_entries_after:
 					allowed_qty = abs(exceptions[0]["actual_qty"]) - abs(exceptions[0]["diff"])
 
 					if allowed_qty > 0:
-						msg = "{} As {} units are reserved for other sales orders, you are allowed to consume only {} units.".format(
-							msg, frappe.bold(self.reserved_stock), frappe.bold(allowed_qty)
-						)
+						msg = f"{msg} As {frappe.bold(self.reserved_stock)} units are reserved for other sales orders, you are allowed to consume only {frappe.bold(allowed_qty)} units."
 					else:
 						msg = f"{msg} As the full stock is reserved for other sales orders, you're not allowed to consume the stock."
 
@@ -1775,7 +1791,7 @@ def get_previous_sle(args, for_update=False, extra_cond=None):
 	sle = get_stock_ledger_entries(
 		args, "<=", "desc", "limit 1", for_update=for_update, extra_cond=extra_cond
 	)
-	return sle and sle[0] or {}
+	return (sle and sle[0]) or {}
 
 
 def get_stock_ledger_entries(
@@ -1852,7 +1868,7 @@ def get_stock_ledger_entries(
 		{limit} {for_update}""".format(
 			conditions=conditions,
 			limit=limit or "",
-			for_update=for_update and "for update" or "",
+			for_update=(for_update and "for update") or "",
 			order=order,
 		),
 		previous_sle,
