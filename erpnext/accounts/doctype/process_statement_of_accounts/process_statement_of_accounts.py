@@ -20,6 +20,7 @@ from erpnext.accounts.report.accounts_receivable.accounts_receivable import (exe
 
 logger = frappe.logger("Process Statement of Account", allow_site=False, file_count=1, max_size=500000000)
 
+TESTING_SKIP_AMOUNT = 25
 
 class ProcessStatementOfAccounts(Document):
     from typing import TYPE_CHECKING
@@ -789,6 +790,12 @@ def send_emails(document_name, from_scheduler=False):
     if report:
         counter = 0
         logger.info("[Send Email] Starting email sending to {} customers".format(len(report)))
+        
+        use_counter = False
+        if len(report) > TESTING_SKIP_AMOUNT:
+            use_counter = True
+            logger.info("[Send Email] More than {} customers to send. Emails will be sent in batches of {} to avoid spamming.".format(TESTING_SKIP_AMOUNT, TESTING_SKIP_AMOUNT))
+
         for customer, report_pdf in report.items():
             attachments = [{"fname": doc.company + " - Statement of Account - " + customer + ".pdf", "fcontent": report_pdf}]
 
@@ -808,7 +815,8 @@ def send_emails(document_name, from_scheduler=False):
     
             counter += 1
 
-            if not frappe.conf.production_site and counter % 25 != 0:
+            if not frappe.conf.production_site and use_counter and counter % TESTING_SKIP_AMOUNT != 0:
+                logger.info("[Send Email] TESTING MODE: Skipping email sending for customer: {} to avoid spamming IT".format(customer))
                 continue
 
             enqueue_args = {
