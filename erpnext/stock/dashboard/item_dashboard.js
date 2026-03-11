@@ -1079,8 +1079,15 @@ function create_stock_entry(item_code, current_site, target_site, values, action
 		async: false,
 		callback: function (r) {
 			if (r.message) {
-				let entry_1 = `https://${r.message.current_site_url}/app/stock-entry/${r.message.transfer_entry}`;
-				let entry_2 = `https://${r.message.target_site_url}/app/stock-entry/${r.message.receipt_entry}`;
+				const toUrl = (siteUrl) => {
+					if (/^https?:\/\//.test(siteUrl)) return siteUrl;
+					const port = window.location.port;
+					const portSuffix = port && !['80', '443'].includes(port) && !/:\d+$/.test(siteUrl) ? `:${port}` : '';
+					return `${window.location.protocol}//${siteUrl}${portSuffix}`;
+				};
+				
+				let entry_1 = `${toUrl(r.message.current_site_url)}/app/stock-entry/${r.message.transfer_entry}`;
+				let entry_2 = `${toUrl(r.message.target_site_url)}/app/stock-entry/${r.message.receipt_entry}`;
 				
 				let message = `
 					<strong>Stock Transfer Successful!</strong><br><br>
