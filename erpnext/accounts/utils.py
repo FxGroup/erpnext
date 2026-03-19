@@ -493,6 +493,9 @@ def reconcile_against_document(
 				# referenced_row is used to deduplicate gain/loss journal
 				entry.update({"referenced_row": referenced_row.name})
 				doc.make_exchange_gain_loss_journal([entry], dimensions_dict)
+			elif voucher_type == "Sales Invoice":
+				# Credit note used as advance — no PE references table to update.
+				pass
 			else:
 				referenced_row = update_reference_in_payment_entry(
 					entry,
@@ -506,19 +509,22 @@ def reconcile_against_document(
 
 				reposting_rows.append(referenced_row)
 
-		doc.save(ignore_permissions=True)
+		# Sales Invoice credit notes have no references table and no build_gl_map;
+		# outstanding amounts are updated directly via update_voucher_outstanding below.
+		if voucher_type != "Sales Invoice":
+			doc.save(ignore_permissions=True)
 
-		if voucher_type == "Payment Entry" and doc.book_advance_payments_in_separate_party_account:
-			for row in reposting_rows:
-				doc.make_advance_gl_entries(entry=row)
-		else:
-			_delete_pl_entries(voucher_type, voucher_no)
-			gl_map = doc.build_gl_map()
-			# Make sure there is no overallocation
-			from erpnext.accounts.general_ledger import process_debit_credit_difference
+			if voucher_type == "Payment Entry" and doc.book_advance_payments_in_separate_party_account:
+				for row in reposting_rows:
+					doc.make_advance_gl_entries(entry=row)
+			else:
+				_delete_pl_entries(voucher_type, voucher_no)
+				gl_map = doc.build_gl_map()
+				# Make sure there is no overallocation
+				from erpnext.accounts.general_ledger import process_debit_credit_difference
 
-			process_debit_credit_difference(gl_map)
-			create_payment_ledger_entry(gl_map, update_outstanding="No", cancel=0, adv_adj=1)
+				process_debit_credit_difference(gl_map)
+				create_payment_ledger_entry(gl_map, update_outstanding="No", cancel=0, adv_adj=1)
 
 		# Only update outstanding for newly linked vouchers
 		for entry in entries:
@@ -529,6 +535,16 @@ def reconcile_against_document(
 				entry.party_type,
 				entry.party,
 			)
+
+			# For Sales Invoice credit note advances, also update the credit note's outstanding
+			if voucher_type == "Sales Invoice":
+				update_voucher_outstanding(
+					entry.voucher_type,
+					entry.voucher_no,
+					entry.account,
+					entry.party_type,
+					entry.party,
+				)
 		frappe.flags.ignore_party_validation = False
 
 
@@ -565,6 +581,19 @@ def check_if_advance_entry_modified(args):
 			)
 		)
 
+	elif args.voucher_type == "Sales Invoice":
+		sales_invoice = frappe.qb.DocType("Sales Invoice")
+
+		# Return invoices store outstanding_amount as a negative value
+		q = (
+			frappe.qb.from_(sales_invoice)
+			.select(sales_invoice.name)
+			.where(sales_invoice.name == args.get("voucher_no"))
+			.where(sales_invoice.docstatus == 1)
+			.where(sales_invoice.customer == args.get("party"))
+			.where(sales_invoice.outstanding_amount == -flt(args.get("unreconciled_amount")))
+		)
+
 	else:
 		payment_entry = frappe.qb.DocType("Payment Entry")
 		payment_ref = frappe.qb.DocType("Payment Entry Reference")
@@ -577,7 +606,7 @@ def check_if_advance_entry_modified(args):
 			.where(payment_entry.party_type == args.get("party_type"))
 			.where(payment_entry.party == args.get("party"))
 		)
-		precision = frappe.get_precision("Payment Entry", "unallocated_amount")
+  
 		if args.voucher_detail_no:
 			q = (
 				q.inner_join(payment_ref)
