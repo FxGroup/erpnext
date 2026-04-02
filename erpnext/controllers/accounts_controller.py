@@ -1585,7 +1585,11 @@ class AccountsController(TransactionBase):
 			include_unallocated,
 		)
 
-		res = journal_entries + payment_entries
+		credit_notes = get_advance_credit_notes(
+			party_type, party, self.company, party_account
+		)
+
+		res = journal_entries + payment_entries + credit_notes
 
 		return res
 
@@ -1891,7 +1895,12 @@ class AccountsController(TransactionBase):
 			party_account = self.credit_to
 			dr_or_cr = "debit_in_account_currency"
 
+		# Credit invoices (is_return=1) used as advances are routed separately to create a
+		# Credit Note Journal Entry linking the two invoices via reconcile_dr_cr_note.
+		credit_invoice_doctype = "Sales Invoice" if self.doctype == "Sales Invoice" else "Purchase Invoice"
+
 		lst = []
+		credit_note_lst = []
 		for d in self.get("advances"):
 			if flt(d.allocated_amount) > 0:
 				args = frappe._dict(
@@ -1927,18 +1936,43 @@ class AccountsController(TransactionBase):
 						"difference_posting_date": d.get("difference_posting_date"),
 					}
 				)
-				lst.append(args)
+				if d.reference_type == credit_invoice_doctype:
+					# Credit invoice advance — reconcile via Credit/Debit Note Journal Entry
+					args.update(
+						{
+							"currency": self.currency,
+							"difference_amount": flt(d.get("exchange_gain_loss")),
+							"cost_center": self.cost_center,
+							"debit_or_credit_note_posting_date": d.get("difference_posting_date")
+							or self.posting_date,
+						}
+					)
+					credit_note_lst.append(args)
+				else:
+					lst.append(args)
+
+		active_dimensions = get_dimensions()[0]
 
 		if lst:
 			from erpnext.accounts.utils import reconcile_against_document
 
 			# pass dimension values to utility method
-			active_dimensions = get_dimensions()[0]
 			for x in lst:
 				for dim in active_dimensions:
 					if self.get(dim.fieldname):
 						x.update({dim.fieldname: self.get(dim.fieldname)})
 			reconcile_against_document(lst, active_dimensions=active_dimensions)
+
+		if credit_note_lst:
+			from erpnext.accounts.doctype.payment_reconciliation.payment_reconciliation import (
+				reconcile_dr_cr_note,
+			)
+
+			for x in credit_note_lst:
+				for dim in active_dimensions:
+					if self.get(dim.fieldname):
+						x.update({dim.fieldname: self.get(dim.fieldname)})
+			reconcile_dr_cr_note(credit_note_lst, self.company, active_dimensions=active_dimensions)
 
 	def cancel_system_generated_credit_debit_notes(self):
 		# Cancel 'Credit/Debit' Note Journal Entries, if found.
@@ -3401,6 +3435,44 @@ def get_advance_payment_entries(
 		unallocated = list(q.run(as_dict=True))
 		payment_entries += unallocated
 	return payment_entries
+
+
+def get_advance_credit_notes(party_type, party, company, party_account):
+	if party_type == "Customer":
+		invoice_dt = frappe.qb.DocType("Sales Invoice")
+		party_field = invoice_dt.customer
+		account_field = invoice_dt.debit_to
+		ref_type = "Sales Invoice"
+	else:
+		invoice_dt = frappe.qb.DocType("Purchase Invoice")
+		party_field = invoice_dt.supplier
+		account_field = invoice_dt.credit_to
+		ref_type = "Purchase Invoice"
+
+	q = (
+		frappe.qb.from_(invoice_dt)
+		.select(
+			ConstantColumn(ref_type).as_("reference_type"),
+			(invoice_dt.name).as_("reference_name"),
+			(invoice_dt.name).as_("remarks"),
+			invoice_dt.outstanding_amount,
+			(invoice_dt.posting_date),
+			ConstantColumn(None).as_("reference_row"),
+			(invoice_dt.conversion_rate).as_("exchange_rate"),
+		)
+		.where(invoice_dt.docstatus == 1)
+		.where(invoice_dt.is_return == 1)
+		.where(party_field == party)
+		.where(invoice_dt.company == company)
+		.where(account_field.isin(party_account))
+		.where(invoice_dt.outstanding_amount < 0)
+		.orderby(invoice_dt.posting_date)
+	)
+
+	rows = q.run(as_dict=True)
+	for row in rows:
+		row.amount = -flt(row.outstanding_amount)
+	return list(rows)
 
 
 def get_common_query(

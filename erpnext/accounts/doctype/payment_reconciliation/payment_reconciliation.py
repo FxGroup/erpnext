@@ -272,7 +272,7 @@ class PaymentReconciliation(Document):
 		if self.payment_limit:
 			journal_query = journal_query.limit(self.payment_limit)
 
-		journal_entries = journal_query.run(as_dict=True, debug=True)
+		journal_entries = journal_query.run(as_dict=True)
 
 		return list(journal_entries)
 
