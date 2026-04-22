@@ -158,6 +158,22 @@ def create_journal_entry_bts(
 		fieldname=["name", "deposit", "withdrawal", "bank_account", "currency"],
 		as_dict=True,
 	)[0]
+ 
+
+	recent_jes = frappe.get_all(
+		"Journal Entry",
+		filters={
+			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-5)],
+			"credit_in_account_currency": bank_transaction.deposit,
+			"debit_in_account_currency": bank_transaction.withdrawal,
+			"docstatus": ["<", 2]
+		},
+		fields=["name", "creation"]
+	)
+	
+	if recent_jes:
+		frappe.throw(_("A journal entry ({0}) has just been created. Please refresh the page and check whether it is correctly reconciled.").format(recent_jes[0].name))
+  
 	company_account = frappe.get_value("Bank Account", bank_transaction.bank_account, "account")
 	account_type = frappe.db.get_value("Account", second_account, "account_type")
 	if account_type in ["Receivable", "Payable"]:
@@ -323,7 +339,20 @@ def create_payment_entry_bts(
 		fieldname=["name", "unallocated_amount", "deposit", "bank_account", "currency"],
 		as_dict=True,
 	)[0]
-
+ 
+	recent_payments = frappe.get_all(
+		"Payment Entry",
+		filters={
+			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-5)],
+			"paid_amount": bank_transaction.unallocated_amount,
+			"docstatus": ["<", 2]
+		},
+		fields=["name", "creation"]
+	)
+	
+	if recent_payments:
+		frappe.throw(_("A payment entry ({0}) has just been created. Please refresh the page and check whether it is correctly reconciled.").format(recent_payments[0].name))
+		
 	payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
 
 	bank_account = frappe.get_cached_value("Bank Account", bank_transaction.bank_account, "account")
