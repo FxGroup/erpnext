@@ -610,6 +610,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 	}
 
 	add_payment_entry(values) {
+		this.dialog.disable_primary_action();
 		frappe.call({
 			method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_payment_entry_bts",
 			args: {
@@ -634,8 +635,11 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				if (values.party && values.party_type){
 					this.route_to_payment_reconcile(values.party,values.party_type)
 				}
-				
+				this.dialog.enable_primary_action();			
 			},
+			error: () => {
+				this.dialog.enable_primary_action();
+			}	
 		});
 	}
 	route_to_payment_reconcile(party, party_type) {
