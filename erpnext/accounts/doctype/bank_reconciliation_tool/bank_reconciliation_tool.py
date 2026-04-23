@@ -160,6 +160,8 @@ def create_journal_entry_bts(
 	)[0]
  
 
+	frappe.db.sql("SELECT name FROM `tabBank Transaction` WHERE name = %s FOR UPDATE", bank_transaction_name)
+
 	recent_jes = frappe.get_all(
 		"Journal Entry",
 		filters={
@@ -170,7 +172,7 @@ def create_journal_entry_bts(
 		},
 		fields=["name", "creation"]
 	)
-	
+
 	if recent_jes:
 		frappe.throw(_("A journal entry ({0}) has just been created. Please refresh the page and check whether it is correctly reconciled.").format(recent_jes[0].name))
   
@@ -340,6 +342,9 @@ def create_payment_entry_bts(
 		as_dict=True,
 	)[0]
  
+	# Serialize concurrent requests for the same bank transaction to prevent duplicate entries
+	frappe.db.sql("SELECT name FROM `tabBank Transaction` WHERE name = %s FOR UPDATE", bank_transaction_name)
+
 	recent_payments = frappe.get_all(
 		"Payment Entry",
 		filters={
@@ -349,7 +354,7 @@ def create_payment_entry_bts(
 		},
 		fields=["name", "creation"]
 	)
-	
+
 	if recent_payments:
 		frappe.throw(_("A payment entry ({0}) has just been created. Please refresh the page and check whether it is correctly reconciled.").format(recent_payments[0].name))
 		

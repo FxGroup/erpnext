@@ -166,7 +166,11 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 			}
 		}
 
-		this.datatable.refresh(this.transactions, this.columns);
+		if (this.datatable.style && this.datatable.style.styleEl) {
+			this.datatable.refresh(this.transactions, this.columns);
+		} else {
+			this.make_dt();
+		}
 
 		if (this.transactions.length == 0) {
 			this.$reconciliation_tool_dt.hide();

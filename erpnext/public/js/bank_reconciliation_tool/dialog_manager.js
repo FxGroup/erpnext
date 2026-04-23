@@ -603,8 +603,8 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 			callback: (response) => {
 				const alert_string = __("Bank Transaction {0} Matched", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
+				this.update_dt_cards(response.message);
 			},
 		});
 	}
@@ -630,12 +630,12 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					this.bank_transaction.name,
 				]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
+				this.dialog.enable_primary_action();
+				this.update_dt_cards(response.message);
 				if (values.party && values.party_type){
 					this.route_to_payment_reconcile(values.party,values.party_type)
 				}
-				this.dialog.enable_primary_action();			
 			},
 			error: () => {
 				this.dialog.enable_primary_action();
@@ -671,8 +671,8 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					this.bank_transaction.name,
 				]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
+				this.update_dt_cards(response.message);
 				if (values.party && values.party_type && values.party.length > 0){
 					this.route_to_payment_reconcile(values.party,values.party_type)
 				}
@@ -692,8 +692,8 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 			callback: (response) => {
 				const alert_string = __("Bank Transaction {0} updated", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
+				this.update_dt_cards(response.message);
 			},
 		});
 	}
@@ -713,7 +713,10 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				return;
 			}
 		}
-		
+
+		const btn = this.dialog.fields_dict.edit_in_full_page.$input;
+		btn.prop("disabled", true);
+
 		if (values.document_type == "Payment Entry") {
 			frappe.call({
 				method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_payment_entry_bts",
@@ -735,6 +738,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					const doc = frappe.model.sync(r.message);
 					frappe.set_route("Form", doc[0].doctype, doc[0].name);
 				},
+				error: () => btn.prop("disabled", false),
 			});
 		} else {
 			frappe.call({
@@ -757,6 +761,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					var doc = frappe.model.sync(r.message);
 					frappe.set_route("Form", doc[0].doctype, doc[0].name);
 				},
+				error: () => btn.prop("disabled", false),
 			});
 		}
 	}
