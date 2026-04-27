@@ -150,6 +150,8 @@ def get_result(filters, account_details):
 
 	data = get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances)
 
+	data = add_transaction_date_to_si(data)
+
 	result = get_result_as_list(data, filters)
 
 	return result
@@ -904,13 +906,45 @@ def get_sales_invoice_patient_details(filters):
 def add_transaction_date_to_si(data):
 	invoices = []
 	invoice_list = []
+	purchase_receipt_nos = []
+	purchase_invoice_nos = []
+
 	for item in data:
 		if item.get("voucher_type") == "Sales Invoice":
 			invoices.append(item["voucher_no"])
 			invoice_list.append(item)
-		if item.get("voucher_type") == "Purchase Receipt" and frappe.db.exists("Purchase Receipt", item["voucher_no"]):
-			item['party_type'] = "Supplier" 
-			item['party'] = frappe.get_value('Purchase Receipt', item["voucher_no"], 'supplier')
+		elif item.get("voucher_type") == "Purchase Receipt":
+			purchase_receipt_nos.append(item["voucher_no"])
+		elif item.get("voucher_type") == "Purchase Invoice":
+			purchase_invoice_nos.append(item["voucher_no"])
+
+	if purchase_receipt_nos:
+		pr_supplier_map = {
+			r.name: r.supplier
+			for r in frappe.get_all(
+				"Purchase Receipt",
+				filters=[["name", "in", purchase_receipt_nos]],
+				fields=["name", "supplier"],
+			)
+		}
+		for item in data:
+			if item.get("voucher_type") == "Purchase Receipt" and item["voucher_no"] in pr_supplier_map:
+				item["party_type"] = "Supplier"
+				item["party"] = pr_supplier_map[item["voucher_no"]]
+    
+	if purchase_invoice_nos:
+		pi_supplier_map = {
+			r.name: r.supplier
+			for r in frappe.get_all(
+				"Purchase Invoice",
+				filters=[["name", "in", purchase_invoice_nos]],
+				fields=["name", "supplier"],
+			)
+		}
+		for item in data:
+			if item.get("voucher_type") == "Purchase Invoice" and item["voucher_no"] in pi_supplier_map:
+				item["party_type"] = "Supplier"
+				item["party"] = pi_supplier_map[item["voucher_no"]]
 
 	invoice_dates = frappe.get_all("Sales Invoice", filters = [["name", "IN", invoices]], fields = ["name", "transaction_date"])
 	invoice_dict = {}
