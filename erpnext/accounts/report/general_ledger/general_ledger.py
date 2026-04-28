@@ -518,11 +518,32 @@ def set_bill_no(gl_entries, filters):
 				gl["patient_name"] = si_patient_details.get(gl.get("against_voucher"), {}).get("patient_name", "")
 
 
+def get_voucher_titles(gl_entries):
+	voucher_map = {}
+	for gle in gl_entries:
+		if gle.get("voucher_type") and gle.get("voucher_no"):
+			voucher_map.setdefault(gle.voucher_type, set()).add(gle.voucher_no)
+
+	title_map = {}
+	for voucher_type, voucher_nos in voucher_map.items():
+		meta = frappe.get_meta(voucher_type)
+		if not meta.get_field("title"):
+			continue
+		for r in frappe.get_all(voucher_type, filters={"name": ["in", list(voucher_nos)]}, fields=["name", "title"]):
+			title_map[r.name] = r.title or ""
+
+	return title_map
+
+
 def get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances=None):
 	data = []
 	totals_dict = get_totals_dict()
 
 	set_bill_no(gl_entries, filters)
+
+	title_map = get_voucher_titles(gl_entries)
+	for gle in gl_entries:
+		gle["title"] = title_map.get(gle.get("voucher_no"), "")
 
 	gle_map = initialize_gle_map(gl_entries, filters, totals_dict)
 
@@ -1075,6 +1096,12 @@ def get_columns(filters):
 			"fieldtype": "Dynamic Link",
 			"options": "voucher_type",
 			"width": 180,
+		},
+		{
+			"label": _("Title"),
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"width": 200,
 		},
 		{"label": _("Against Account"), "fieldname": "against", "width": 120},
 		{"label": _("Party Type"), "fieldname": "party_type", "width": 100},
