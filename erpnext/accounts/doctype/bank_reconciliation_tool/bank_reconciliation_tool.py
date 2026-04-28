@@ -165,16 +165,16 @@ def create_journal_entry_bts(
 	recent_jes = frappe.get_all(
 		"Journal Entry",
 		filters={
-			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-5)],
-			"credit_in_account_currency": bank_transaction.deposit,
-			"debit_in_account_currency": bank_transaction.withdrawal,
+			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-10)],
+			"total_debit": bank_transaction.deposit or bank_transaction.withdrawal,
 			"docstatus": ["<", 2]
 		},
 		fields=["name", "creation"]
 	)
 
 	if recent_jes:
-		frappe.throw(_("A journal entry ({0}) has just been created. Please refresh the page and check whether it is correctly reconciled.").format(recent_jes[0].name))
+		je_name = recent_jes[0].name
+		frappe.throw(_("A Journal Entry ({0}) with the same amount was just created. To help prevent duplicate entries, please allow a 10-second cooldown before trying again. If this entry looks correct, please refresh the page and verify it has been reconciled.").format(je_name))
   
 	company_account = frappe.get_value("Bank Account", bank_transaction.bank_account, "account")
 	account_type = frappe.db.get_value("Account", second_account, "account_type")
@@ -348,15 +348,18 @@ def create_payment_entry_bts(
 	recent_payments = frappe.get_all(
 		"Payment Entry",
 		filters={
-			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-5)],
+			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-10)],
 			"paid_amount": bank_transaction.unallocated_amount,
+			"party_type": party_type,
+			"party": party,
 			"docstatus": ["<", 2]
 		},
 		fields=["name", "creation"]
 	)
 
 	if recent_payments:
-		frappe.throw(_("A payment entry ({0}) has just been created. Please refresh the page and check whether it is correctly reconciled.").format(recent_payments[0].name))
+		pe_name = recent_payments[0].name
+		frappe.throw(_("A payment entry ({0}) with the same amount and party was just created. To help prevent duplicate entries, please allow a 10-second cooldown before trying again. If this entry looks correct, please refresh the page and verify it has been reconciled.").format(pe_name))
 		
 	payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
 
