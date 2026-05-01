@@ -649,11 +649,7 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 		batches = [batch for batch in batches if batch[0]['qty'] > 0]
 		batch_dict = {}
 		for batch in batches:
-			batch_date = batch[1]
-			if batch_date < datetime.date.today() + datetime.timedelta(days=365):
-				batch[0]['shortdated'] = 1
-			else:
-				batch[0]['shortdated'] = 0
+			batch[0]['shortdated'] = frappe.get_value("Batch", batch[0]['batch_no'], "is_shortdated") or 0
 			if type_required == "Longdated Only" and batch[0]['shortdated'] == 1:
 				continue
 			elif type_required == "Shortdated Only" and batch[0]['shortdated'] == 0:
@@ -881,14 +877,21 @@ def allocate_batches_table(doc, item_code, warehouse, type_required, qty_require
 			doc['items'].append(item)
 		for pricing_rule in free_item_results:
 			qty_required += free_item_results[pricing_rule]['qty']
+		paid_item_shortdated = next(
+			(int(i.get('shortdated_batch') or 0) for i in doc['items']
+			 if i['item_code'] == item_code and not i.get('is_free_item')),
+			0
+		)
 		for key in batch_dict:
 			if qty_required <= 0:
 				break
 			batches_gotten = batch_dict[key][0]
-			
+			if batches_gotten['shortdated'] != paid_item_shortdated:
+				continue
+
 			batch_no = batches_gotten['batch_no']
 			batch_qty = batches_gotten['qty']
-			
+
 			for key, value in free_item_results.items():
 				if batch_qty <= 0:
 					break
