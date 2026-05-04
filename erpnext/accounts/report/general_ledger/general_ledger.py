@@ -926,14 +926,12 @@ def get_sales_invoice_patient_details(filters):
 
 def add_transaction_date_to_si(data):
 	invoices = []
-	invoice_list = []
 	purchase_receipt_nos = []
 	purchase_invoice_nos = []
 
 	for item in data:
 		if item.get("voucher_type") == "Sales Invoice":
 			invoices.append(item["voucher_no"])
-			invoice_list.append(item)
 		elif item.get("voucher_type") == "Purchase Receipt":
 			purchase_receipt_nos.append(item["voucher_no"])
 		elif item.get("voucher_type") == "Purchase Invoice":
@@ -952,7 +950,7 @@ def add_transaction_date_to_si(data):
 			if item.get("voucher_type") == "Purchase Receipt" and item["voucher_no"] in pr_supplier_map:
 				item["party_type"] = "Supplier"
 				item["party"] = pr_supplier_map[item["voucher_no"]]
-    
+
 	if purchase_invoice_nos:
 		pi_supplier_map = {
 			r.name: r.supplier
@@ -967,27 +965,20 @@ def add_transaction_date_to_si(data):
 				item["party_type"] = "Supplier"
 				item["party"] = pi_supplier_map[item["voucher_no"]]
 
-	invoice_dates = frappe.get_all("Sales Invoice", filters = [["name", "IN", invoices]], fields = ["name", "transaction_date"])
-	invoice_dict = {}
+	invoice_dict = {
+		r.name: r.transaction_date
+		for r in frappe.get_all(
+			"Sales Invoice",
+			filters=[["name", "IN", invoices]],
+			fields=["name", "transaction_date"],
+		)
+	}
 
-	for item in invoice_dates:
-		invoice_dict[item["name"]] = item["transaction_date"]
-
-	for item in invoice_list:
-		if item.get("voucher_type") == "Sales Invoice":
-			item["transaction_date"] = invoice_dict[item["voucher_no"]]
-	
-	invoice_list.sort(key=lambda x: (x.get("transaction_date") or x.get("posting_date")))
-	invoice_list.reverse()
-
-	results = copy.copy(data)
-	counter = 0
 	for item in data:
 		if item.get("voucher_type") == "Sales Invoice":
-			results[counter] = invoice_list.pop()
-		counter += 1
+			item["transaction_date"] = invoice_dict.get(item["voucher_no"])
 
-	return results
+	return data
 
 def get_balance(row, balance, debit_field, credit_field):
 	balance += row.get(debit_field, 0) - row.get(credit_field, 0)
