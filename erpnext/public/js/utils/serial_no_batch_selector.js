@@ -933,8 +933,8 @@ erpnext.SerialBatchPackageSelector = class SerialBatchPackageSelector {
 			
 			if (this.has_batch && !this.has_serial_no) {
 				this.frm.doc.items.forEach(data => {
-					if(data.item_code == d.item_code) {
-						
+					if(data.item_code == d.item_code && data.ignore_pricing_rules == d.ignore_pricing_rules) {
+
 						this.dialog.fields_dict.batches.df.data.push({
 							'batch_no': data.batch_no,
 							'actual_qty': data.actual_qty,
@@ -1206,7 +1206,13 @@ erpnext.SerialBatchPackageSelector = class SerialBatchPackageSelector {
 
 				let row = ''
 				if (item.row_name != 'new' && !this.changed_rows.some(value => value.name === item.row_name) && item.row_name) {
-					row = this.frm.doc.items.find(i => i.name === item.row_name);
+					let found_row = this.frm.doc.items.find(i => i.name === item.row_name);
+					if (found_row && found_row.ignore_pricing_rules == this.item.ignore_pricing_rules) {
+						row = found_row;
+					} else {
+						frappe.flags.dialog_set = true;
+						row = this.frm.add_child("items", { ...this.item });
+					}
 				} else {
 					frappe.flags.dialog_set = true;
 					row = this.frm.add_child("items", { ...this.item });
@@ -1238,7 +1244,7 @@ erpnext.SerialBatchPackageSelector = class SerialBatchPackageSelector {
 				break
 			}
 			const element = this.frm.doc.items[index];
-			if (element.item_code === this.item_code && !changed_rows.some(value => value.name === element.name)) {
+			if (element.item_code === this.item_code && element.ignore_pricing_rules == this.item.ignore_pricing_rules && !changed_rows.some(value => value.name === element.name)) {
 				$(`.grid-row[data-name=${element.name}] .row-index  .hidden-xs`).css({ "border": "", "border-radius": "", "padding": "" });
 				this.frm.doc.items.splice(index, 1);
 			}
