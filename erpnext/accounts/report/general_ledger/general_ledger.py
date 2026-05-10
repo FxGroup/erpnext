@@ -862,10 +862,10 @@ def get_sales_invoice_details(filters):
 		conditions.append("name = %(voucher_no)s")
 
 	if filters.get("from_date"):
-		conditions.append("transaction_date >= %(from_date)s")
+		conditions.append("posting_date >= %(from_date)s")
 
 	if filters.get("to_date"):
-		conditions.append("transaction_date <= %(to_date)s")
+		conditions.append("posting_date <= %(to_date)s")
 
 	if filters.get("show_cancelled_entries") == False:
 		conditions.append("docstatus = 1")
@@ -878,7 +878,8 @@ def get_sales_invoice_details(filters):
 		from `tabSales Invoice`
 		where {condition_string}""",
 		filters,
-		as_dict=1
+		as_dict=1,
+		debug=1
 	):
 		inv_details[d.name] = {
 			"bill_no": d.po_no,
