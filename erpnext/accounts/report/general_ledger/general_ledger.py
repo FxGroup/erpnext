@@ -150,6 +150,8 @@ def get_result(filters, account_details):
 
 	data = get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances)
 
+	data = add_transaction_date_to_si(data)
+
 	result = get_result_as_list(data, filters)
 
 	return result
@@ -516,11 +518,32 @@ def set_bill_no(gl_entries, filters):
 				gl["patient_name"] = si_patient_details.get(gl.get("against_voucher"), {}).get("patient_name", "")
 
 
+def get_voucher_titles(gl_entries):
+	voucher_map = {}
+	for gle in gl_entries:
+		if gle.get("voucher_type") and gle.get("voucher_no"):
+			voucher_map.setdefault(gle.voucher_type, set()).add(gle.voucher_no)
+
+	title_map = {}
+	for voucher_type, voucher_nos in voucher_map.items():
+		meta = frappe.get_meta(voucher_type)
+		if not meta.get_field("title"):
+			continue
+		for r in frappe.get_all(voucher_type, filters={"name": ["in", list(voucher_nos)]}, fields=["name", "title"]):
+			title_map[r.name] = r.title or ""
+
+	return title_map
+
+
 def get_data_with_opening_closing(filters, account_details, accounting_dimensions, gl_entries, all_party_balances=None):
 	data = []
 	totals_dict = get_totals_dict()
 
 	set_bill_no(gl_entries, filters)
+
+	title_map = get_voucher_titles(gl_entries)
+	for gle in gl_entries:
+		gle["title"] = title_map.get(gle.get("voucher_no"), "")
 
 	gle_map = initialize_gle_map(gl_entries, filters, totals_dict)
 
@@ -839,10 +862,10 @@ def get_sales_invoice_details(filters):
 		conditions.append("name = %(voucher_no)s")
 
 	if filters.get("from_date"):
-		conditions.append("transaction_date >= %(from_date)s")
+		conditions.append("posting_date >= %(from_date)s")
 
 	if filters.get("to_date"):
-		conditions.append("transaction_date <= %(to_date)s")
+		conditions.append("posting_date <= %(to_date)s")
 
 	if filters.get("show_cancelled_entries") == False:
 		conditions.append("docstatus = 1")
@@ -855,7 +878,8 @@ def get_sales_invoice_details(filters):
 		from `tabSales Invoice`
 		where {condition_string}""",
 		filters,
-		as_dict=1
+		as_dict=1,
+		debug=1
 	):
 		inv_details[d.name] = {
 			"bill_no": d.po_no,
@@ -903,36 +927,59 @@ def get_sales_invoice_patient_details(filters):
 
 def add_transaction_date_to_si(data):
 	invoices = []
-	invoice_list = []
+	purchase_receipt_nos = []
+	purchase_invoice_nos = []
+
 	for item in data:
 		if item.get("voucher_type") == "Sales Invoice":
 			invoices.append(item["voucher_no"])
-			invoice_list.append(item)
-		if item.get("voucher_type") == "Purchase Receipt" and frappe.db.exists("Purchase Receipt", item["voucher_no"]):
-			item['party_type'] = "Supplier" 
-			item['party'] = frappe.get_value('Purchase Receipt', item["voucher_no"], 'supplier')
+		elif item.get("voucher_type") == "Purchase Receipt":
+			purchase_receipt_nos.append(item["voucher_no"])
+		elif item.get("voucher_type") == "Purchase Invoice":
+			purchase_invoice_nos.append(item["voucher_no"])
 
-	invoice_dates = frappe.get_all("Sales Invoice", filters = [["name", "IN", invoices]], fields = ["name", "transaction_date"])
-	invoice_dict = {}
+	if purchase_receipt_nos:
+		pr_supplier_map = {
+			r.name: r.supplier
+			for r in frappe.get_all(
+				"Purchase Receipt",
+				filters=[["name", "in", purchase_receipt_nos]],
+				fields=["name", "supplier"],
+			)
+		}
+		for item in data:
+			if item.get("voucher_type") == "Purchase Receipt" and item["voucher_no"] in pr_supplier_map:
+				item["party_type"] = "Supplier"
+				item["party"] = pr_supplier_map[item["voucher_no"]]
 
-	for item in invoice_dates:
-		invoice_dict[item["name"]] = item["transaction_date"]
+	if purchase_invoice_nos:
+		pi_supplier_map = {
+			r.name: r.supplier
+			for r in frappe.get_all(
+				"Purchase Invoice",
+				filters=[["name", "in", purchase_invoice_nos]],
+				fields=["name", "supplier"],
+			)
+		}
+		for item in data:
+			if item.get("voucher_type") == "Purchase Invoice" and item["voucher_no"] in pi_supplier_map:
+				item["party_type"] = "Supplier"
+				item["party"] = pi_supplier_map[item["voucher_no"]]
 
-	for item in invoice_list:
-		if item.get("voucher_type") == "Sales Invoice":
-			item["transaction_date"] = invoice_dict[item["voucher_no"]]
-	
-	invoice_list.sort(key=lambda x: (x.get("transaction_date") or x.get("posting_date")))
-	invoice_list.reverse()
+	invoice_dict = {
+		r.name: r.transaction_date
+		for r in frappe.get_all(
+			"Sales Invoice",
+			filters=[["name", "IN", invoices]],
+			fields=["name", "transaction_date"],
+		)
+	}
 
-	results = copy.copy(data)
-	counter = 0
 	for item in data:
 		if item.get("voucher_type") == "Sales Invoice":
-			results[counter] = invoice_list.pop()
-		counter += 1
+			item["transaction_date"] = invoice_dict.get(item["voucher_no"])
 
-	return results
+	return data
 
 def get_balance(row, balance, debit_field, credit_field):
 	balance += row.get(debit_field, 0) - row.get(credit_field, 0)
@@ -1041,6 +1088,12 @@ def get_columns(filters):
 			"fieldtype": "Dynamic Link",
 			"options": "voucher_type",
 			"width": 180,
+		},
+		{
+			"label": _("Title"),
+			"fieldname": "title",
+			"fieldtype": "Data",
+			"width": 200,
 		},
 		{"label": _("Against Account"), "fieldname": "against", "width": 120},
 		{"label": _("Party Type"), "fieldname": "party_type", "width": 100},

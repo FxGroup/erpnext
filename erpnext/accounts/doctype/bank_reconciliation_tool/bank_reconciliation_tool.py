@@ -158,6 +158,24 @@ def create_journal_entry_bts(
 		fieldname=["name", "deposit", "withdrawal", "bank_account", "currency"],
 		as_dict=True,
 	)[0]
+ 
+
+	frappe.db.sql("SELECT name FROM `tabBank Transaction` WHERE name = %s FOR UPDATE", bank_transaction_name)
+
+	recent_jes = frappe.get_all(
+		"Journal Entry",
+		filters={
+			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-10)],
+			"total_debit": bank_transaction.deposit or bank_transaction.withdrawal,
+			"docstatus": ["<", 2]
+		},
+		fields=["name", "creation"]
+	)
+
+	if recent_jes:
+		je_name = recent_jes[0].name
+		frappe.throw(_("A Journal Entry ({0}) with the same amount was just created. To help prevent duplicate entries, please allow a 10-second cooldown before trying again. If this entry looks correct, please refresh the page and verify it has been reconciled.").format(je_name))
+  
 	company_account = frappe.get_value("Bank Account", bank_transaction.bank_account, "account")
 	account_type = frappe.db.get_value("Account", second_account, "account_type")
 	if account_type in ["Receivable", "Payable"]:
@@ -323,7 +341,26 @@ def create_payment_entry_bts(
 		fieldname=["name", "unallocated_amount", "deposit", "bank_account", "currency"],
 		as_dict=True,
 	)[0]
+ 
+	# Serialize concurrent requests for the same bank transaction to prevent duplicate entries
+	frappe.db.sql("SELECT name FROM `tabBank Transaction` WHERE name = %s FOR UPDATE", bank_transaction_name)
 
+	recent_payments = frappe.get_all(
+		"Payment Entry",
+		filters={
+			"creation": [">=", frappe.utils.add_to_date(frappe.utils.now(), seconds=-10)],
+			"paid_amount": bank_transaction.unallocated_amount,
+			"party_type": party_type,
+			"party": party,
+			"docstatus": ["<", 2]
+		},
+		fields=["name", "creation"]
+	)
+
+	if recent_payments:
+		pe_name = recent_payments[0].name
+		frappe.throw(_("A payment entry ({0}) with the same amount and party was just created. To help prevent duplicate entries, please allow a 10-second cooldown before trying again. If this entry looks correct, please refresh the page and verify it has been reconciled.").format(pe_name))
+		
 	payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
 
 	bank_account = frappe.get_cached_value("Bank Account", bank_transaction.bank_account, "account")

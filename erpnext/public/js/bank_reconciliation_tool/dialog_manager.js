@@ -22,6 +22,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 	show_dialog(bank_transaction_name, update_dt_cards) {
 		this.bank_transaction_name = bank_transaction_name;
 		this.update_dt_cards = update_dt_cards;
+		this._unlock_submit();
 		frappe.call({
 			method: "frappe.client.get_value",
 			args: {
@@ -350,51 +351,51 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					};
 				},
 				onchange: function (values) {
-					if(cur_dialog && cur_dialog.fields_dict.second_account.value){
+					if (cur_dialog && cur_dialog.fields_dict.second_account.value) {
 						frappe.call({
-							method:"frappe.client.get_value",
+							method: "frappe.client.get_value",
 							args: {
-								doctype:"Account",
+								doctype: "Account",
 								filters: {
 									name: cur_dialog.fields_dict.second_account.value
 								},
-								fieldname:["account_type", "account_currency"]
+								fieldname: ["account_type", "account_currency"]
 							},
 							async: false,
-							callback: function(q) { 
+							callback: function (q) {
 								if (q.message.account_type != "Receivable" && q.message.account_type != "Payable") {
-									cur_dialog.set_df_property('party','hidden',1)
-									cur_dialog.set_value('party','')
-									cur_dialog.set_df_property('party_type','hidden',1)
-									cur_dialog.set_value('party_type','')
+									cur_dialog.set_df_property('party', 'hidden', 1)
+									cur_dialog.set_value('party', '')
+									cur_dialog.set_df_property('party_type', 'hidden', 1)
+									cur_dialog.set_value('party_type', '')
 								} else {
-									cur_dialog.set_df_property('party','hidden',0)
-									cur_dialog.set_df_property('party_type','hidden',0)
+									cur_dialog.set_df_property('party', 'hidden', 0)
+									cur_dialog.set_df_property('party_type', 'hidden', 0)
 								}
 								frappe.call({
 									method: 'frappe.client.get_value',
 									args: {
-									doctype: 'Bank Account',
-									name: cur_frm.doc.bank_account,
-									fieldname: 'account',
-									async: false,
+										doctype: 'Bank Account',
+										name: cur_frm.doc.bank_account,
+										fieldname: 'account',
+										async: false,
 									},
-									callback: function(r){
+									callback: function (r) {
 										frappe.call({
 											method: 'frappe.client.get_value',
 											args: {
-											doctype: 'Account',
-											name: r.message.account,
-											fieldname: 'account_currency',
-											async: false,
+												doctype: 'Account',
+												name: r.message.account,
+												fieldname: 'account_currency',
+												async: false,
 											},
-											callback: function(r){
-												if(q.message.account_currency != r.message.account_currency){
-													cur_dialog.set_value('multi_currency',1)
-													cur_dialog.set_df_property('multi_currency','hidden',0)
-												} else{
-													cur_dialog.set_value('multi_currency',0)
-													cur_dialog.set_df_property('multi_currency','hidden',1)
+											callback: function (r) {
+												if (q.message.account_currency != r.message.account_currency) {
+													cur_dialog.set_value('multi_currency', 1)
+													cur_dialog.set_df_property('multi_currency', 'hidden', 0)
+												} else {
+													cur_dialog.set_value('multi_currency', 0)
+													cur_dialog.set_df_property('multi_currency', 'hidden', 1)
 												}
 											}
 										});
@@ -410,7 +411,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				fieldname: "multi_currency",
 				fieldtype: "Check",
 				label: "Multi Currency",
-				depends_on:"eval:doc.action=='Create Voucher' && doc.document_type=='Journal Entry'",
+				depends_on: "eval:doc.action=='Create Voucher' && doc.document_type=='Journal Entry'",
 			},
 			{
 				fieldname: "party_type",
@@ -437,14 +438,14 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				onchange: function (values) {
 					if (cur_dialog && cur_dialog.fields_dict.action.value == "Create Voucher" && cur_dialog.fields_dict.document_type.value == "Payment Entry" && values.party_type == "Customer" && values.party) {
 						frappe.call({
-								method: 'frappe.client.get_value',
-								args: {
+							method: 'frappe.client.get_value',
+							args: {
 								doctype: 'Customer',
 								name: values.party,
 								fieldname: 'cost_center',
 								async: false,
 							},
-							callback: function(r){
+							callback: function (r) {
 							}
 						});
 					}
@@ -603,13 +604,30 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 			callback: (response) => {
 				const alert_string = __("Bank Transaction {0} Matched", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
+				this.update_dt_cards(response.message);
 			},
 		});
 	}
 
+	_lock_submit() {
+		if (this._submitting) return false;
+		this._submitting = true;
+		const btn = this.dialog.get_primary_btn();
+		btn.prop("disabled", true)
+			.css("pointer-events", "none")
+		return true;
+	}
+
+	_unlock_submit() {
+		this._submitting = false;
+		const btn = this.dialog.get_primary_btn();
+		btn.prop("disabled", false)
+			.css("pointer-events", "")
+	}
+
 	add_payment_entry(values) {
+		if (!this._lock_submit()) return;
 		frappe.call({
 			method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_payment_entry_bts",
 			args: {
@@ -629,13 +647,15 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					this.bank_transaction.name,
 				]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
-				if (values.party && values.party_type){
-					this.route_to_payment_reconcile(values.party,values.party_type)
+				this.update_dt_cards(response.message);
+				if (values.party && values.party_type) {
+					this.route_to_payment_reconcile(values.party, values.party_type)
 				}
-				
 			},
+			error: () => {
+				this._unlock_submit();
+			}
 		});
 	}
 	route_to_payment_reconcile(party, party_type) {
@@ -646,6 +666,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 		});
 	}
 	add_journal_entry(values) {
+		if (!this._lock_submit()) return;
 		frappe.call({
 			method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_journal_entry_bts",
 			args: {
@@ -667,11 +688,14 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					this.bank_transaction.name,
 				]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
-				if (values.party && values.party_type && values.party.length > 0){
-					this.route_to_payment_reconcile(values.party,values.party_type)
+				this.update_dt_cards(response.message);
+				if (values.party && values.party_type && values.party.length > 0) {
+					this.route_to_payment_reconcile(values.party, values.party_type)
 				}
+			},
+			error: () => {
+				this._unlock_submit();
 			},
 		});
 	}
@@ -688,8 +712,8 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 			callback: (response) => {
 				const alert_string = __("Bank Transaction {0} updated", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
-				this.update_dt_cards(response.message);
 				this.dialog.hide();
+				this.update_dt_cards(response.message);
 			},
 		});
 	}
@@ -709,7 +733,11 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				return;
 			}
 		}
-		
+
+		if (!this._lock_submit()) return;
+		const btn = this.dialog.fields_dict.edit_in_full_page.$input;
+		btn.prop("disabled", true);
+
 		if (values.document_type == "Payment Entry") {
 			frappe.call({
 				method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_payment_entry_bts",
@@ -731,6 +759,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					const doc = frappe.model.sync(r.message);
 					frappe.set_route("Form", doc[0].doctype, doc[0].name);
 				},
+				error: () => { this._unlock_submit(); btn.prop("disabled", false); },
 			});
 		} else {
 			frappe.call({
@@ -753,6 +782,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					var doc = frappe.model.sync(r.message);
 					frappe.set_route("Form", doc[0].doctype, doc[0].name);
 				},
+				error: () => { this._unlock_submit(); btn.prop("disabled", false); },
 			});
 		}
 	}
