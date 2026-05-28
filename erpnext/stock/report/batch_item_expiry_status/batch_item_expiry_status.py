@@ -20,21 +20,22 @@ def validate_filters(filters):
 	if not filters:
 		frappe.throw(_("Please select the required filters"))
 
-	if not filters.get("from_date"):
-		frappe.throw(_("'From Date' is required"))
+	if not filters.get("exp_from_date"):
+		frappe.throw(_("'Expiry From Date' is required"))
 
-	if not filters.get("to_date"):
-		frappe.throw(_("'To Date' is required"))
+	if not filters.get("exp_to_date"):
+		frappe.throw(_("'Expiry To Date' is required"))
 
 
 def get_columns():
 	return [
-		_("Item") + ":Link/Item:150",
-		_("Item Name") + "::150",
-		_("Batch") + ":Link/Batch:150",
-		_("Stock UOM") + ":Link/UOM:100",
-		_("Quantity") + ":Float:100",
+		_("Product ID") + ":Data/Item:190",
+		_("Item") + ":Link/Item:190",
+		_("Item Name") + "::200",
+		_("Batch") + ":Link/Batch:350",
+		_("UOM") + ":Link/UOM:60",
 		_("Expires On") + ":Date:100",
+		_("Quantity") + ":Int:100",
 		_("Expiry (In Days)") + ":Int:130",
 	]
 
@@ -45,6 +46,7 @@ def get_data(filters):
 	for batch in get_batch_details(filters):
 		data.append(
 			[
+				batch.product_id,
 				batch.item,
 				batch.item_name,
 				batch.name,
@@ -67,6 +69,7 @@ def get_batch_details(filters):
 		.select(
 			batch.name,
 			batch.creation,
+   			batch.product_id,
 			batch.expiry_date,
 			batch.item,
 			batch.item_name,
@@ -76,10 +79,15 @@ def get_batch_details(filters):
 		.where(
 			(batch.disabled == 0)
 			& (batch.batch_qty > 0)
-			& ((Date(batch.creation) >= filters["from_date"]) & (Date(batch.creation) <= filters["to_date"]))
+			& (Date(batch.expiry_date) >= filters["exp_from_date"])
+			& (Date(batch.expiry_date) <= filters["exp_to_date"])
 		)
-		.orderby(batch.creation)
+		.orderby(batch.expiry_date)
 	)
+
+	if filters.get("expiry_in_days") is not None:
+		cutoff = frappe.utils.add_days(frappe.utils.today(), int(filters["expiry_in_days"]))
+		query = query.where(Date(batch.expiry_date) <= cutoff)
 
 	if filters.get("item"):
 		query = query.where(batch.item == filters["item"])
