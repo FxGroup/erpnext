@@ -51,8 +51,8 @@ def get_data(filters):
 				batch.item_name,
 				batch.name,
 				batch.stock_uom,
-				batch.batch_qty,
 				batch.expiry_date,
+				batch.batch_qty,
 				max((batch.expiry_date - frappe.utils.datetime.date.today()).days, 0)
 				if batch.expiry_date
 				else None,
