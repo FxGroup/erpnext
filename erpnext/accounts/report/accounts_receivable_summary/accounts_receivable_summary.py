@@ -52,6 +52,23 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			or {}
 		)
 
+		converting = self.filters.get("convert_currency") or self.filters.get("in_party_currency")
+		party_advance_amount_in_account_currency = (
+			(
+				get_partywise_advanced_payment_amount(
+					self.party_type,
+					self.filters.report_date,
+					self.filters.show_future_payments,
+					self.filters.company,
+					party=party,
+					in_account_currency=True,
+				)
+				or {}
+			)
+			if converting
+			else {}
+		)
+
 		if self.filters.show_gl_balance:
 			gl_balance_map = get_gl_balance(
 				report_date=self.filters.report_date, 
@@ -86,6 +103,10 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			# but in summary report advance shown in separate column
 			row.paid -= row.advance
 
+			if converting:
+				row.advance_in_account_currency = party_advance_amount_in_account_currency.get(party, 0)
+				row.paid_in_account_currency -= row.advance_in_account_currency
+
 			if self.filters.show_gl_balance:
 				party_gl_balance = gl_balance_map.get(party) or {}
 				row.gl_balance = party_gl_balance.get('balance', 0)
@@ -98,9 +119,10 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 				row.remaining_balance_in_account_currency = flt(row.outstanding_in_account_currency) - flt(row.future_amount_in_account_currency)
 
 			# Perform currency conversion if the filter is enabled
-			if self.filters.get("in_party_currency") and row.currency != self.company_currency:
+			if converting and row.currency != self.company_currency:
 				# Change the fields to the _in_account_currency versions
 				amount_fields = [
+					"advance",
 					"invoiced",
 					"paid",
 					"credit_note",
@@ -165,7 +187,10 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		)
 
 	def set_party_details(self, row):
-		self.party_total[row.party].currency = row.currency
+		if self.filters.get("convert_currency") or self.filters.get("in_party_currency"):
+			self.party_total[row.party].currency = row.account_currency or row.currency
+		else:
+			self.party_total[row.party].currency = row.currency
 
 		for key in ("territory", "customer_group", "supplier_group", "customer_status"):
 			if row.get(key):

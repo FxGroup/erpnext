@@ -497,6 +497,7 @@ def set_bill_no(gl_entries, filters):
 	
 	for gl in gl_entries:
 		gl["bill_no"] = ""
+		gl["external_po_no"] = ""
 		gl["outstanding_amount"] = 0
 		gl["due_date"] = ""
 		gl["transaction_date"] = ""
@@ -511,6 +512,7 @@ def set_bill_no(gl_entries, filters):
 			gl["transaction_date"] = inv_details.get(gl.get("against_voucher"), {}).get("transaction_date", "")
 		elif gl.get("voucher_type") == "Sales Invoice":
 			gl["bill_no"] = si_details.get(gl.get("against_voucher"), {}).get("bill_no", "")
+			gl["external_po_no"] = si_details.get(gl.get("against_voucher"), {}).get("external_po_no", "")
 			gl["outstanding_amount"] = si_details.get(gl.get("against_voucher"), {}).get("outstanding_amount", 0)
 			gl["due_date"] = si_details.get(gl.get("against_voucher"), {}).get("due_date", "")
 			gl["transaction_date"] = si_details.get(gl.get("against_voucher"), {}).get("transaction_date", "")
@@ -874,7 +876,7 @@ def get_sales_invoice_details(filters):
 
 	inv_details = {}
 	for d in frappe.db.sql(
-		f"""select name, po_no, outstanding_amount, due_date, transaction_date
+		f"""select name, po_no, external_po_no, outstanding_amount, due_date, transaction_date
 		from `tabSales Invoice`
 		where {condition_string}""",
 		filters,
@@ -883,6 +885,7 @@ def get_sales_invoice_details(filters):
 	):
 		inv_details[d.name] = {
 			"bill_no": d.po_no,
+			"external_po_no": d.external_po_no,
 			"outstanding_amount": d.outstanding_amount,
 			"due_date": d.due_date,
 			"transaction_date": d.transaction_date

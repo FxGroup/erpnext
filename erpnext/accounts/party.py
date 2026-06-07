@@ -970,7 +970,7 @@ def get_party_shipping_address(doctype: str, name: str) -> str | None:
 
 
 def get_partywise_advanced_payment_amount(
-	party_type, posting_date=None, future_payment=0, company=None, party=None
+	party_type, posting_date=None, future_payment=0, company=None, party=None, in_account_currency=False
 ):
 	account_type = frappe.get_cached_value("Party Type", party_type, "account_type")
 
@@ -1001,8 +1001,10 @@ def get_partywise_advanced_payment_amount(
 	if invoice_doctypes := frappe.get_hooks("invoice_doctypes"):
 		query = query.where(ple.voucher_type.notin(invoice_doctypes))
 
+	amount_field = ple.amount_in_account_currency if in_account_currency else ple.amount
+
 	# Get advance amount from Receivable / Payable Account
-	party_ledger = query.select(Abs(Sum(ple.amount).as_("amount")))
+	party_ledger = query.select(Abs(Sum(amount_field).as_("amount")))
 	party_ledger = party_ledger.where(ple.amount < 0)
 	party_ledger = party_ledger.where(ple.against_voucher_no == ple.voucher_no)
 	party_ledger = party_ledger.where(
@@ -1013,7 +1015,7 @@ def get_partywise_advanced_payment_amount(
 	data = frappe._dict(data or {})
 
 	# Get advance amount from Advance Account
-	advance_ledger = query.select(Sum(ple.amount).as_("amount"), ple.account)
+	advance_ledger = query.select(Sum(amount_field).as_("amount"), ple.account)
 	advance_ledger = advance_ledger.where(
 		acc.root_type == ("Asset" if account_type == "Payable" else "Liability")
 	)
