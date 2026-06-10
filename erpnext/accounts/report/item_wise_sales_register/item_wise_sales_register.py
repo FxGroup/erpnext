@@ -10,11 +10,7 @@ from frappe.utils import flt
 from frappe.utils.nestedset import get_descendants_of
 from frappe.utils.xlsxutils import handle_html
 
-from erpnext.accounts.report.sales_register.sales_register import get_mode_of_payments
 from erpnext.accounts.report.utils import get_values_for_columns
-from erpnext.selling.report.item_wise_sales_history.item_wise_sales_history import (
-	get_customer_details,
-)
 
 
 def execute(filters=None):
@@ -30,10 +26,7 @@ def _execute(filters=None, additional_table_columns=None, additional_conditions=
 
 	item_list = get_items(filters, additional_table_columns, additional_conditions)
 	if item_list:
-		itemised_tax, tax_columns = get_tax_accounts(item_list, columns, company_currency)
-
-	mode_of_payments = get_mode_of_payments(set(d.parent for d in item_list))
-	so_dn_map = get_delivery_notes_against_sales_order(item_list)
+		itemised_tax, tax_columns, _ = get_tax_accounts(item_list, columns, company_currency)
 
 	data = []
 	total_row_map = {}
@@ -43,19 +36,20 @@ def _execute(filters=None, additional_table_columns=None, additional_conditions=
 	if filters.get("group_by"):
 		grand_total = get_grand_total(filters, "Sales Invoice")
 
-	customer_details = get_customer_details()
+	customer_set = {d.customer for d in item_list}
+	customer_details = {}
+	if customer_set:
+		for rec in frappe.get_all(
+			"Customer",
+			filters=[["name", "in", list(customer_set)]],
+			fields=["name", "customer_name", "customer_group"],
+		):
+			customer_details[rec.name] = frappe._dict(
+				{"customer_name": rec.customer_name, "customer_group": rec.customer_group}
+			)
 
 	for d in item_list:
 		customer_record = customer_details.get(d.customer)
-
-		delivery_note = None
-		if d.delivery_note:
-			delivery_note = d.delivery_note
-		elif d.so_detail:
-			delivery_note = ", ".join(so_dn_map.get(d.so_detail, []))
-
-		if not delivery_note and d.update_stock:
-			delivery_note = d.parent
 
 		row = {
 			"item_code": d.item_code,
@@ -68,13 +62,7 @@ def _execute(filters=None, additional_table_columns=None, additional_conditions=
 			"customer_name": customer_record.customer_name,
 			"customer_group": customer_record.customer_group,
 			**get_values_for_columns(additional_table_columns, d),
-			"debit_to": d.debit_to,
-			"mode_of_payment": ", ".join(mode_of_payments.get(d.parent, [])),
 			"territory": d.territory,
-			"project": d.project,
-			"company": d.company,
-			"sales_order": d.sales_order,
-			"delivery_note": d.delivery_note,
 			"income_account": get_income_account(d),
 			"cost_center": d.cost_center,
 			"stock_qty": d.stock_qty,
@@ -227,22 +215,6 @@ def get_columns(additional_table_columns, filters):
 	if additional_table_columns:
 		columns += additional_table_columns
 
-	columns += [
-		{
-			"label": _("Receivable Account"),
-			"fieldname": "debit_to",
-			"fieldtype": "Link",
-			"options": "Account",
-			"width": 80,
-		},
-		{
-			"label": _("Mode Of Payment"),
-			"fieldname": "mode_of_payment",
-			"fieldtype": "Data",
-			"width": 120,
-		},
-	]
-
 	if filters.get("group_by") != "Territory":
 		columns.extend(
 			[
@@ -257,34 +229,6 @@ def get_columns(additional_table_columns, filters):
 		)
 
 	columns += [
-		{
-			"label": _("Project"),
-			"fieldname": "project",
-			"fieldtype": "Link",
-			"options": "Project",
-			"width": 80,
-		},
-		{
-			"label": _("Company"),
-			"fieldname": "company",
-			"fieldtype": "Link",
-			"options": "Company",
-			"width": 80,
-		},
-		{
-			"label": _("Sales Order"),
-			"fieldname": "sales_order",
-			"fieldtype": "Link",
-			"options": "Sales Order",
-			"width": 100,
-		},
-		{
-			"label": _("Delivery Note"),
-			"fieldname": "delivery_note",
-			"fieldtype": "Link",
-			"options": "Delivery Note",
-			"width": 100,
-		},
 		{
 			"label": _("Income Account"),
 			"fieldname": "income_account",
@@ -535,6 +479,7 @@ def get_tax_accounts(
 
 	item_row_map = {}
 	tax_columns = {}
+	other_charges_columns = set()
 	invoice_item_row = {}
 	itemised_tax = {}
 	scrubbed_description_map = {}
@@ -548,6 +493,12 @@ def get_tax_accounts(
 	for d in item_list:
 		invoice_item_row.setdefault(d.parent, []).append(d)
 		item_row_map.setdefault(d.parent, {}).setdefault(d.item_code or d.item_name, []).append(d)
+
+	item_net_amount_map = {
+		(parent, item_code): sum(flt(d.base_net_amount) for d in rows)
+		for parent, items in item_row_map.items()
+		for item_code, rows in items.items()
+	}
 
 	conditions = ""
 	if doctype == "Purchase Invoice":
@@ -581,7 +532,7 @@ def get_tax_accounts(
 		.where(account_doctype.account_type == "Tax")
 	)
 
-	tax_accounts = query.run()
+	tax_accounts = set(query.run())
 
 	for (
 		_name,
@@ -602,6 +553,8 @@ def get_tax_accounts(
 		if scrubbed_description not in tax_columns and tax_amount:
 			# as description is text editor earlier and markup can break the column convention in reports
 			tax_columns[scrubbed_description] = description
+			if tuple([account_head]) not in tax_accounts:
+				other_charges_columns.add(scrubbed_description)
 
 		if item_wise_tax_detail:
 			try:
@@ -619,11 +572,10 @@ def get_tax_accounts(
 					if charge_type == "Actual" and not tax_rate:
 						tax_rate = "NA"
 
-					item_net_amount = sum(
-						[flt(d.base_net_amount) for d in item_row_map.get(parent, {}).get(item_code, [])]
-					)
+					item_rows = item_row_map.get(parent, {}).get(item_code, [])
+					item_net_amount = item_net_amount_map.get((parent, item_code), 0)
 
-					for d in item_row_map.get(parent, {}).get(item_code, []):
+					for d in item_rows:
 						item_tax_amount = (
 							flt((tax_amount * d.base_net_amount) / item_net_amount) if item_net_amount else 0
 						)
@@ -656,9 +608,18 @@ def get_tax_accounts(
 					}
 				)
 
+	# Suppress Tax columns that are the GST component of an already-suppressed shipping charge
+	# e.g. "Nationwide Tax" is suppressed if "Nationwide" is already in other_charges_columns
+	for scrubbed_desc in list(tax_columns.keys()):
+		if scrubbed_desc.endswith("_tax") and scrubbed_desc not in other_charges_columns:
+			if scrubbed_desc[:-4] in other_charges_columns:
+				other_charges_columns.add(scrubbed_desc)
+
 	tax_columns_list = list(tax_columns.keys())
 	tax_columns_list.sort()
 	for scrubbed_desc in tax_columns_list:
+		if scrubbed_desc in other_charges_columns:
+			continue
 		desc = tax_columns[scrubbed_desc]
 		columns.append(
 			{
@@ -710,7 +671,7 @@ def get_tax_accounts(
 		},
 	]
 
-	return itemised_tax, tax_columns_list
+	return itemised_tax, tax_columns_list, other_charges_columns
 
 
 def add_total_row(
