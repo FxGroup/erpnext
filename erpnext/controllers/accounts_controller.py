@@ -2493,6 +2493,7 @@ class AccountsController(TransactionBase):
 
 	def delink_advance_entries(self, linked_doc_name):
 		total_allocated_amount = 0
+		delinked = False
 		for adv in self.advances:
 			consider_for_total_advance = True
 			if adv.reference_name == linked_doc_name:
@@ -2500,6 +2501,7 @@ class AccountsController(TransactionBase):
 				frappe.qb.from_(doctype).delete().where(doctype.name == adv.name).run()
 
 				consider_for_total_advance = False
+				delinked = True
 
 			if consider_for_total_advance:
 				total_allocated_amount += flt(adv.allocated_amount, adv.precision("allocated_amount"))
@@ -2507,6 +2509,53 @@ class AccountsController(TransactionBase):
 		frappe.db.set_value(
 			self.doctype, self.name, "total_advance", total_allocated_amount, update_modified=False
 		)
+
+		if delinked:
+			self.total_advance = total_allocated_amount
+			self.update_payment_schedule_amounts()
+
+	def update_payment_schedule_amounts(self):
+		schedule = self.get("payment_schedule") or []
+		if not schedule:
+			return
+
+		conversion_rate = flt(self.get("conversion_rate")) or 1
+		base_grand_total = flt(self.get("base_rounded_total") or self.base_grand_total) - flt(
+			self.get("base_write_off_amount")
+		)
+		grand_total = flt(self.get("rounded_total") or self.grand_total) - flt(self.get("write_off_amount"))
+
+		if self.get("total_advance"):
+			if self.get("party_account_currency") == self.company_currency:
+				base_grand_total -= flt(self.get("total_advance"))
+				grand_total = flt(base_grand_total / conversion_rate, self.precision("grand_total"))
+			else:
+				grand_total -= flt(self.get("total_advance"))
+				base_grand_total = flt(grand_total * conversion_rate, self.precision("base_grand_total"))
+
+		for d in schedule:
+			if not d.invoice_portion:
+				continue
+
+			payment_amount = flt(grand_total * flt(d.invoice_portion) / 100, d.precision("payment_amount"))
+			base_payment_amount = flt(
+				base_grand_total * flt(d.invoice_portion) / 100, d.precision("base_payment_amount")
+			)
+
+			d.db_set(
+				{
+					"payment_amount": payment_amount,
+					"base_payment_amount": base_payment_amount,
+					"outstanding": flt(
+						payment_amount - flt(d.paid_amount) - flt(d.discounted_amount),
+						d.precision("outstanding"),
+					),
+					"base_outstanding": flt(
+						base_payment_amount - flt(d.base_paid_amount), d.precision("base_outstanding")
+					),
+				},
+				update_modified=False,
+			)
 
 	def group_similar_items(self):
 		grouped_items = {}
