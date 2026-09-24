@@ -8,7 +8,7 @@ from frappe import _, qb
 from frappe.model.document import Document
 from frappe.query_builder import Criterion
 from frappe.query_builder.functions import Abs, Sum
-from frappe.utils.data import comma_and
+from frappe.utils.data import comma_and, now
 
 from erpnext.accounts.utils import (
 	cancel_exchange_gain_loss_journal,
@@ -38,9 +38,18 @@ class UnreconcilePayment(Document):
 	# end: auto-generated types
 
 	def validate(self):
-		self.supported_types = ["Payment Entry", "Journal Entry"]
+		self.supported_types = ["Payment Entry", "Journal Entry", "Sales Invoice", "Purchase Invoice"]
 		if self.voucher_type not in self.supported_types:
 			frappe.throw(_("Only {0} are supported").format(comma_and(self.supported_types)))
+
+		if self.voucher_type in ["Sales Invoice", "Purchase Invoice"] and not frappe.db.get_value(
+			self.voucher_type, self.voucher_no, "is_return"
+		):
+			frappe.throw(
+				_("{0} {1} can only be unreconciled if it is a return").format(
+					_(self.voucher_type), frappe.bold(self.voucher_no)
+				)
+			)
 
 	@frappe.whitelist()
 	def get_allocations_from_payment(self):
@@ -48,6 +57,7 @@ class UnreconcilePayment(Document):
 			company=self.company,
 			doctype=self.voucher_type,
 			docname=self.voucher_no,
+			as_payment=True,
 		)
 
 	def add_references(self):
@@ -73,6 +83,50 @@ class UnreconcilePayment(Document):
 			)
 
 			frappe.db.set_value("Unreconcile Payment Entries", alloc.name, "unlinked", True)
+
+		if self.voucher_type in ["Sales Invoice", "Purchase Invoice"]:
+			self.restore_return_invoice_as_standalone()
+			self.show_return_unlinked_message()
+
+	def show_return_unlinked_message(self):
+		note_type = _("Credit Note") if self.voucher_type == "Sales Invoice" else _("Debit Note")
+		references = comma_and([x.reference_name for x in self.allocations])
+		frappe.msgprint(_("{0} {1} is un-linked from {2}").format(note_type, self.voucher_no, references))
+
+	def restore_return_invoice_as_standalone(self):
+		gle = qb.DocType("GL Entry")
+
+		for alloc in self.allocations:
+			(
+				qb.update(gle)
+				.set(gle.against_voucher_type, self.voucher_type)
+				.set(gle.against_voucher, self.voucher_no)
+				.set(gle.modified, now())
+				.set(gle.modified_by, frappe.session.user)
+				.where(
+					(gle.voucher_type == self.voucher_type)
+					& (gle.voucher_no == self.voucher_no)
+					& (gle.account == alloc.account)
+					& (gle.party_type == alloc.party_type)
+					& (gle.party == alloc.party)
+					& (gle.against_voucher.isnull())
+					& (gle.is_cancelled == 0)
+				)
+				.run()
+			)
+
+		frappe.db.set_value(
+			self.voucher_type, self.voucher_no, "update_outstanding_for_self", 1, update_modified=False
+		)
+
+		for alloc in self.allocations:
+			update_voucher_outstanding(
+				self.voucher_type,
+				self.voucher_no,
+				alloc.account,
+				alloc.party_type,
+				alloc.party,
+			)
 
 
 @frappe.whitelist()
@@ -103,13 +157,16 @@ def doc_has_references(doctype: str | None = None, docname: str | None = None):
 
 @frappe.whitelist()
 def get_linked_payments_for_doc(
-	company: str | None = None, doctype: str | None = None, docname: str | None = None
+	company: str | None = None,
+	doctype: str | None = None,
+	docname: str | None = None,
+	as_payment: bool = False,
 ) -> list:
 	if company and doctype and docname:
 		_dt = doctype
 		_dn = docname
 		ple = qb.DocType("Payment Ledger Entry")
-		if _dt in ["Sales Invoice", "Purchase Invoice"]:
+		if _dt in ["Sales Invoice", "Purchase Invoice"] and not as_payment:
 			criteria = [
 				(ple.company == company),
 				(ple.delinked == 0),
@@ -161,7 +218,8 @@ def get_linked_payments_for_doc(
 
 			res = query.run(as_dict=True)
 
-			res += get_linked_advances(company, _dn)
+			if _dt not in ["Sales Invoice", "Purchase Invoice"]:
+				res += get_linked_advances(company, _dn)
 
 			return res
 
