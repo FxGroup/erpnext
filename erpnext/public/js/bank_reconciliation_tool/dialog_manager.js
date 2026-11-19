@@ -51,6 +51,9 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 					r.message.payment_entry = 1;
 					r.message.journal_entry = 1;
 					r.message.payment_group = 1;
+					// FxGroup: the dialog is reused across transactions, so clear the previous CCs
+					r.message.cost_center = "";
+					r.message.je_cost_center = "";
 					this.dialog.set_values(r.message);
 					this.dialog.fields_dict.posting_date.value = r.message.date
 					this.dialog.fields_dict.reference_date.value = r.message.date
@@ -435,21 +438,33 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				options: "party_type",
 				mandatory_depends_on:
 					"eval:doc.action=='Create Voucher' && doc.document_type=='Payment Entry'",
-				onchange: function (values) {
-					if (cur_dialog && cur_dialog.fields_dict.action.value == "Create Voucher" && cur_dialog.fields_dict.document_type.value == "Payment Entry" && values.party_type == "Customer" && values.party) {
+				// FxGroup: onchange gets the input event, not values, and get_value ignores a `name` arg
+				onchange: function () {
+					const dialog = cur_dialog;
+					const party = dialog && dialog.get_value("party");
+					if (
+						dialog &&
+						dialog.fields_dict.action.value == "Create Voucher" &&
+						dialog.fields_dict.document_type.value == "Payment Entry" &&
+						dialog.get_value("party_type") == "Customer" &&
+						party
+					) {
 						frappe.call({
-							method: 'frappe.client.get_value',
+							method: "frappe.client.get_value",
 							args: {
-								doctype: 'Customer',
-								name: values.party,
-								fieldname: 'cost_center',
-								async: false,
+								doctype: "Customer",
+								filters: { name: party },
+								fieldname: "cost_center",
 							},
 							callback: function (r) {
-							}
+								// FxGroup: Customer.cost_center exists on fx/nm only
+								if (r.message && r.message.cost_center && dialog.fields_dict.cost_center) {
+									dialog.set_value("cost_center", r.message.cost_center);
+								}
+							},
 						});
 					}
-				}
+				},
 			},
 			{
 				fieldname: "je_cost_center",

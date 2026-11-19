@@ -832,7 +832,9 @@ def reconcile_dr_cr_note(dr_cr_notes, company, active_dimensions=None):
 		dimensions_dict = frappe._dict()
 		if active_dimensions:
 			for dim in active_dimensions:
-				dimensions_dict[dim.fieldname] = inv.get(dim.fieldname)
+				# FxGroup: skip empty values so a None cost_center cannot overwrite the row CC fallback
+				if inv.get(dim.fieldname):
+					dimensions_dict[dim.fieldname] = inv.get(dim.fieldname)
 
 		jv.accounts[0].update(dimensions_dict)
 		jv.accounts[1].update(dimensions_dict)

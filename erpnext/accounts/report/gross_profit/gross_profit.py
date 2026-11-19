@@ -920,8 +920,7 @@ class GrossProfitGenerator:
 			conditions += " and posting_date >= %(from_date)s"
 		if self.filters.to_date:
 			conditions += " and posting_date <= %(to_date)s"
-		if self.filters.cost_center:
-			conditions += " and `tabSales Invoice Item`.cost_center = %(cost_center)s"
+		# FxGroup: cost_center is filtered once below ("in" with child CCs), a "=" copy broke multi-CC
 		if self.filters.brand:
 			conditions += " and `tabSales Invoice Item`.brand = %(brand)s"
 

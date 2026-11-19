@@ -963,7 +963,8 @@ frappe.ui.form.on("Payment Entry", {
 			function (filters) {
 				frappe.flags.allocate_payment_amount = true;
 				frm.events.validate_filters_data(frm, filters);
-				frm.doc.cost_center = filters.cost_center;
+				// FxGroup: empty dialog values are omitted, so a blank CC filter wiped the header CC
+				if (filters.cost_center) frm.doc.cost_center = filters.cost_center;
 				frm.events.get_outstanding_documents(
 					frm,
 					filters,
@@ -1026,7 +1027,7 @@ frappe.ui.form.on("Payment Entry", {
 			payment_type: frm.doc.payment_type,
 			party: frm.doc.party,
 			party_account: frm.doc.payment_type == "Receive" ? frm.doc.paid_from : frm.doc.paid_to,
-			cost_center: frm.doc.cost_center,
+			// FxGroup: no header CC default, it filters the ledger and hides invoices with a NULL CC
 		};
 
 		for (let key in filters) {

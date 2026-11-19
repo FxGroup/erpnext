@@ -2365,6 +2365,9 @@ def create_gain_loss_journal(
 	else:
 		in_account_currency = 0
 
+	# FxGroup: drop empty dimensions so a cost_center=None cannot overwrite the given/default CC
+	dimensions = {k: v for k, v in (dimensions or {}).items() if v}
+
 	journal_account = frappe._dict(
 		{
 			"account": party_account,
