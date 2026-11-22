@@ -281,6 +281,7 @@ erpnext.utils.set_taxes = function (frm, triggered_from_field) {
 			billing_address:
 				frm.doc.customer || frm.doc.lead ? frm.doc.customer_address : frm.doc.supplier_address,
 			shipping_address: frm.doc.shipping_address_name,
+			temp_country_code: frm.doc.temporary_address ? frm.doc.country_code : null,
 		},
 		callback: function (r) {
 			if (r.message) {
