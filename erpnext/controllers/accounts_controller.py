@@ -63,12 +63,16 @@ from erpnext.controllers.print_settings import (
 )
 from erpnext.controllers.sales_and_purchase_return import validate_return
 from erpnext.exceptions import InvalidCurrency
+from erpnext.setup.doctype.brand.brand import get_brand_defaults
+from erpnext.setup.doctype.item_group.item_group import get_item_group_defaults
 from erpnext.setup.utils import get_exchange_rate
-from erpnext.stock.doctype.item.item import get_uom_conv_factor
+from erpnext.stock.doctype.item.item import get_item_defaults, get_uom_conv_factor
 from erpnext.stock.doctype.packed_item.packed_item import make_packing_list
 from erpnext.stock.get_item_details import (
 	_get_item_tax_template,
 	get_conversion_factor,
+	get_default_cost_center,
+	get_default_expense_account,
 	get_item_details,
 	get_item_tax_map,
 	get_item_warehouse,
@@ -3837,6 +3841,23 @@ def set_order_defaults(parent_doctype, parent_doctype_name, child_doctype, child
 		# Initialized value will update in parent validation
 		child_item.base_rate = 1
 		child_item.base_amount = 1
+
+		args = frappe._dict(
+			company=p_doc.company,
+			item_code=item.item_code,
+			supplier=p_doc.supplier,
+			project=p_doc.project,
+			cost_center=p_doc.cost_center,
+		)
+		item_defaults = get_item_defaults(item.item_code, p_doc.company)
+		item_group_defaults = get_item_group_defaults(item.item_code, p_doc.company)
+		brand_defaults = get_brand_defaults(item.item_code, p_doc.company)
+		child_item.expense_account = get_default_expense_account(
+			args, item_defaults, item_group_defaults, brand_defaults
+		)
+		child_item.cost_center = get_default_cost_center(
+			args, item_defaults, item_group_defaults, brand_defaults, p_doc.company
+		)
 	if child_doctype == "Sales Order Item":
 		child_item.warehouse = get_item_warehouse(item, p_doc, overwrite_warehouse=True)
 		if not child_item.warehouse:
