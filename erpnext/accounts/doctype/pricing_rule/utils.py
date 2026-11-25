@@ -50,6 +50,8 @@ def get_pricing_rules(args, doc=None, returnAll=False):
 
 	rules = []
 	pricing_rules = filter_pricing_rule_based_on_condition(pricing_rules, doc, args)
+	if doc and cint(doc.get("fxgroup_dropship")):
+		pricing_rules = [d for d in pricing_rules if d.price_or_product_discount == "Price"]
 
 	if not pricing_rules:
 		lookup_logger.info(f"No applicable pricing rules found after filtering. Returning empty list.")
@@ -654,6 +656,8 @@ def apply_pricing_rule_on_transaction(doc):
 	if pricing_rules:
 		pricing_rules = filter_pricing_rules_for_qty_amount(doc.total_qty, doc.total, pricing_rules)
 		pricing_rules = filter_pricing_rule_based_on_condition(pricing_rules, doc)
+		if cint(doc.get("fxgroup_dropship")):
+			pricing_rules = [d for d in pricing_rules if d.price_or_product_discount == "Price"]
 
 		if not pricing_rules:
 			remove_free_item(doc)
