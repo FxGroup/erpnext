@@ -49,6 +49,9 @@ def update_last_purchase_rate(doc, is_submit) -> None:
 def validate_for_items(doc) -> None:
 	items = []
 	for d in doc.get("items"):
+		if not d.item_code:
+			continue
+
 		set_stock_levels(row=d)  # update with latest quantities
 		item = validate_item_and_get_basic_data(row=d)
 		validate_stock_item_warehouse(row=d, item=item)

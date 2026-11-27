@@ -838,8 +838,8 @@ def get_mapped_purchase_invoice(source_name, target_doc=None, ignore_permissions
 		billed_qty = flt(get_billed_qty(obj.name))
 		target.qty = flt(obj.qty) - billed_qty
 
-		item = get_item_defaults(target.item_code, source_parent.company)
-		item_group = get_item_group_defaults(target.item_code, source_parent.company)
+		item = get_item_defaults(target.item_code, source_parent.company) if target.item_code else {}
+		item_group = get_item_group_defaults(target.item_code, source_parent.company) if target.item_code else {}
 		target.cost_center = (
 			obj.cost_center
 			or frappe.db.get_value("Project", obj.project, "cost_center")
