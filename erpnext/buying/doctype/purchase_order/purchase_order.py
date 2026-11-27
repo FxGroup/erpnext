@@ -809,6 +809,9 @@ def get_mapped_purchase_invoice(source_name, target_doc=None, ignore_permissions
 		args = json.loads(args)
 
 	def postprocess(source, target):
+		if not target.get("items"):
+			frappe.throw(f"All items on Purchase Order {source.name} have already been invoiced.")
+
 		target.flags.ignore_permissions = ignore_permissions
 		set_missing_values(source, target)
 
