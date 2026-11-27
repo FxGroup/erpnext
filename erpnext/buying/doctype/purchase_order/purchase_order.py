@@ -809,6 +809,9 @@ def get_mapped_purchase_invoice(source_name, target_doc=None, ignore_permissions
 		args = json.loads(args)
 
 	def postprocess(source, target):
+		if not target.get("items"):
+			frappe.throw(f"All items on Purchase Order {source.name} have already been invoiced.")
+
 		target.flags.ignore_permissions = ignore_permissions
 		set_missing_values(source, target)
 
@@ -838,8 +841,8 @@ def get_mapped_purchase_invoice(source_name, target_doc=None, ignore_permissions
 		billed_qty = flt(get_billed_qty(obj.name))
 		target.qty = flt(obj.qty) - billed_qty
 
-		item = get_item_defaults(target.item_code, source_parent.company)
-		item_group = get_item_group_defaults(target.item_code, source_parent.company)
+		item = get_item_defaults(target.item_code, source_parent.company) if target.item_code else {}
+		item_group = get_item_group_defaults(target.item_code, source_parent.company) if target.item_code else {}
 		target.cost_center = (
 			obj.cost_center
 			or frappe.db.get_value("Project", obj.project, "cost_center")
